@@ -33,6 +33,7 @@ def setApiKey(value)->bool:
         else:
             raise RuntimeError("Error {} from VIP : {}".format(res[1], res[2]))
     else:
+        global __apikey
         __apikey = value
         __headers['apikey'] = value
         return True
