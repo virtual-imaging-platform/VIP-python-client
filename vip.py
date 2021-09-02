@@ -52,6 +52,9 @@ def detect_errors(req)->tuple:
     [0]True if an error, [0]False otherwise
     If True, [1] and [2] are error details.
     """
+    if not req.headers['content-type'].startswith("application/json"):
+        return (False,)
+
     try:
         res = req.json()
     except:
