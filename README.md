@@ -1,3 +1,23 @@
+# Table of Contents
+
+[VIP Python Client](#vip-python-client)
+
+[VipSession](#vipsession)
+- [Introduction](#introduction)
+    - [Main Goal](#main-goal)
+    - [Prerequisites](#prerequisites)
+- [Get Started](#get-started)
+    - [Session Inputs](#session-inputs)
+    - [Basic Steps](#basic-steps)
+    - [Session Outputs](#session-outputs)
+- [Best Practices](#best-practices)
+    - [Use Session Shortcuts](#use-session-shortcuts)
+    - [Resume your Session](#resume-your-session)
+    - [Parallelize your Pipeline Runs with VIP](#parallelize-your-pipeline-runs-with-vip)
+    - [Run Two Sessions on the Same Dataset](#run-multiple-sessions-on-the-same-dataset)
+
+[Get a VIP API key](#get-a-vip-api-key)
+
 # VIP-python-client
 
 This module is used to communicate with the VIP api using the Python
@@ -32,21 +52,6 @@ If there's any VIP issues, functions will raise *RuntimeError* errors. See
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
 
 *Python client for the VIP API.*
-
-## Table of Contents
-
-- [Introduction](#introduction)
-    - [Main Goal](#main-goal)
-    - [Prerequisites](#prerequisites)
-- [Get Started](#get-started)
-    - [Session Inputs](#session-inputs)
-    - [Basic Steps](#basic-steps)
-    - [Session Outputs](#session-outputs)
-- [Best Practices](#best-practices)
-    - [Use Session Shortcuts](#use-session-shortcuts)
-    - [Resume your Session](#resume-your-session)
-    - [Parallelize your Pipeline Runs with VIP](#parallelize-your-pipeline-runs-with-vip)
-    - [Run Two Sessions on the Same Dataset](#run-multiple-sessions-on-the-same-dataset)
 
 ## Introduction
 
