@@ -1571,9 +1571,14 @@ class VipSession():
                     f"The following file does not exist on VIP:\n\t{file}"
             else: # Local path
                 # The file must exist (`strict=True`) & belong to _local_input_dir (`is_relative_to()`)
-                assert Path(file).resolve(strict=True)\
-                    .is_relative_to(Path(self._local_input_dir).resolve()),\
-                        f"The following file does not belong to this session's inputs:\n\t{file}"
+                try:
+                    assert Path(file).resolve(strict=True)\
+                        .is_relative_to(Path(self._local_input_dir).resolve()),\
+                            f"The following file does not belong to this session's inputs:\n\t{file}"
+                except:
+                    #Exception handled: caused by a Python version not supporting is_relative_to (which exists only from Python 3.9)
+                    if not os.path.exists(file):
+                        print(f"The following file does not belong to this session's inputs:\n\t{file}")
         # Browse the input parameters
         for param in parameters:
             # Skip irrelevant inputs
