@@ -1577,8 +1577,8 @@ class VipSession():
                             f"The following file does not belong to this session's inputs:\n\t{file}"
                 except:
                     #Exception handled: caused by a Python version not supporting is_relative_to (which exists only from Python 3.9)
-                    if not os.path.exists(file):
-                        print(f"The following file does not belong to this session's inputs:\n\t{file}")
+                    assert os.path.exists(file),\
+                        f"The following file does not exist:\n\t{file}"
         # Browse the input parameters
         for param in parameters:
             # Skip irrelevant inputs
