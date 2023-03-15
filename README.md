@@ -18,6 +18,8 @@
 
 [Get a VIP API key](#get-a-vip-api-key)
 
+---
+
 # VIP-python-client
 
 This module is used to communicate with the VIP api using the Python
@@ -46,6 +48,7 @@ If there's any VIP issues, functions will raise *RuntimeError* errors. See
 - an asynchronous version
 - missing a few optional parameters for some function (not important)
 
+---
 
 # VipSession
 
@@ -366,7 +369,21 @@ By default, running `finish()` on Session B will not remove its inputs (i.e., `m
 
 Besides saving memory on VIP servers, **clever use of input data can save a lot of time**, since there is no easy way to parallelize the upload and download steps between multiple sessions.
 
+## Improvements
+
+Short term features
+- Use of `pathlib` everywhere in the code for better maintenance
+- Launch pipelines with Girder files
+
+To improve user experience
+- Function describe_pipeline() to help novice users shaping the `input_settings` property
+- Function get() to easily get undeclared properties (`session_name`, `output_dir`) from a Session object
+
 ---
+
+# VipCI
+
+[Description to come]
 
 # Get a VIP API key
 
