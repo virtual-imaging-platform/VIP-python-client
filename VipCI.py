@@ -2,18 +2,16 @@ from __future__ import annotations
 import os
 import json
 import time
-from VipSession import VipSession
 import pathlib
 from warnings import warn
 
-import vip
 import girder_client
-
+import vip
+from VipSession import VipSession
 
 class VipCI(VipSession):
     """
     Python class to run VIP pipelines on datasets stored a Girder repository.
-
 
     1 "session" allows to run 1 pipeline with 1 parameter set (any number of pipeline runs).
     Minimal inputs:

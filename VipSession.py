@@ -3,7 +3,7 @@ import os
 import json
 import tarfile
 import time
-from pathlib import Path, WindowsPath, PurePosixPath
+import pathlib
 from warnings import warn
 
 import vip
@@ -1228,7 +1228,7 @@ class VipSession():
         # Set VIP output path (no check)
         if "vip_output_dir" in kwargs:
             self._vip_output_dir = kwargs.pop("vip_output_dir")
-        # Set the Input Settings (depends on the new VIP Input Path)
+        # Set the Input Settings (depends on the new vip_input_path)
         if "input_settings" in kwargs:
             self._input_settings = self._vip_input_settings(kwargs.pop("input_settings"))
         # Set Worflows Inventory (no check)
@@ -1358,14 +1358,14 @@ class VipSession():
                 return input_path
             # Check if _local_input_dir have been set
             assert self._local_input_dir, "Attribute `_local_input_dir` is unset."
-            # Create Path instances to handle the path accounting for the local OS
+            # Create PathLib instances to handle the path accounting for the local OS
                 # We use absolute path since relative ones are unpredictable
-            in_path = Path(input_path).resolve()
-            local_dir = Path(self._local_input_dir).resolve()
+            in_path = pathlib.Path(input_path).resolve()
+            local_dir = pathlib.Path(self._local_input_dir).resolve()
             # Check if `input_path` is indeed a local input path
             if in_path.is_relative_to(local_dir):
                 # Replace `local_input_dir`" by `vip_input_dir` in the path
-                new = PurePosixPath(self._vip_input_dir) / in_path.relative_to(local_dir)
+                new = pathlib.PurePosixPath(self._vip_input_dir) / in_path.relative_to(local_dir)
                 # Return the string version
                 return str(new)
             else:
@@ -1389,17 +1389,17 @@ class VipSession():
         invalid_for_windows = '<>:"?* '
         # If vip_output_path is a string : convert the path
         if isinstance(vip_output_path, str):
-            # Create Path instances to handle the path accounting for the local OS
+            # Create PathLib instances to handle the path accounting for the local OS
                 # (Both paths are already absolute)
-            vip_out_path = PurePosixPath(vip_output_path)
-            vip_out_dir = PurePosixPath(self._vip_output_dir)
+            vip_out_path = pathlib.PurePosixPath(vip_output_path)
+            vip_out_dir = pathlib.PurePosixPath(self._vip_output_dir)
             # Check if the input is indeed a VIP output path
             if vip_out_path.is_relative_to(vip_out_dir):
                 # Replace `vip_output_dir`" by `local_output_dir` in the path
-                new = Path(self._local_output_dir) / vip_out_path.relative_to(vip_out_dir)
+                new = pathlib.Path(self._local_output_dir) / vip_out_path.relative_to(vip_out_dir)
                 # Replace forbidden characters by '-' if current OS is windows
                 new_str = str(new)
-                if isinstance(new, WindowsPath):
+                if isinstance(new, pathlib.WindowsPath):
                     for char in invalid_for_windows: new_str = new_str.replace(char, '-')
                 # Return
                 return new_str
@@ -1571,8 +1571,8 @@ class VipSession():
                     f"The following file does not exist on VIP:\n\t{file}"
             else: # Local path
                 # The file must exist (`strict=True`) & belong to _local_input_dir (`is_relative_to()`)
-                assert Path(file).resolve(strict=True)\
-                    .is_relative_to(Path(self._local_input_dir).resolve()),\
+                assert pathlib.Path(file).resolve(strict=True)\
+                    .is_relative_to(pathlib.Path(self._local_input_dir).resolve()),\
                         f"The following file does not belong to this session's inputs:\n\t{file}"
         # Browse the input parameters
         for param in parameters:
