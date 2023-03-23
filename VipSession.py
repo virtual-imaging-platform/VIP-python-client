@@ -922,89 +922,139 @@ class VipSession():
         return done
     # ------------------------------------------------    
 
-    # Method to create a directory leaf on the top of any path
+    # Method to create a distant or local directory leaf on the top of any path
     @classmethod
-    def _make_dir(cls, path, location="local") -> str:
+    def _make_dir(cls, path, location="girder", **kwargs) -> str:
         """
         Creates each non-existent directory in `path` :
         - locally if `location` is "local";
-        - on VIP servers if `location` is "vip".
+        - on Girder if `location` is "girder".
+
+        `kwargs` can be passed as additional arguments to the girder-client method `createFolder()`.
         Returns the newly created part of `path` (empty string if `path` already exists).
         """
-        # Case : empty path
-        if not path:
+        # Create a PathLib object depending on the location
+        if location == "local":
+            path = pathlib.PurePath(path)
+        else:
+            path = pathlib.PurePosixPath(path)
+        # Case : the current path exists
+        if cls._exists(path=path, location=location) :
             return ""
-        # Case : the tree leaf already exists
-            # Path location is checked by the way, 
-            # along with user connexion with VIP (if needed).
-        if location == "local": 
-            exists = os.path.isdir(path)
-        elif location == "vip":
-            try:
-                exists = vip.is_dir(path)
-            except RuntimeError as vip_error:
-                cls._handle_vip_error(vip_error)
-        else: raise NotImplementedError(f"Unknown location: {location}")
-        if exists : return ""
-        # Find the 1rst non-existent directory in the arborescence
-        path = path.rstrip("/") # to avoid errors with `dirname`
-        first_node = cls._first_missing(path)
+        # Find the 1rst non-existent node in the arborescence
+        first_node = path
+        while not cls._exists(first_node.parent, location):
+            first_node = first_node.parent
         # Make the path from there
         if location == "local":
             # Create the full arborescence locally
             os.makedirs(path, exist_ok=True)
         else: 
-            # Create the first node on VIP
-            assert vip.create_dir(first_node), f"Could not make directory: '{first_node}' on VIP."
-            # Make the other directories one by one
+            # Create the first node 
+            cls._create_dir(path=first_node, location=location, **kwargs)
+            # Make the other nodes one by one
             dir_to_make = first_node
             while dir_to_make != path:
                 # Find the next directory to make
-                dir_to_make = cls._vip_path_join(
-                    # Current node:
-                    dir_to_make,
-                    # Next node:             
-                    (path
-                        # get the rest of the path (without heading "/")
-                        .replace(dir_to_make,"", 1).lstrip("/")
-                        # get the first node
-                        .split("/")[0]
-                    )
-                )
+                dir_to_make /= path.relative_to(dir_to_make).parts[0]
                 # Make the directory
-                assert vip.create_dir(dir_to_make), \
-                    f"Could not make directory: '{dir_to_make}' on VIP."
-        # Return : 
-        if location == "local":
-            return os.path.join(
-                # First non-existent node    /   Rest of the path (without heading "/")        
-                os.path.basename(first_node),   path.replace(os.path.join(first_node,""), "", 1)
-            )
-        else:                            
-            return cls._vip_path_join(  
-                cls._vip_basename(first_node),  path.replace(cls._vip_path_join(first_node,""), "", 1)
-            )  
-    
+                cls._create_dir(path=dir_to_make, location=location, **kwargs)
+        # Return the created nodes
+        return str(path.relative_to(first_node.parent))
+    # ------------------------------------------------
+
+    # Method to check existence of a distant or local resource.
     @classmethod
-    def _first_missing(cls, path: str) -> str:
+    def _exists(cls, path, location="local") -> bool:
         """
-        Returns the first non-existent node of `path`.
+        Checks existence of a distant (`location`="vip") or local (`location`="local") resource.
+        `path` can be a string or path-like object.
         """
-        # Ensure there is no trailing "/" to avoid errors with `dirname`
-        if path == "/":
-            return path
-        path = path.rstrip("/")
-        # Scan the parent directory (with the relevant method)
-        parent = cls._vip_dirname(path) if path.startswith("/vip") else os.path.dirname(path) 
-        # Case : parent = path root or current directory
-        if not parent :
-            return path
-        # Case : the parent directory exists
-        elif (parent.startswith("/vip") and vip.is_dir(parent)) or os.path.isdir(parent):
-            return path
-        # Case : the parent directory does not exist
+        # Check input type
+        if not isinstance(path, str): path = str(path)
+        # Check path existence in `location`
+        if location=="local":
+            return os.path.exists(path)
+        elif location=="vip":
+            try: 
+                return vip.exists(path)
+            except RuntimeError as vip_error:
+                cls._handle_vip_error(vip_error)
         else: 
-            return cls._first_missing(parent)
+            raise NotImplementedError(f"Unknown location: {location}")
+    # ------------------------------------------------
+    
+    # Method to create a distant or local directory
+    @classmethod
+    def _create_dir(cls, path, location="local", **kwargs) -> None:
+        """
+        Creates a directory at `path` :
+        - locally if `location` is "local";
+        - on VIP if `location` is "vip".
+
+        `path`can be a string or PathLib object.
+        `kwargs` are passed as keyword arguments to `os.mkdir()`.
+        Returns the VIP or local path of the newly created folder.
+        """
+        if location == "local": 
+            # Check input type
+            if isinstance(path, str): path=pathlib.PurePath(path)
+            # Check the parent is a directory
+            assert os.path.isdir(path.parent),\
+                f"Cannot create subdirectories in '{str(path.parent)}': not a folder"
+            # Create the new directory with additional keyword arguments
+            os.mkdir(path=path, **kwargs)
+        elif location == "vip": 
+            # Check input type
+            if not isinstance(path, str): path=str(path)
+            try: 
+                assert vip.create_dir(path), \
+                    f"Could not make directory: '{path}' on VIP."
+            except RuntimeError as vip_error:
+                cls._handle_vip_error(vip_error)    
+        else: 
+            raise NotImplementedError(f"Unknown location: {location}")
+    # ------------------------------------------------
+
+    # Method to create a distant or local directory leaf on the top of any path
+    @classmethod
+    def _make_dir(cls, path: str, location="local", **kwargs) -> str:
+        """
+        Creates each non-existent directory in `path` :
+        - locally if `location` is "local";
+        - on VIP servers if `location` is "vip".
+
+        `kwargs` are passed as keyword arguments to `_create_dir().
+        Returns the newly created part of `path` (empty string if `path` already exists).
+        """
+        # Create a PathLib object depending on the location
+        if location == "local":
+            path = pathlib.PurePath(path)
+        else:
+            path = pathlib.PurePosixPath(path)
+        # Case : the current path exists
+        if cls._exists(path=path, location=location) :
+            return ""
+        # Find the 1rst non-existent node in the arborescence
+        first_node = path
+        while not cls._exists(first_node.parent, location):
+            first_node = first_node.parent
+        # Make the path from there
+        if location == "local":
+            # Create the full arborescence locally
+            os.makedirs(path, exist_ok=True)
+        else: 
+            # Create the first node 
+            cls._create_dir(path=first_node, location=location, **kwargs)
+            # Make the other nodes one by one
+            dir_to_make = first_node
+            while dir_to_make != path:
+                # Find the next directory to make
+                dir_to_make /= path.relative_to(dir_to_make).parts[0]
+                # Make the directory
+                cls._create_dir(path=dir_to_make, location=location, **kwargs)
+        # Return the created nodes
+        return str(path.relative_to(first_node.parent))
     # ------------------------------------------------
 
     # Method to extract content from a tarball
@@ -1362,13 +1412,12 @@ class VipSession():
                 # We use absolute path since relative ones are unpredictable
             in_path = pathlib.Path(input_path).resolve()
             local_dir = pathlib.Path(self._local_input_dir).resolve()
-            # Check if `input_path` is indeed a local input path
-            if in_path.is_relative_to(local_dir):
-                # Replace `local_input_dir`" by `vip_input_dir` in the path
+            # Replace `local_input_dir` by `vip_input_dir` in the path
+            try: # Raises ValueError if `local_input_dir` does not belong to `vip_input_dir`
                 new = pathlib.PurePosixPath(self._vip_input_dir) / in_path.relative_to(local_dir)
                 # Return the string version
                 return str(new)
-            else:
+            except ValueError:
                 # This is not a local input path: return the original string
                 return input_path
         # If the input_path is a list : use this function recursively
@@ -1384,28 +1433,23 @@ class VipSession():
         """
         Converts a VIP path in local format for VIP outputs. 
         `vip_output_path` can be a single string or a list of strings.
+        Assumes `vip_output_path` belongs to to self._vip_output_dir.
         """
         # List of forbidden characters in Windows paths
         invalid_for_windows = '<>:"?* '
         # If vip_output_path is a string : convert the path
         if isinstance(vip_output_path, str):
-            # Create PathLib instances to handle the path accounting for the local OS
-                # (Both paths are already absolute)
+            # Create PathLib instances to easily handle VIP paths
             vip_out_path = pathlib.PurePosixPath(vip_output_path)
             vip_out_dir = pathlib.PurePosixPath(self._vip_output_dir)
-            # Check if the input is indeed a VIP output path
-            if vip_out_path.is_relative_to(vip_out_dir):
-                # Replace `vip_output_dir`" by `local_output_dir` in the path
-                new = pathlib.Path(self._local_output_dir) / vip_out_path.relative_to(vip_out_dir)
-                # Replace forbidden characters by '-' if current OS is windows
-                new_str = str(new)
-                if isinstance(new, pathlib.WindowsPath):
-                    for char in invalid_for_windows: new_str = new_str.replace(char, '-')
-                # Return
-                return new_str
-            else:
-                # This is not a a VIP output path : return the value
-                return vip_output_path
+            # Replace `vip_output_dir`" by `local_output_dir` in the path
+            new = pathlib.Path(self._local_output_dir) / vip_out_path.relative_to(vip_out_dir)
+            # Replace forbidden characters by '-' if current OS is windows
+            new_str = str(new)
+            if isinstance(new, pathlib.WindowsPath):
+                for char in invalid_for_windows: new_str = new_str.replace(char, '-')
+            # Return
+            return new_str
         # If vip_output_path is a list : use this function recursively
         elif isinstance(vip_output_path, list):
             return [ self._get_local_output_path(element) for element in vip_output_path ]
@@ -1469,7 +1513,7 @@ class VipSession():
             ok_name &= letter.isalnum() or (letter in "_- ")
         # Error message
         if not ok_name:
-            raise ValueError("Session name must contain only alphanumeric characters, spaces and hyphens ('-', '_').")
+            raise ValueError("Session name must contain only alphanumeric characters, spaces and hyphens: '-', '_'")
     # ------------------------------------------------    
 
     # Check the pipeline identifier based on the list of available pipelines
@@ -1567,13 +1611,22 @@ class VipSession():
         def assert_exists(file): 
             if file.startswith("/vip"): # VIP path
                 # The file must exist on VIP
-                assert vip.exists(file), \
-                    f"The following file does not exist on VIP:\n\t{file}"
+                if not self._exists(file, location="vip"):
+                    raise FileNotFoundError((f"File: '{file}' does not exist on VIP."))
             else: # Local path
-                # The file must exist (`strict=True`) & belong to _local_input_dir (`is_relative_to()`)
-                assert pathlib.Path(file).resolve(strict=True)\
-                    .is_relative_to(pathlib.Path(self._local_input_dir).resolve()),\
-                        f"The following file does not belong to this session's inputs:\n\t{file}"
+                # The file must exist
+                if not self._exists(file, location="local"):
+                    raise FileNotFoundError((f"File: '{file}' does not exist."))
+                _file =  pathlib.Path(file).resolve(strict=True)
+                # The file must belong to _local_input_dir
+                try:
+                    if not _file.is_relative_to(pathlib.Path(self._local_input_dir).resolve()):
+                        raise ValueError(f"File: '{file}' does not belong to session's input directory.")
+                except AttributeError as AE: # Raises AttributeError for Python < 3.9
+                    try: # the ugly way
+                        _file.relative_to(pathlib.Path(self._local_input_dir).resolve())
+                    except ValueError as VE: # Raises ValueError if `file` does belong to `_local_input_dir`
+                        raise ValueError(f"File: '{file}' does not belong to session's input directory.") from None
         # Browse the input parameters
         for param in parameters:
             # Skip irrelevant inputs

@@ -1,0 +1,38 @@
+{
+    "session_name": "test-lcmodel",
+    "pipeline_id": "LCModel/0.1",
+    "local_input_dir": "examples/data/lcmodel_sample",
+    "local_output_dir": "./vip_outputs/test-lcmodel",
+    "vip_input_dir": "/vip/Home/API/test-lcmodel/INPUTS",
+    "vip_output_dir": "/vip/Home/API/test-lcmodel/OUTPUTS",
+    "workflows": {
+        "workflow-DSLSxT": {
+            "status": "Finished",
+            "start": "2023/03/22 12:06:12",
+            "outputs": [
+                {
+                    "path": "/vip/Home/API/test-lcmodel/OUTPUTS/22-03-2023_12:06:13/Rec001.RAW--fit_117T_A.control.tgz",
+                    "isDirectory": false,
+                    "size": 238825,
+                    "mimeType": "application/gzip"
+                },
+                {
+                    "path": "/vip/Home/API/test-lcmodel/OUTPUTS/22-03-2023_12:06:13/Rec002.RAW--fit_117T_A.control.tgz",
+                    "isDirectory": false,
+                    "size": 127835,
+                    "mimeType": "application/gzip"
+                }
+            ]
+        }
+    },
+    "input_settings": {
+        "zipped_folder": "/vip/Home/API/test-lcmodel/INPUTS/basis.zip",
+        "basis_file": "/vip/Home/API/test-lcmodel/INPUTS/Basis_117T.basis",
+        "signal_file": [
+            "/vip/Home/API/test-lcmodel/INPUTS/signals/Rec002.RAW",
+            "/vip/Home/API/test-lcmodel/INPUTS/signals/Rec001.RAW"
+        ],
+        "control_file": "/vip/Home/API/test-lcmodel/INPUTS/parameters/fit_117T_A.control",
+        "results-directory": "/vip/Home/API/test-lcmodel/OUTPUTS"
+    }
+}

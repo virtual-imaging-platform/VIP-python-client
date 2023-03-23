@@ -1,0 +1,115 @@
+ LCModel (Version 6.3-1N)
+ FIGURE 1: ISHC Project Data (11.7T STEAM, TE= 3 ms).
+
+$$CONC 35 lines in following concentration table = NCONC+1
+    Conc.  %SD /Cr+PCr  Metabolite                                         
+    0.000 999%   0.000 Ala                                                 
+ 4.49E+04  89%  24.461 Asp                                                 
+    0.000 999%   0.000 Cr                                                  
+    0.000 999%   0.000 GABA                                                
+ 1.32E+04 161%   7.187 Gln                                                 
+ 3.94E+04  68%  21.435 Glu                                                 
+    0.000 999%   0.000 GPC                                                 
+    0.000 999%   0.000 Lac                                                 
+ 2.06E+04  97%  11.236 Ins                                                 
+ 1.12E+03 626%   0.609 MM09                                                
+    0.000 999%   0.000 MM12                                                
+    0.000 999%   0.000 MM14                                                
+  492.995 999%   0.268 MM19                                                
+    0.000 999%   0.000 MM20                                                
+    0.000 999%   0.000 MM22                                                
+ 1.45E+03 733%   0.789 MM27                                                
+ 2.08E+03 510%   1.134 MM30                                                
+  969.704 999%   0.528 MM32                                                
+    0.000 999%   0.000 MM37                                                
+    0.000 999%   0.000 MM39                                                
+    0.000 999%   0.000 MM079                                               
+ 7.04E+03 547%   3.832 MM087                                               
+    0.000 999%   0.000 MM167                                               
+    0.000 999%   0.000 MM181                                               
+    0.000 999%   0.000 NAA                                                 
+ 1.04E+04 170%   5.646 NAAG                                                
+    0.256 999% 1.4E-04 PCho                                                
+ 1.47E+04 118%   8.000 PCr                                                 
+    0.000 999%   0.000 PE                                                  
+ 1.29E+04 172%   7.041 Tau                                                 
+    0.256 999% 1.4E-04 PCho+GPC                                            
+ 1.47E+04 118%   8.000 Cr+PCr                                              
+ 1.04E+04 170%   5.646 NAA+NAAG                                            
+ 5.26E+04  55%  28.622 Glu+Gln                                             
+
+$$MISC  6 lines in following misc. output table
+  FWHM = 0.064 ppm    S/N =   0                                            
+  Data shift = 0.000 ppm                                                   
+  Ph:   0 deg       0.0 deg/ppm                                            
+  alphaB,S = 6.7E+00,   4.7E+01                                            
+   28 spline knots.   Ns = 9(1)                                            
+   2 inflections.     1 extrema                                            
+
+$$DIAG  2 lines in following diagnostic table:
+   1 info      RFALSI 11                                                  
+   2 info's    RFALSI  4                                                  
+
+$$INPU 62 lines in following table of input changes:
+ PPMSHF = 0.0                                                             
+ PPMEND = 0.5                                                             
+ PPMST = 4.2                                                              
+ DKNTMN = 0.15                                                            
+ RFWHM = 2.5                                                              
+ FWHMBA = 0.0050                                                          
+ SHIFMX = 0.3,0.3                                                         
+ SHIFMN = -0.2,-0.1                                                       
+ SDDEGP = 0.00                                                            
+ SDDEGZ = 0.00                                                            
+ CHRATO(17) = 'Gly/Ins* = 1 +- 0.80'                                      
+ CHRATO(16) = 'GPC/PCh* = 1 +- 0.10'                                      
+ CHRATO(15) = 'PCr/Cre* = 1 +- 0.10'                                      
+ CHRATO(14) = 'NAAG/NAA* = 1 +- 0.80'                                     
+ CHRATO(13) = 'MM30/MM09* = 1 +- 0.05'                                    
+ CHRATO(12) = 'MM32/MM09* = 1 +- 0.05'                                    
+ CHRATO(11) = 'MM19/MM09* = 1 +- 0.05'                                    
+ CHRATO(10) = 'MM14/MM09* = 1 +- 0.20'                                    
+ CHRATO(9) = 'MM12/MM09* = 1 +- 0.20'                                     
+ CHRATO(8) = 'MM27/MM09* = 1 +- 0.05'                                     
+ CHRATO(7) = 'MM22/MM09* = 1 +- 0.05'                                     
+ CHRATO(6) = 'MM10/MM09* = 1 +- 0.20'                                     
+ CHRATO(5) = 'MM39/MM09* = 1 +- 0.20'                                     
+ CHRATO(4) = 'MM37/MM09* = 1 +- 0.20'                                     
+ CHRATO(3) = 'MM181/MM167* = 1 +- 0.05'                                   
+ CHRATO(2) = 'MM079/MM09* = 1 +- 0.3'                                     
+ CHRATO(1) = 'MM087/MM09* = 1 +- 0.3'                                     
+ NRATIO=17                                                                
+ NEACH = 99                                                               
+ CHOMIT(6) ='Cho'                                                         
+ CHOMIT(5) = 'bHB'                                                        
+ CHOMIT(4) = 'Thr'                                                        
+ CHOMIT(3) = 'Gly'                                                        
+ CHOMIT(2) =' ATP'                                                        
+ CHOMIT(1) = 'Ace'                                                        
+ NOMIT = 6                                                                
+ LCOORD = 9                                                               
+ LPRINT = 6                                                               
+ NRATIO = 0                                                               
+ CHCOMB(5) = 'Glc+Tau'                                                    
+ CHCOMB(4) = 'Glu+Gln'                                                    
+ CHCOMB(3) = 'NAA+NAAG'                                                   
+ CHCOMB(2) = 'Cr+PCr'                                                     
+ CHCOMB(1) = 'PCho+GPC'                                                   
+ NCOMBI = 5                                                               
+ CONREL = 8.00                                                            
+ NAMREL = 'Cr+PCr'                                                        
+ CHUSE1 = 'Cr','PCr','NAA','Glu','Ins'                                    
+ NUSE1 = 5                                                                
+ NSIMUL = 0                                                               
+ HZPPPM=500.307373                                                        
+ NUNFIL=1024, DELTAT=.000183                                              
+ neach=2  nameac(1)='NAA'                                                 
+ nameac(2)='NAAG'                                                         
+ FILCOO='output/result.coord'                                             
+ FILPS='output/result.ps'                                                 
+ FILRAW='Rec002.RAW'                                                      
+ FILBAS='Basis_117T.basis'                                                
+ lprint=6, filpri='output/result.dump'                                    
+ ltable=7, filtab='output/result.table'                                   
+ ratipm = 2.0                                                             
+ KEY(1)=0                                                                 

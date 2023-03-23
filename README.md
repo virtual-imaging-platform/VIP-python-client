@@ -122,7 +122,7 @@ Once connection with VIP is established (*stage 0*), the Upload-Run-Download pro
 
 Each step has a dedicated method.
 ```python
-from utils.VipSession import VipSession
+from VipSession import VipSession
 
 # 0. Connect with VIP
 VipSession.init(api_key=...)  

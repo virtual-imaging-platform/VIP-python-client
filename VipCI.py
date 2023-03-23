@@ -600,7 +600,7 @@ class VipCI(VipSession):
         """
         # Check input type
         if not isinstance(path, str): path = str(path)
-        # Check path existence existence
+        # Check path existence in `location`
         if location=="local":
             return os.path.exists(path)
         elif location=="girder":
@@ -621,7 +621,8 @@ class VipCI(VipSession):
         - locally if `location` is "local";
         - on Girder if `location` is "girder".
 
-        `kwargs` can be passed as additional arguments to the girder-client method `createFolder()`.
+        `path`can be a string or PathLib object.
+        `kwargs` can be passed as keyword arguments to `os.mkdir()` or `girder-client.createFolder()`.
         Returns the Girder ID or local path of the newly created folder.
         """
         if location == "local": 
@@ -631,7 +632,9 @@ class VipCI(VipSession):
             assert os.path.isdir(path.parent),\
                 f"Cannot create subdirectories in '{str(path.parent)}': not a folder"
             # Create the new directory with additional keyword arguments
-            return os.mkdir(path=path, **kwargs)
+            os.mkdir(path=path, **kwargs)
+            # return
+            return path
         elif location == "girder": 
             # Check input type
             if isinstance(path, str): path=pathlib.PurePosixPath(path)
@@ -642,6 +645,8 @@ class VipCI(VipSession):
                 f"Cannot create subdirectories in '{str(path.parent)}': not a Girder folder"
             # Create the new directory with additional keyword arguments
             return cls._girder_client.createFolder(parentId=parentId, name=str(path.name), reuseExisting=True, **kwargs)
+        else: 
+            raise NotImplementedError(f"Unknown location: {location}")
     # ------------------------------------------------
 
     # Method to create a distant or local directory leaf on the top of any path
