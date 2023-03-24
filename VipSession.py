@@ -55,17 +55,43 @@ class VipSession():
     # Default prefix for unnamed sessions
     _NAME_PREFIX = "session_"
     # Default path to save session outputs on the current machine
-    _LOCAL_PATH = os.path.join(".", "vip_outputs")
+    _LOCAL_PATH = pathlib.Path("vip_outputs").resolve()
     # Default path to upload and download data on VIP servers
-    _VIP_PATH = "/vip/Home/API/"
+    _VIP_PATH = pathlib.PurePosixPath("/vip/Home/API/")
     # Default file name to save session properties 
     _SAVE_FILE = "session_data.json"
     # List of pipelines available to the user
     _PIPELINES = []
 
+                    ####################
+    ################ Instance attributes ##################
+                    ####################
+    ## TODO : Implement for local/vip inputs/outputs and test to harmonize attributes between VipSession & VipCI
+    # @property
+    # def _vip_input_dir(self):
+    #     """VIP path to the input data (default value)"""
+    #     return self._VIP_PATH / self._session_name / "INPUTS"
+    
+    # @property
+    # def _vip_output_dir(self):
+    #     """VIP path to the output data (default value)"""
+    #     return self._VIP_PATH / self._session_name / "OUTPUTS"
+    
+    # @property
+    # def _local_input_dir(self):
+    #     """Local path to the input data """
+    #     return self._local_input_dir
+    
+    # @property
+    # def _local_output_dir(self):
+    #     """Local path to the output data """
+    #     return self._local_output_dir
+    
+
                     #############
     ################ Constructor ##################
                     #############
+    ## TODO : Change routine for verifying properties are set (_is_defined() / getter-setter things to avoid verfying existence each time)
     def __init__(
             self, session_name="",  input_dir="", pipeline_id="",  
             input_settings:dict={}, output_dir="", verbose=True
@@ -106,9 +132,9 @@ class VipSession():
         self._check_session_name()
         # Assign: Local path to the output data
         self._local_output_dir = (
-            output_dir if output_dir
+            pathlib.Path(output_dir) if output_dir
             # default value
-            else os.path.join(self._LOCAL_PATH, self._session_name)
+            else self._LOCAL_PATH / self._session_name
         )
         # Display
         if verbose:
@@ -125,17 +151,17 @@ class VipSession():
                 if verbose: print("Pipeline ID: ", end="")
                 self._check_pipeline_id(pipeline_id)
                 if verbose: print("Checked.")
-            self._pipeline_id = pipeline_id
+                self._pipeline_id = pipeline_id
             # Check & Assign: Local path to the input data
             if input_dir:
                 if verbose: print("Input Data: ", end="")
-                assert os.path.exists(input_dir), f"{input_dir} does not exist."
+                if not os.path.exists(input_dir): raise FileNotFoundError(f"{input_dir} does not exist.")
                 if verbose: print("Checked.")
-            self._local_input_dir = input_dir
+                self._local_input_dir = pathlib.Path(input_dir)
             # Assign: VIP path to the input data (default value)
-            self._vip_input_dir = self._vip_path_join(self._VIP_PATH, self._session_name, "INPUTS")
+            self._vip_input_dir = self._VIP_PATH / self._session_name / "INPUTS"
             # Assign: VIP path to the output data (default value)
-            self._vip_output_dir = self._vip_path_join(self._VIP_PATH, self._session_name, "OUTPUTS")
+            self._vip_output_dir = self._VIP_PATH / self._session_name / "OUTPUTS"
             # Check & Assign: Input settings 
             if input_settings:
                 if verbose: print("Input Settings: ", end="")
@@ -143,8 +169,6 @@ class VipSession():
                 self._input_settings = self._vip_input_settings(input_settings) # set VIP values
                 if verbose: 
                     print("Checked." if done else "Unchecked.")
-            else:
-                self._input_settings = input_settings
             # Workflow inventory (default value)
             self._workflows = {}
             # End
@@ -155,6 +179,9 @@ class VipSession():
                     ################
     ################ Public Methods ##################
                     ################
+
+    def _is_defined(self, var):
+        return var in self.__dict__
 
     #################################################
     # ($A) Manage a session from start to finish
@@ -231,7 +258,7 @@ class VipSession():
         # Check the distant input directory        
         try: 
             # Check connection with VIP 
-            exists = vip.exists(self._vip_input_dir)
+            exists = self._exists(self._vip_input_dir, location="vip")
         except RuntimeError as vip_error:
             self._handle_vip_error(vip_error)
         # Return if `update_files` is False and input data are already on VIP
@@ -242,23 +269,23 @@ class VipSession():
             return self
         # Set local input directory
         if not input_dir:
-            assert self._local_input_dir, "Please provide an input directory."
-            input_dir = self._local_input_dir
+            if not self._is_defined("_local_input_dir"): raise TypeError("Please provide an input directory.")
         else:
             # check if instance value is default 
-            assert not self._local_input_dir or (self._local_input_dir == input_dir), \
-                f"The input directory is already set : '{self._local_input_dir}'."
+            if self._is_defined("_local_input_dir") and (str(self._local_input_dir) != input_dir):
+                raise ValueError(f"The input directory is already set : '{str(self._local_input_dir)}'.")
             # Update instance property
             self._set(local_input_dir=input_dir)
         # Check local input directory
-        assert os.path.exists(input_dir), "Please provide a valid path to the input directory."
+        if not self._exists(self._local_input_dir): 
+            raise ValueError("Please provide a valid path to the input directory.")
         # Initial display
         if verbose:
             print("Uploading your dataset on VIP")
             print("-----------------------------")
         # Upload the input repository
         try:
-            failures = self._upload_dir(input_dir, self._vip_input_dir, verbose)
+            failures = self._upload_dir(str(self._local_input_dir), str(self._vip_input_dir), verbose=verbose)
             # Display report
             if verbose:
                 print("-----------------------------")
@@ -316,10 +343,11 @@ class VipSession():
             # create the VIP output directory if it does not exist
         self._make_dir(self._vip_output_dir, location="vip")
             # check the VIP input directory
-        assert vip.exists(self._vip_input_dir), \
+        if not self._exists(self._vip_input_dir, location="vip"): raise ValueError(
             f"The input directory does not exist on VIP."\
             +"\nThe dataset has not been uploaded yet, or has been removed by another session."\
             +"\nRun upload_inputs() before launching the pipeline."
+        )
         if verbose: print("Done.\n")
         # Update the input parameters
         if not input_settings:
@@ -431,7 +459,7 @@ class VipSession():
             return self
         # Initial display
         if verbose:
-            print("Downloading pipeline outputs to:", self._local_output_dir)
+            print("Downloading pipeline outputs to:", str(self._local_output_dir))
             print("--------------------------------")
         # Update the worflow inventory
         self._update_workflows()
@@ -587,34 +615,6 @@ class VipSession():
 
         Displays warning in case of failure. 
         """
-        # Function to delete a path on VIP with warning
-        def delete_path(path, verbose) -> bool:
-            """
-            Deletes `path` on VIP servers and waits until `path` is removed.
-            Raises a warning in case of failure or in case of success
-            """
-            done = vip.delete_path(path)
-            if not done: # Errors are handled by returning False in `vip.delete_path()`
-                msg = f"\n(!) '{path}' could not be removed from VIP servers.\n"
-                msg += "Check your connection with VIP and path existence on the VIP portal.\n"
-                if verbose: print(msg)
-            else:
-                # Standby until path is indeed removed (give up after some time)
-                start = time.time()
-                t_lim = 300 # max time in seconds
-                t = time.time() - start
-                while (t < t_lim) and vip.exists(path):
-                    time.sleep(2)
-                    t = time.time() - start
-                # Check if the data have indeed been removed
-                if t >= t_lim:
-                    # Display warning
-                    msg = f"\n(!) '{path}' was queued for deletion, but still not removed after {t_lim} seconds.\n"
-                    msg += "Run finish() again later to end the process.\n"
-                    if verbose: print(msg)
-                    done = False
-            # Return success flag
-            return done 
         # Initial display
         if verbose: print("\n<<< FINISH >>>\n")
         # Check if workflows are still running (without call to VIP)
@@ -635,10 +635,10 @@ class VipSession():
             print("-------------------------")
             print("Removing data from VIP servers ... ", end="")
         # Get the folder of interest
-        path = self._vip_path_join(self._VIP_PATH, self._session_name)
+        path = self._VIP_PATH / self._session_name
         # Check data existence on VIP
         try:
-            exists = vip.exists(path)
+            exists = self._exists(path, location="vip")
         except RuntimeError as vip_error:
             self._handle_vip_error(vip_error)
         if not exists:
@@ -647,28 +647,30 @@ class VipSession():
             done = True
         else:
             # Erase the session folder on VIP
-            done = delete_path(path, verbose)
+            done = self._delete_path(path, verbose=verbose)
             # Display success
-            if verbose and done: print("Done.\n")
+            if verbose:
+                if done: print("Done.\n")
         # End the procedure in case of failure
         if not done:
             if verbose: 
                 print("-------------------------")
                 print(f"Session <{self._session_name}> is not yet over.")
+                print("Run finish() again later to end the process.\n")
             return self
         # Check if the input data have been erased (this is not the case when get_inputs have been used)
         success = True # Will remain True if all data have been removed
         warning_msg = "" # Will grow up in case of failure
         finished = False # Will become True when workflow status are set to "Remove"
-        if vip.exists(self._vip_input_dir):
+        if self._exists(self._vip_input_dir, location="vip"):
             # Removal failed
             if force_remove:
                 # Try to force removal
-                success = delete_path(self._vip_input_dir, verbose)
+                success = self._delete_path(self._vip_input_dir, verbose=verbose)
                 # Remove the parent directory if it is empty
-                parent = self._vip_dirname(self._vip_input_dir)
-                if not vip.list_content(parent):
-                    delete_path(parent, verbose)
+                parent = self._vip_input_dir.parent
+                if not vip.list_content(str(parent)):
+                    self._delete_path(parent, verbose=verbose)
             else:
                 success = False
             # Warning message
@@ -676,14 +678,14 @@ class VipSession():
                 warning_msg += ">> The input data were not removed: they may be shared with another session ?"
                 warning_msg += f"\n\tRun: finish(force_remove=True) to force their removal.\n"
         # Check if the output data have been erased
-        if vip.exists(self._vip_output_dir):
+        if self._is_defined("_vip_output_dir"):
             if force_remove:
                 # Try to force removal
-                success = delete_path(self._vip_output_dir, verbose)
+                success = self._delete_path(self._vip_output_dir, verbose=verbose)
                 # Remove the parent directory if it is empty
-                parent = self._vip_dirname(self._vip_output_dir)
-                if not vip.list_content(parent):
-                    delete_path(parent, verbose)
+                parent = self._vip_input_dir.parent
+                if not vip.list_content(str(parent)):
+                    self._delete_path(parent, verbose=verbose)
             else:
                 success = False
             # Warning message
@@ -736,10 +738,10 @@ class VipSession():
         vip_data={
             "session_name": self._session_name,
             "pipeline_id": self._pipeline_id,
-            "local_input_dir": self._local_input_dir,
-            "local_output_dir": self._local_output_dir,
-            "vip_input_dir": self._vip_input_dir,
-            "vip_output_dir": self._vip_output_dir,
+            "local_input_dir": str(self._local_input_dir),
+            "local_output_dir": str(self._local_output_dir),
+            "vip_input_dir": str(self._vip_input_dir),
+            "vip_output_dir": str(self._vip_output_dir),
             "workflows": self._workflows,
             "input_settings": self._input_settings,
         }
@@ -764,7 +766,7 @@ class VipSession():
         - The other `session` do not have input data on VIP.
         """
         # End the procedure if both sessions already share the same inputs
-        if self._vip_input_dir == session._vip_input_dir:
+        if str(self._vip_input_dir) == str(session._vip_input_dir):
             # Display
             if verbose: 
                 print(f"\nSessions '{self._session_name}' and '{session._session_name}' share the same inputs.")
@@ -779,8 +781,8 @@ class VipSession():
             self._handle_vip_error(vip_error)
         # Check if the data actually exist on VIP
         try:
-            assert vip.exists(session._vip_input_dir), \
-                f"Input data for session '{session._session_name}' do not exist on VIP."
+            if not self._exists(session._vip_input_dir, location="vip"):
+                raise FileNotFoundError(f"Input data for session '{session._session_name}' do not exist on VIP.")
         except RuntimeError as vip_error:
             self._handle_vip_error(vip_error)
         # Get the VIP inputs from the other session
@@ -825,7 +827,7 @@ class VipSession():
         Returns a list of files which failed to be uploaded on VIP.
         """
         # Scan the local directory
-        assert os.path.exists(local_path), f"{local_path} does not exist."
+        assert cls._exists(local_path), f"{local_path} does not exist."
         # First display
         if verbose: print(f"Cloning: {local_path} ", end="... ")
         # Scan
@@ -1264,20 +1266,20 @@ class VipSession():
             self._pipeline_id = kwargs.pop("pipeline_id")
         # Set local input path (keywords `input_dir` and `local_input_dir`)
         if "input_dir" in kwargs:
-            self._local_input_dir = kwargs.pop("input_dir")
+            self._local_input_dir = pathlib.Path(kwargs.pop("input_dir"))
         elif "local_input_dir" in kwargs:
-            self._local_input_dir = kwargs.pop("local_input_dir")
+            self._local_input_dir = pathlib.Path(kwargs.pop("local_input_dir"))
         # Set local output path (keywords `output_dir` and `local_output_dir`)
         if "output_dir" in kwargs:
-            self._local_output_dir = kwargs.pop("output_dir")
+            self._local_output_dir = pathlib.Path(kwargs.pop("output_dir"))
         elif "local_output_dir" in kwargs:
-            self._local_output_dir = kwargs.pop("local_output_dir")
+            self._local_output_dir = pathlib.Path(kwargs.pop("local_output_dir"))
         # Set VIP input path (no check)
         if "vip_input_dir" in kwargs:
-            self._vip_input_dir = kwargs.pop("vip_input_dir")
+            self._vip_input_dir = pathlib.PurePosixPath(kwargs.pop("vip_input_dir"))
         # Set VIP output path (no check)
         if "vip_output_dir" in kwargs:
-            self._vip_output_dir = kwargs.pop("vip_output_dir")
+            self._vip_output_dir = pathlib.PurePosixPath(kwargs.pop("vip_output_dir"))
         # Set the Input Settings (depends on the new vip_input_path)
         if "input_settings" in kwargs:
             self._input_settings = self._vip_input_settings(kwargs.pop("input_settings"))
@@ -1285,7 +1287,7 @@ class VipSession():
         if "workflows" in kwargs:
             self._workflows = kwargs.pop("workflows")
         # Check unknown properties
-        assert not kwargs, f"Unknown propertie(s) : {', '.join(kwargs.keys())}."
+        if kwargs: raise TypeError(f"Unknown propertie(s) : {', '.join(kwargs.keys())}.")
         # Return for method cascading
         return self
     # ------------------------------------------------
@@ -1312,15 +1314,15 @@ class VipSession():
         """
         # Default location
         if not file:
-            file = os.path.join(self._local_output_dir, self._SAVE_FILE)
+            file = str(self._local_output_dir / self._SAVE_FILE)
         # Data to save 
         vip_data={
             "session_name": self._session_name,
             "pipeline_id": self._pipeline_id,
-            "local_input_dir": self._local_input_dir,
-            "local_output_dir": self._local_output_dir,
-            "vip_input_dir": self._vip_input_dir,
-            "vip_output_dir": self._vip_output_dir,
+            "local_input_dir": str(self._local_input_dir),
+            "local_output_dir": str(self._local_output_dir),
+            "vip_input_dir": str(self._vip_input_dir),
+            "vip_output_dir": str(self._vip_output_dir),
             "workflows": self._workflows,
             "input_settings": self._input_settings,
             # Soon: hardware information ?
@@ -1345,7 +1347,7 @@ class VipSession():
         If current properties (i.e. `session_name`, etc.) are already set, they will be replaced.
         """
         # Check existence of data from a previous session
-        file = os.path.join(self._local_output_dir, self._SAVE_FILE)
+        file = str(self._local_output_dir / self._SAVE_FILE)
         if not os.path.isfile(file):
             return False
         # Load the JSON file
@@ -1379,7 +1381,7 @@ class VipSession():
         Input `my_settings` (dict) must contain only strings or lists of strings.
         """
         # Return if my_settings is empty or the local input path is unset
-        if not my_settings or not self._local_input_dir:
+        if not my_settings or not self._is_defined("_local_input_dir"):
             return {}
         # Check the input type
         assert isinstance(my_settings, dict), \
@@ -1390,7 +1392,7 @@ class VipSession():
                 for input in my_settings
             }
         # Set the results directory
-        vip_settings["results-directory"] = self._vip_output_dir
+        vip_settings["results-directory"] = str(self._vip_output_dir)
         # Set Input settings
         return vip_settings
     # ------------------------------------------------
@@ -1406,15 +1408,13 @@ class VipSession():
             # Return if input_path is already a VIP path
             if input_path.startswith("/vip"):
                 return input_path
-            # Check if _local_input_dir have been set
-            assert self._local_input_dir, "Attribute `_local_input_dir` is unset."
-            # Create PathLib instances to handle the path accounting for the local OS
-                # We use absolute path since relative ones are unpredictable
+            # We use absolute path since relative ones are unpredictable
             in_path = pathlib.Path(input_path).resolve()
-            local_dir = pathlib.Path(self._local_input_dir).resolve()
+            # Check if _local_input_dir has been set
+            assert self._is_defined("_local_input_dir"), "Attribute `_local_input_dir` is unset."
             # Replace `local_input_dir` by `vip_input_dir` in the path
             try: # Raises ValueError if `local_input_dir` does not belong to `vip_input_dir`
-                new = pathlib.PurePosixPath(self._vip_input_dir) / in_path.relative_to(local_dir)
+                new = self._vip_input_dir / in_path.relative_to(self._local_input_dir.resolve())
                 # Return the string version
                 return str(new)
             except ValueError:
@@ -1425,7 +1425,7 @@ class VipSession():
             return [ self._get_vip_input_path(element) for element in input_path ]
         # If input_path is something else: raise an error (this method should be updated)
         else:
-            raise TypeError(f"The folllowing object:\n\t{input_path}\nshould be a string or a list of strings.")
+            raise NotImplementedError(f"The folllowing object:\n\t{input_path}\nshould be a string or a list of strings.")
     # ------------------------------------------------
 
     # Function to convert a VIP path to local output directory
@@ -1439,11 +1439,8 @@ class VipSession():
         invalid_for_windows = '<>:"?* '
         # If vip_output_path is a string : convert the path
         if isinstance(vip_output_path, str):
-            # Create PathLib instances to easily handle VIP paths
-            vip_out_path = pathlib.PurePosixPath(vip_output_path)
-            vip_out_dir = pathlib.PurePosixPath(self._vip_output_dir)
             # Replace `vip_output_dir`" by `local_output_dir` in the path
-            new = pathlib.Path(self._local_output_dir) / vip_out_path.relative_to(vip_out_dir)
+            new = self._local_output_dir / pathlib.PurePosixPath(vip_output_path).relative_to(self._vip_output_dir)
             # Replace forbidden characters by '-' if current OS is windows
             new_str = str(new)
             if isinstance(new, pathlib.WindowsPath):
@@ -1455,7 +1452,7 @@ class VipSession():
             return [ self._get_local_output_path(element) for element in vip_output_path ]
         # If the value is something else: raise an error (this method should be updated)
         else:
-            raise TypeError(f"The folllowing object:\n\t{vip_output_path}\nshould be a string or a list of strings.")
+            raise NotImplementedError(f"The folllowing object:\n\t{vip_output_path}\nshould be a string or a list of strings.")
     # ------------------------------------------------
 
     # Functions to manipulate VIP paths like os.path
@@ -1493,6 +1490,36 @@ class VipSession():
                 a = a.rstrip("/") + "/" + node 
         return a
     # ------------------------------------------------
+
+    # Function to delete a path on VIP with warning
+    @staticmethod
+    def _delete_path(path: pathlib.PurePath, verbose=True) -> bool:
+        """
+        Deletes `path` on VIP servers and waits until `path` is removed.
+        Raises a warning in case of failure or in case of success
+        """
+        path_ = str(path)
+        done = vip.delete_path(path_)
+        if not done: # Errors are handled by returning False in `vip.delete_path()`
+            msg = f"\n(!) '{path_}' could not be removed from VIP servers.\n"
+            msg += "Check your connection with VIP and path existence on the VIP portal.\n"
+            if verbose: print(msg)
+        else:
+            # Standby until path is indeed removed (give up after some time)
+            start = time.time()
+            t_lim = 300 # max time in seconds
+            t = time.time() - start
+            while (t < t_lim) and vip.exists(path_):
+                time.sleep(2)
+                t = time.time() - start
+            # Check if the data have indeed been removed
+            if t >= t_lim:
+                # Display warning
+                msg = f"\n(!) '{path_}' was queued for deletion, but still not removed after {t_lim} seconds.\n"
+                if verbose: print(msg)
+                done = False
+        # Return success flag
+        return done 
 
     # ($D.2) Prevent common mistakes in session / pipeline settings 
     ###############################################################
@@ -1604,7 +1631,7 @@ class VipSession():
             "Unkown input parameters :\n" + ", ".join(unknown_fields) # "results-directory" is specific to VIP
         # FILE EXISTENCE -----------------------------------------------------------
         # Check if an input directory has been set
-        if not self._local_input_dir:
+        if not self._is_defined("_local_input_dir"):
             warn("Input settings could not be fully checked without the input directory.")
             return False
         # Function to assert file existence
@@ -1620,11 +1647,11 @@ class VipSession():
                 _file =  pathlib.Path(file).resolve(strict=True)
                 # The file must belong to _local_input_dir
                 try:
-                    if not _file.is_relative_to(pathlib.Path(self._local_input_dir).resolve()):
+                    if not _file.is_relative_to(self._local_input_dir.resolve()):
                         raise ValueError(f"File: '{file}' does not belong to session's input directory.")
                 except AttributeError as AE: # Raises AttributeError for Python < 3.9
                     try: # the ugly way
-                        _file.relative_to(pathlib.Path(self._local_input_dir).resolve())
+                        _file.relative_to(self._local_input_dir.resolve())
                     except ValueError as VE: # Raises ValueError if `file` does belong to `_local_input_dir`
                         raise ValueError(f"File: '{file}' does not belong to session's input directory.") from None
         # Browse the input parameters
@@ -1663,7 +1690,7 @@ class VipSession():
                 pass
         # Ensure parameter "results-directory" is in line with instance attribute (vip_output_dir)
         if "results-directory" in input_settings:
-            if input_settings["results-directory"] != self._vip_output_dir:
+            if input_settings["results-directory"] != str(self._vip_output_dir):
                 warn(
                     f"Results directory has been updated according to the input settings.\n\
                     Old path: {self._vip_output_dir}\n\
