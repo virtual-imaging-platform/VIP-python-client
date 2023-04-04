@@ -218,7 +218,7 @@ def count_executions()->int:
     return int(rq.text)
 
 # -----------------------------------------------------------------------------
-def init_exec(pipeline, name="default", inputValues={}) -> str:
+def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Home") -> str:
     url = __PREFIX + 'executions'
     headers = {
                 'apikey': __apikey,
@@ -227,7 +227,8 @@ def init_exec(pipeline, name="default", inputValues={}) -> str:
     data_ = {
             "name": name, 
             'pipelineIdentifier': pipeline,
-            "inputValues": inputValues
+            "inputValues": inputValues,
+            "resultsLocation": resultsLocation
            }
     rq = requests.post(url, headers=headers, json=data_, verify=__certif)
     manage_errors(rq)

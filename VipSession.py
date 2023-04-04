@@ -477,7 +477,7 @@ class VipSession():
                 nExec+=1
                 # Display current execution
                 if verbose: 
-                    print(f"[{nExec}/{nb_exec}] Ouputs from:", wid, "-> REMOVED from VIP servers")
+                    print(f"[{nExec}/{nb_exec}] Outputs from:", wid, "-> REMOVED from VIP servers")
                 # Get the path of the returned files on VIP
                 vip_outputs = self._workflows[wid]["outputs"]
                 # If there is no output file, go to the next execution
@@ -511,7 +511,7 @@ class VipSession():
             nExec+=1 
             # Display current execution
             if verbose: 
-                print(f"[{nExec}/{nb_exec}] Ouputs from:", 
+                print(f"[{nExec}/{nb_exec}] Outputs from:", 
                     wid, ", started on:", self._workflows[wid]["start"])
             # Get the path of the returned files on VIP
             vip_outputs = self._workflows[wid]["outputs"]
@@ -549,7 +549,7 @@ class VipSession():
                         if self._extract_archive(local_file):
                             if verbose: print("Done.") # Display success
                         elif verbose: 
-                            print("Error.") # Display failure
+                            print("Extraction was skipped.") # Display failure
                 else: # failure while downloading the output file
                     # Update display
                     if verbose: print(f"\n(!)\tSomething went wrong in the process.")
@@ -690,7 +690,7 @@ class VipSession():
                 success = False
             # Warning message
             if verbose and not success: 
-                warning_msg += ">> The ouput data were not removed."
+                warning_msg += ">> The output data were not removed."
                 warning_msg += f"\n\tRun: finish(force_remove=True) to force their removal.\n"
         else:
             # Removal was successful: update the worflow inventory to avoid dead links in future downloads
@@ -729,7 +729,7 @@ class VipSession():
         - `local_input_dir` : path to the dataset *on your machine*
         - `vip_input_dir` : path to the dataset *in your VIP Home directory*
         - `local_output_dir` : path to the pipeline outputs *on your machine*
-        - `vip_ouput_dir` : path to the pipeline outputs *in your VIP Home directory*
+        - `vip_output_dir` : path to the pipeline outputs *in your VIP Home directory*
         - `input_settings` : input parameters sent to VIP 
         (note that file locations are bound to `vip_input_dir`).
         - `workflows`: workflow inventory, identifying all pipeline runs in this session.
@@ -923,47 +923,6 @@ class VipSession():
         # Return flag 
         return done
     # ------------------------------------------------    
-
-    # Method to create a distant or local directory leaf on the top of any path
-    @classmethod
-    def _make_dir(cls, path, location="girder", **kwargs) -> str:
-        """
-        Creates each non-existent directory in `path` :
-        - locally if `location` is "local";
-        - on Girder if `location` is "girder".
-
-        `kwargs` can be passed as additional arguments to the girder-client method `createFolder()`.
-        Returns the newly created part of `path` (empty string if `path` already exists).
-        """
-        # Create a PathLib object depending on the location
-        if location == "local":
-            path = pathlib.PurePath(path)
-        else:
-            path = pathlib.PurePosixPath(path)
-        # Case : the current path exists
-        if cls._exists(path=path, location=location) :
-            return ""
-        # Find the 1rst non-existent node in the arborescence
-        first_node = path
-        while not cls._exists(first_node.parent, location):
-            first_node = first_node.parent
-        # Make the path from there
-        if location == "local":
-            # Create the full arborescence locally
-            os.makedirs(path, exist_ok=True)
-        else: 
-            # Create the first node 
-            cls._create_dir(path=first_node, location=location, **kwargs)
-            # Make the other nodes one by one
-            dir_to_make = first_node
-            while dir_to_make != path:
-                # Find the next directory to make
-                dir_to_make /= path.relative_to(dir_to_make).parts[0]
-                # Make the directory
-                cls._create_dir(path=dir_to_make, location=location, **kwargs)
-        # Return the created nodes
-        return str(path.relative_to(first_node.parent))
-    # ------------------------------------------------
 
     # Method to check existence of a distant or local resource.
     @classmethod
@@ -1327,7 +1286,7 @@ class VipSession():
             "input_settings": self._input_settings,
             # Soon: hardware information ?
         }
-        # Make the ouput directory if it does not exist
+        # Make the output directory if it does not exist
         is_new = self._make_dir(self._local_output_dir)
         # Save the data in JSON format
         with open(file, "w") as outfile:

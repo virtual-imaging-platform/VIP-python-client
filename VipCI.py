@@ -73,7 +73,7 @@ class VipCI(VipSession):
             verbose=verbose
         )
         # Update the output directory
-        self._vip_output_dir = output_dir
+        self._output_dir = output_dir
     # ------------------------------------------------
 
                     ################
@@ -162,12 +162,12 @@ class VipCI(VipSession):
         self._check_pipeline_id()
         # Update the output directory
         if output_dir: 
-            self._vip_output_dir = output_dir
+            self._output_dir = output_dir
         # Check existence
-        if not self._vip_output_dir:
+        if not self._output_dir:
             raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
         # Ensure the directory exists
-        self._make_dir(path=self._vip_output_dir, location="girder",
+        self._make_dir(path=self._output_dir, location="girder",
                         description=f"VIP executions from the VipCI client under Session name: '{self._session_name}'")
         # Update the input parameters
         if input_settings:
@@ -198,7 +198,7 @@ class VipCI(VipSession):
         try:
             for nEx in range(nb_runs):
                 # Create a workflow-specific result directory
-                res_path = pathlib.PurePosixPath(self._vip_output_dir) \
+                res_path = pathlib.PurePosixPath(self._output_dir) \
                     /  time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) # no way to rename later with workflow_id
                 res_id = self._create_dir(
                     path=res_path, location="girder", 
@@ -307,7 +307,7 @@ class VipCI(VipSession):
         vip_data={
             "session_name": self._session_name,
             "pipeline_id": self._pipeline_id,
-            "vip_output_dir": self._vip_output_dir,
+            "vip_output_dir": self._output_dir,
             "workflows": self._workflows,
             "input_settings": self._input_settings,
         }
@@ -356,9 +356,9 @@ class VipCI(VipSession):
             "input_settings": self._input_settings,
         }
         # Ensure the output directory exists on Girder
-        self._make_dir(path=self._vip_output_dir, location="girder")
+        self._make_dir(path=self._output_dir, location="girder")
         # Save metadata in the global output directory
-        folderId, _ = self._girder_path_to_id(self._vip_output_dir)
+        folderId, _ = self._girder_path_to_id(self._output_dir)
         self._girder_client.addMetadataToFolder(folderId=folderId, metadata=vip_data)
         # Update metadata for each workflow
         for workflow_id in self._workflows:
@@ -368,7 +368,7 @@ class VipCI(VipSession):
         # Display
         if verbose:
             print("\nSession properties were saved as metadata under folder:")
-            print(f"\t{self._vip_output_dir}")
+            print(f"\t{self._output_dir}")
             print(f"\t(Girder ID: {folderId})\n")
     # ------------------------------------------------
 
