@@ -3,7 +3,7 @@ import os
 import json
 import tarfile
 import time
-import pathlib
+from pathlib import *
 from warnings import warn
 
 import vip
@@ -55,9 +55,9 @@ class VipSession():
     # Default prefix for unnamed sessions
     _NAME_PREFIX = "session_"
     # Default path to save session outputs on the current machine
-    _LOCAL_PATH = pathlib.Path("vip_outputs").resolve()
+    _LOCAL_PATH = Path("vip_outputs").resolve()
     # Default path to upload and download data on VIP servers
-    _VIP_PATH = pathlib.PurePosixPath("/vip/Home/API/")
+    _VIP_PATH = PurePosixPath("/vip/Home/API/")
     # Default file name to save session properties 
     _SAVE_FILE = "session_data.json"
     # List of pipelines available to the user
@@ -132,7 +132,7 @@ class VipSession():
         self._check_session_name()
         # Assign: Local path to the output data
         self._local_output_dir = (
-            pathlib.Path(output_dir) if output_dir
+            Path(output_dir) if output_dir
             # default value
             else self._LOCAL_PATH / self._session_name
         )
@@ -155,9 +155,9 @@ class VipSession():
             # Check & Assign: Local path to the input data
             if input_dir:
                 if verbose: print("Input Data: ", end="")
-                if not os.path.exists(input_dir): raise FileNotFoundError(f"{input_dir} does not exist.")
+                if not self._exists(input_dir,"local"): raise FileNotFoundError(f"{input_dir} does not exist.")
                 if verbose: print("Checked.")
-                self._local_input_dir = pathlib.Path(input_dir)
+                self._local_input_dir = Path(input_dir)
             # Assign: VIP path to the input data (default value)
             self._vip_input_dir = self._VIP_PATH / self._session_name / "INPUTS"
             # Assign: VIP path to the output data (default value)
@@ -273,7 +273,7 @@ class VipSession():
         else:
             # check if instance value is default 
             if self._is_defined("_local_input_dir") and (str(self._local_input_dir) != input_dir):
-                raise ValueError(f"The input directory is already set : '{str(self._local_input_dir)}'.")
+                raise ValueError(f"The input directory is already set : '{self._local_input_dir}'.")
             # Update instance property
             self._set(local_input_dir=input_dir)
         # Check local input directory
@@ -285,7 +285,7 @@ class VipSession():
             print("-----------------------------")
         # Upload the input repository
         try:
-            failures = self._upload_dir(str(self._local_input_dir), str(self._vip_input_dir), verbose=verbose)
+            failures = self._upload_dir(self._local_input_dir, self._vip_input_dir, verbose=verbose)
             # Display report
             if verbose:
                 print("-----------------------------")
@@ -300,7 +300,7 @@ class VipSession():
             if verbose:
                 print("-----------------------------")
                 print("\n(!) Upload was stopped following an unexpected error.")
-            raise e
+            raise e from None
         finally:
             # In any case, save session properties
             self._save_session(verbose=verbose)
@@ -378,7 +378,12 @@ class VipSession():
         try:
             for nEx in range(nb_runs):
                 # Initiate Execution
-                workflow_id = vip.init_exec(self._pipeline_id, self._session_name, self._input_settings)
+                workflow_id = vip.init_exec(
+                    self._pipeline_id, 
+                    name = self._session_name, 
+                    inputValues = self._input_settings,
+                    resultsLocation = str(self._vip_output_dir)
+                )
                 # Display
                 if verbose: print(workflow_id, end=", ")
                 # Update the workflow inventory
@@ -413,7 +418,7 @@ class VipSession():
                 print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update existing workflows
-        if verbose: print("Updating worflow inventory ... ", end="")
+        if verbose: print("Updating workflow status ... ", end="")
         self._update_workflows(save_session=True)
         if verbose: print("Done.")
         # Check if workflows are still running
@@ -442,10 +447,10 @@ class VipSession():
     # ------------------------------------------------
 
     # ($A.5) Download execution outputs from VIP servers 
-    def download_outputs(self, unzip=True, verbose=True) -> VipSession:
+    def download_outputs(self, get_status=["Finished"], unzip=True, verbose=True) -> VipSession:
         """
         Downloads all session outputs from VIP servers.
-        - If `unzip` is True, extracts the data if any output is an GZIP archive.
+        - If `unzip` is True, extracts the data if any output is a .tar file.
         - Set `verbose` to False to download silently.
         """
         if verbose: print("\n<<< DOWNLOAD OUTPUTS >>>\n")
@@ -457,19 +462,21 @@ class VipSession():
                 print("Current session properties are:")
                 self.display_properties()
             return self
+        # Update the worflow inventory
+        if verbose: print("Updating workflow status ... ", end="")
+        self._update_workflows(save_session=False)
+        if verbose: print("Done.\n")
         # Initial display
         if verbose:
-            print("Downloading pipeline outputs to:", str(self._local_output_dir))
+            print("Downloading pipeline outputs to:\n\t", self._local_output_dir)
             print("--------------------------------")
-        # Update the worflow inventory
-        self._update_workflows()
-        # Check if any workflow ended with success
+        # Get execution report
         report = self._execution_report(verbose=False)
-        # Download each output file for each execution and keep track of failed downloads
-        failures = []
-        nb_exec = 0
-        nb_exec += len(report['Finished']) if "Finished" in report else 0
-        nb_exec += len(report['Removed']) if "Removed" in report else 0
+        # Count the number of executions to process
+        nb_exec = len(report['Removed']) if "Removed" in report else 0
+        assert 'Removed' not in get_status, "Cannot download removed data."
+        for status in get_status:
+            nb_exec += len(report[status]) if status in report else 0
         nExec=0
         # Browse workflows with removed data and check if files are missing
         if "Removed" in report :
@@ -488,77 +495,87 @@ class VipSession():
                 missing_file = False
                 for output in vip_outputs:
                     # Get the output path on VIP
-                    vip_file = output["path"]
+                    vip_file = Path(output["path"])
                     # Get the local equivalent path
                     local_file = self._get_local_output_path(vip_file)
                     # Check file existence on the local machine
-                    if not os.path.exists(local_file): 
+                    if not local_file.exists(): 
                         missing_file = True
                 # After checking all files, update the display
                 if verbose: 
                     if not missing_file: 
-                        print("\tOutput files are already in:", os.path.dirname(local_file))
+                        print("\tOutput files are already in:", local_file.parent.resolve())
                     else: 
-                        print("(!)\tCannot download the missing files")
-        # Browse successful workflows and download the outputs if needed
-        if "Finished" not in report:
+                        print("(!)\tCannot download the missing files.")
+        # Check if any workflow with the desired status is available
+        if not any([status in report for status in get_status]):
             if verbose:
                 print("--------------------------------")
                 print("Nothing to download for the current session.") 
                 print("Run monitor_workflows() for more information.") 
             return self
-        for wid in report["Finished"]:
+        # Download each output file for each execution and keep track of failed downloads
+        failures = []
+        for wid in self._workflows:
+            # Check if the workflow should be processed
+            if self._workflows[wid]["status"] not in get_status:
+                continue
             nExec+=1 
             # Display current execution
             if verbose: 
-                print(f"[{nExec}/{nb_exec}] Outputs from:", 
-                    wid, ", started on:", self._workflows[wid]["start"])
+                print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
+                    " | Started on: ", self._workflows[wid]["start"],
+                    " | Status: ", self._workflows[wid]["status"], sep='')
             # Get the path of the returned files on VIP
             vip_outputs = self._workflows[wid]["outputs"]
+            # If there is no output file, go to the next execution
+            if not vip_outputs: 
+                if verbose: print("\tNothing to download.")
+                continue
             # Browse the output files
             nFile = 0 # File count
-            missing_file = False # True if local files are missing
+            missing_file = False # Will be True if local files are missing
             for output in vip_outputs:
                 nFile+=1
                 # Get the output path on VIP
-                vip_file = output["path"]
+                vip_file = PurePosixPath(output["path"])
                 # TODO: implement the case in which the output is a directory (mirror _upload_dir ?)
                 if output["isDirectory"]:
                     raise NotImplementedError(f"{vip_file} is a directory: cannot be handled for now.")
                 # Get the local equivalent path
                 local_file = self._get_local_output_path(vip_file)
                 # Check file existence on the local machine
-                if os.path.exists(local_file): 
+                if self._exists(local_file, "local"): 
                     continue
                 # If not, update the output data
                 missing_file = True
                 # Make the parent directory (if needed)
-                local_dir = os.path.dirname(local_file)
-                if self._make_dir(local_dir) and verbose: print("\tCreated:", local_dir)
+                local_dir = local_file.parent
+                if self._make_dir(local_dir) and verbose: print("\tNew directory:", local_dir)
                 # Display the process
                 size = f"{output['size']/(1<<20):,.1f}MB"
-                if verbose: print(f"\t[{nFile}/{len(vip_outputs)}] Downloading file ({size}):", \
-                                    os.path.basename(local_file), end=" ... ")
+                if verbose: print(f"\t[{nFile}/{len(vip_outputs)}] Downloading file ({size}):", 
+                                local_file.name, end=" ... ")
                 # Download the file from VIP servers
-                if self._download_file( vip_path=vip_file, local_path=local_file):
+                if self._download_file(vip_path=vip_file, local_path=local_file):
                     # Display success
                     if verbose: print("Done.")
-                    # If the output is a GZIP archive, extract the files and delete the archive
-                    if unzip and output["mimeType"]=="application/gzip":
+                    # If the output is a tarball, extract the files and delete the tarball
+                    if unzip and output["mimeType"]=="application/gzip" and tarfile.is_tarfile(local_file):
                         if verbose: print("\t\tExtracting archive content ...", end=" ")
-                        if self._extract_archive(local_file):
+                        if self._extract_tarball(local_file):
                             if verbose: print("Done.") # Display success
                         elif verbose: 
-                            print("Extraction was skipped.") # Display failure
+                            print("Extraction failed.") # Display failure
                 else: # failure while downloading the output file
                     # Update display
-                    if verbose: print(f"\n(!)\tSomething went wrong in the process.")
+                    if verbose: print(f"\n(!)\tSomething went wrong in the process. Please retry later.")
                     # Update missing files
-                    failures.append(local_file)
+                    failures.append(str(vip_file))
             # End of file loop
             if verbose:
                 if not missing_file: # All files were already there
-                    print("\tAlready in:", os.path.dirname(local_file)) 
+                    print("\tAlready in:", local_file.parent) 
                 else:  # Some missing files were succesfully downloaded
                     print("\tDone for all files.")
         # End of worflow loop    
@@ -568,8 +585,8 @@ class VipSession():
                 print("Done for all executions.")
             else:
                 print("End of the procedure.") 
-                print( "The following files could not be downloaded from VIP: \n\t")
-                print( "\n\t".join(failures))
+                print("The following files could not be downloaded from VIP: \n\t", end="")
+                print("\n\t".join(failures))
             print()
         # Return for method cascading
         return self
@@ -577,7 +594,8 @@ class VipSession():
 
     # ($A.2->A.5) Run a full VIP session 
     def run_session(
-            self, update_files=True, nb_runs=1, waiting_time=30, unzip=True, verbose=True
+            self, update_files=True, nb_runs=1, waiting_time=30, 
+            get_status=["Finished"], unzip=True, verbose=True
         ) -> VipSession:
         """
         Runs a full session without the finish() step.
@@ -591,6 +609,7 @@ class VipSession():
         - Set `update_files` to False to avoid checking the input data on VIP;
         - Increase `nb_runs` to run more than 1 execution at once;
         - Set `waiting_time` to modify the default monitoring time;
+        - Set `get_status` to download files from workflows with a specific status
         - Set unzip to False to avoid extracting .tgz files during the download. 
         
         Set `verbose` to False to run silently
@@ -603,7 +622,7 @@ class VipSession():
             # 3. Monitor pipeline executions until they are all over
             .monitor_workflows(waiting_time=waiting_time, verbose=verbose)
             # 4. Download execution results from VIP
-            .download_outputs(unzip=unzip, verbose=verbose)
+            .download_outputs(get_status=get_status, unzip=unzip, verbose=verbose)
         )
 
     # ($A.6) Clean session data on VIP
@@ -620,7 +639,7 @@ class VipSession():
         # Check if workflows are still running (without call to VIP)
         if self._still_running():
             # Update the workflow inventory
-            if verbose: print("Updating worflow inventory ... ", end="")
+            if verbose: print("Updating workflow status ... ", end="")
             self._update_workflows(save_session=False)
             if verbose: print("Done.")
             # Return is workflows are still running
@@ -766,7 +785,7 @@ class VipSession():
         - The other `session` do not have input data on VIP.
         """
         # End the procedure if both sessions already share the same inputs
-        if str(self._vip_input_dir) == str(session._vip_input_dir):
+        if self._vip_input_dir == session._vip_input_dir:
             # Display
             if verbose: 
                 print(f"\nSessions '{self._session_name}' and '{session._session_name}' share the same inputs.")
@@ -774,7 +793,7 @@ class VipSession():
             return self
         # Check if current session do not have data on VIP
         try:
-            assert not vip.exists(self._vip_path_join(self._VIP_PATH, self._session_name)), \
+            assert not vip.exists(str(self._VIP_PATH/self._session_name)), \
                 f"Session '{session._session_name}' already has data on VIP.\n" \
                     + "Please finish this session and start another one."
         except RuntimeError as vip_error:
@@ -820,7 +839,7 @@ class VipSession():
 
     # Function to upload all files from a local directory
     @classmethod
-    def _upload_dir(cls, local_path, vip_path, verbose=True) -> list:
+    def _upload_dir(cls, local_path: Path, vip_path: PurePosixPath, verbose=True) -> list:
         """
         Uploads all files in `local_path` to `vip_path` (if needed).
         Displays what it does if `verbose` is set to True.
@@ -830,35 +849,33 @@ class VipSession():
         assert cls._exists(local_path), f"{local_path} does not exist."
         # First display
         if verbose: print(f"Cloning: {local_path} ", end="... ")
-        # Scan
-        local_elements = os.listdir(local_path)
         # Look for subdirectories
         subdirs = [
-            elem for elem in local_elements 
-            if os.path.isdir(os.path.join(local_path, elem))
+            elem for elem in local_path.iterdir() 
+            if elem.is_dir()
         ]
         # Scan the distant directory and look for files to upload
         if cls._make_dir(vip_path, location="vip"):
             # The distant directory did not exist before call
             # -> upload all the data (no scan to save time)
             files_to_upload = [
-                os.path.join(local_path, elem)
-                for elem in local_elements
-                if os.path.isfile(os.path.join(local_path, elem))
+                elem for elem in local_path.iterdir()
+                if elem.is_file()
             ]
             if verbose:
                 print("Created on VIP.")
                 if files_to_upload:
                     print(f" {len(files_to_upload)} files to upload.")
         else: # The distant directory already exists
-            # -> scan it to check if there are more files to upload
+            # Scan it to check if there are more files to upload
             vip_filenames = {
-                cls._vip_basename(element["path"]) for element in vip.list_elements(vip_path)
+                PurePosixPath(element["path"]).name
+                for element in vip.list_elements(str(vip_path))
             }
             # Get the files to upload
             files_to_upload = [
-                os.path.join(local_path, elem) for elem in local_elements
-                if os.path.isfile(os.path.join(local_path, elem)) and (elem not in vip_filenames)
+                elem for elem in local_path.iterdir()
+                if elem.is_file() and (elem.name not in vip_filenames)
             ]
             # Update the display
             if verbose:
@@ -870,13 +887,12 @@ class VipSession():
         nFile = 0
         failures = []
         for local_file in files_to_upload :
-            local_filename = os.path.basename(local_file)
             nFile+=1
             # Display the current file
             if verbose:
-                print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_filename} ...", end=" ")
+                print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ...", end=" ")
             # Upload the file on VIP
-            vip_file = cls._vip_path_join(vip_path, local_filename) # file path on VIP
+            vip_file = vip_path/local_file.name # file path on VIP
             if cls._upload_file(local_path=local_file, vip_path=vip_file):
                 # Upload was successful
                 if verbose: print("Done.")
@@ -884,12 +900,12 @@ class VipSession():
                 # Update display
                 if verbose: print(f"\n(!) Something went wrong during the upload.")
                 # Update missing files
-                failures.append(local_file)
+                failures.append(str(local_file))
         # Recurse this function over sub-directories
         for subdir in subdirs:
             failures += cls._upload_dir(
-                local_path=os.path.join(local_path, subdir),
-                vip_path=cls._vip_path_join(vip_path, subdir),
+                local_path=subdir,
+                vip_path=vip_path/subdir.name,
                 verbose=verbose
             )
         # Return the list of failures
@@ -898,30 +914,28 @@ class VipSession():
 
     # Function to upload a single file on VIP
     @classmethod
-    def _upload_file(cls, local_path, vip_path) -> bool:
+    def _upload_file(cls, local_path: Path, vip_path: PurePosixPath) -> bool:
         """
         Uploads a single file in `local_path` to `vip_path`.
         Returns a success flag.
         """
         # Check
-        assert os.path.exists(local_path), f"{local_path} does not exist."
+        assert local_path.exists(), f"{local_path} does not exist."
         # Upload
-        done = vip.upload(local_path, vip_path)
+        done = vip.upload(str(local_path), str(vip_path))
         # Return
         return done
     # ------------------------------------------------   
 
     # Function to download a single file from VIP
     @classmethod
-    def _download_file(cls, vip_path, local_path) -> bool:
+    def _download_file(cls, vip_path: PurePosixPath, local_path: Path) -> bool:
         """
         Downloads a single file in `vip_path` to `local_path`.
         Returns a success flag.
         """
         # Download (file existence is not checked to save time)
-        done = vip.download(vip_path, local_path)
-        # Return flag 
-        return done
+        return vip.download(str(vip_path), str(local_path))
     # ------------------------------------------------    
 
     # Method to check existence of a distant or local resource.
@@ -931,14 +945,12 @@ class VipSession():
         Checks existence of a distant (`location`="vip") or local (`location`="local") resource.
         `path` can be a string or path-like object.
         """
-        # Check input type
-        if not isinstance(path, str): path = str(path)
         # Check path existence in `location`
         if location=="local":
             return os.path.exists(path)
         elif location=="vip":
             try: 
-                return vip.exists(path)
+                return vip.exists(str(path))
             except RuntimeError as vip_error:
                 cls._handle_vip_error(vip_error)
         else: 
@@ -954,17 +966,17 @@ class VipSession():
         - on VIP if `location` is "vip".
 
         `path`can be a string or PathLib object.
-        `kwargs` are passed as keyword arguments to `os.mkdir()`.
+        `kwargs` are passed as keyword arguments to `Path.mkdir()`.
         Returns the VIP or local path of the newly created folder.
         """
         if location == "local": 
             # Check input type
-            if isinstance(path, str): path=pathlib.PurePath(path)
+            if isinstance(path, str): path=Path(path)
             # Check the parent is a directory
-            assert os.path.isdir(path.parent),\
-                f"Cannot create subdirectories in '{str(path.parent)}': not a folder"
+            assert path.parent.is_dir(),\
+                f"Cannot create subdirectories in '{path.parent}': not a folder"
             # Create the new directory with additional keyword arguments
-            os.mkdir(path=path, **kwargs)
+            path.mkdir(**kwargs)
         elif location == "vip": 
             # Check input type
             if not isinstance(path, str): path=str(path)
@@ -979,7 +991,7 @@ class VipSession():
 
     # Method to create a distant or local directory leaf on the top of any path
     @classmethod
-    def _make_dir(cls, path: str, location="local", **kwargs) -> str:
+    def _make_dir(cls, path, location="local", **kwargs) -> str:
         """
         Creates each non-existent directory in `path` :
         - locally if `location` is "local";
@@ -990,9 +1002,9 @@ class VipSession():
         """
         # Create a PathLib object depending on the location
         if location == "local":
-            path = pathlib.PurePath(path)
+            path = Path(path)
         else:
-            path = pathlib.PurePosixPath(path)
+            path = PurePosixPath(path)
         # Case : the current path exists
         if cls._exists(path=path, location=location) :
             return ""
@@ -1003,7 +1015,7 @@ class VipSession():
         # Make the path from there
         if location == "local":
             # Create the full arborescence locally
-            os.makedirs(path, exist_ok=True)
+            path.mkdir(parents=True, exist_ok=True)
         else: 
             # Create the first node 
             cls._create_dir(path=first_node, location=location, **kwargs)
@@ -1020,18 +1032,15 @@ class VipSession():
 
     # Method to extract content from a tarball
     @classmethod
-    def _extract_archive(cls, local_file):
+    def _extract_tarball(cls, local_file: Path):
         """
         Replaces tarball `local_file` by a directory with the same name 
         and extracted content.
         Returns success flag.
         """
-        # Check the correct format
-        if not tarfile.is_tarfile(local_file):
-            return False
         # Rename current archive
-        archive = os.path.join(os.path.dirname(local_file), "tmp.tgz")
-        os.rename(local_file, archive)
+        archive = local_file.parent / "tmp.tgz"
+        os.rename(local_file, archive) # pathlib version not worth it in Python 3.7
         # Create a new directory to store archive content
         cls._make_dir(local_file)
         # Extract archive content
@@ -1225,20 +1234,20 @@ class VipSession():
             self._pipeline_id = kwargs.pop("pipeline_id")
         # Set local input path (keywords `input_dir` and `local_input_dir`)
         if "input_dir" in kwargs:
-            self._local_input_dir = pathlib.Path(kwargs.pop("input_dir"))
+            self._local_input_dir = Path(kwargs.pop("input_dir"))
         elif "local_input_dir" in kwargs:
-            self._local_input_dir = pathlib.Path(kwargs.pop("local_input_dir"))
+            self._local_input_dir = Path(kwargs.pop("local_input_dir"))
         # Set local output path (keywords `output_dir` and `local_output_dir`)
         if "output_dir" in kwargs:
-            self._local_output_dir = pathlib.Path(kwargs.pop("output_dir"))
+            self._local_output_dir = Path(kwargs.pop("output_dir"))
         elif "local_output_dir" in kwargs:
-            self._local_output_dir = pathlib.Path(kwargs.pop("local_output_dir"))
+            self._local_output_dir = Path(kwargs.pop("local_output_dir"))
         # Set VIP input path (no check)
         if "vip_input_dir" in kwargs:
-            self._vip_input_dir = pathlib.PurePosixPath(kwargs.pop("vip_input_dir"))
+            self._vip_input_dir = PurePosixPath(kwargs.pop("vip_input_dir"))
         # Set VIP output path (no check)
         if "vip_output_dir" in kwargs:
-            self._vip_output_dir = pathlib.PurePosixPath(kwargs.pop("vip_output_dir"))
+            self._vip_output_dir = PurePosixPath(kwargs.pop("vip_output_dir"))
         # Set the Input Settings (depends on the new vip_input_path)
         if "input_settings" in kwargs:
             self._input_settings = self._vip_input_settings(kwargs.pop("input_settings"))
@@ -1273,7 +1282,9 @@ class VipSession():
         """
         # Default location
         if not file:
-            file = str(self._local_output_dir / self._SAVE_FILE)
+            file = self._local_output_dir / self._SAVE_FILE
+        else:
+            file=Path(file).resolve()
         # Data to save 
         vip_data={
             "session_name": self._session_name,
@@ -1287,15 +1298,16 @@ class VipSession():
             # Soon: hardware information ?
         }
         # Make the output directory if it does not exist
-        is_new = self._make_dir(self._local_output_dir)
+        is_new = self._make_dir(file.parent, "local")
         # Save the data in JSON format
-        with open(file, "w") as outfile:
+        with file.open("w") as outfile:
             json.dump(vip_data, outfile, indent=4)
         # Display
         if verbose:
-            print("\nSession properties were saved in:")
-            if is_new: print("[new file] ", end="")
-            print(f"\t{file}\n")
+            if is_new: 
+                print(f"\nSession properties are saved in:\n\t{file}\n")
+            else:
+                print(f"\nSession properties have been saved.")
     # ------------------------------------------------
 
     # ($C.2) Load session properties from a JSON file
@@ -1306,16 +1318,16 @@ class VipSession():
         If current properties (i.e. `session_name`, etc.) are already set, they will be replaced.
         """
         # Check existence of data from a previous session
-        file = str(self._local_output_dir / self._SAVE_FILE)
-        if not os.path.isfile(file):
+        file = self._local_output_dir / self._SAVE_FILE
+        if not file.is_file():
             return False
         # Load the JSON file
-        with open(file, "r") as fid:
+        with file.open() as fid:
             vip_data = json.load(fid)
         # Set all instance properties
         self._set(**vip_data)
         # Update the output directory
-        self._set(local_output_dir=os.path.dirname(file))
+        self._set(local_output_dir=file.parent)
         # Display
         if verbose:
             print("An existing session was found.")
@@ -1368,7 +1380,7 @@ class VipSession():
             if input_path.startswith("/vip"):
                 return input_path
             # We use absolute path since relative ones are unpredictable
-            in_path = pathlib.Path(input_path).resolve()
+            in_path = Path(input_path).resolve()
             # Check if _local_input_dir has been set
             assert self._is_defined("_local_input_dir"), "Attribute `_local_input_dir` is unset."
             # Replace `local_input_dir` by `vip_input_dir` in the path
@@ -1388,71 +1400,26 @@ class VipSession():
     # ------------------------------------------------
 
     # Function to convert a VIP path to local output directory
-    def _get_local_output_path(self, vip_output_path) -> dict:
+    def _get_local_output_path(self, vip_output_path: PurePosixPath) -> Path:
         """
         Converts a VIP path in local format for VIP outputs. 
         `vip_output_path` can be a single string or a list of strings.
         Assumes `vip_output_path` belongs to to self._vip_output_dir.
         """
-        # List of forbidden characters in Windows paths
+        # Replace `vip_output_dir`" by `local_output_dir` in the path
+        new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
+        # Replace forbidden characters by '-' if current OS is windows
         invalid_for_windows = '<>:"?* '
-        # If vip_output_path is a string : convert the path
-        if isinstance(vip_output_path, str):
-            # Replace `vip_output_dir`" by `local_output_dir` in the path
-            new = self._local_output_dir / pathlib.PurePosixPath(vip_output_path).relative_to(self._vip_output_dir)
-            # Replace forbidden characters by '-' if current OS is windows
-            new_str = str(new)
-            if isinstance(new, pathlib.WindowsPath):
-                for char in invalid_for_windows: new_str = new_str.replace(char, '-')
-            # Return
-            return new_str
-        # If vip_output_path is a list : use this function recursively
-        elif isinstance(vip_output_path, list):
-            return [ self._get_local_output_path(element) for element in vip_output_path ]
-        # If the value is something else: raise an error (this method should be updated)
-        else:
-            raise NotImplementedError(f"The folllowing object:\n\t{vip_output_path}\nshould be a string or a list of strings.")
-    # ------------------------------------------------
-
-    # Functions to manipulate VIP paths like os.path
-    @classmethod
-    def _vip_basename(cls, vip_path: str) -> str:
-        """
-        os.path.basename equivalent for VIP paths
-        """
-        return vip_path.split("/")[-1]
-
-    @classmethod
-    def _vip_dirname(cls, vip_path: str) -> str:
-        """
-        os.path.dirname equivalent for VIP paths
-        """
-        # Find the basename
-        end = vip_path.rfind(cls._vip_basename(vip_path))
-        # Remove the basename
-        dirname = vip_path[:end]
-        # Return without trailing "/"
-        return dirname.rstrip("/") if (dirname != "/") else dirname
-
-    @staticmethod
-    def _vip_path_join(a: str, *args):
-        """
-        os.path.join equivalent for VIP paths
-        """
-        # Enumerate arguments
-        for node in args:
-            # Concatenate
-            if ((not a) # empty path
-            or (node and node[0] == "/")): # new absolute path 
-                a = node
-            else: # new relative path 
-                a = a.rstrip("/") + "/" + node 
-        return a
+        new_str = str(new.resolve())
+        if isinstance(new, WindowsPath):
+            for char in invalid_for_windows: new_str = new_str.replace(char, '-')
+        # Return
+        return Path(new_str).resolve()
     # ------------------------------------------------
 
     # Function to delete a path on VIP with warning
     @staticmethod
-    def _delete_path(path: pathlib.PurePath, verbose=True) -> bool:
+    def _delete_path(path: PurePath, verbose=True) -> bool:
         """
         Deletes `path` on VIP servers and waits until `path` is removed.
         Raises a warning in case of failure or in case of success
@@ -1603,7 +1570,7 @@ class VipSession():
                 # The file must exist
                 if not self._exists(file, location="local"):
                     raise FileNotFoundError((f"File: '{file}' does not exist."))
-                _file =  pathlib.Path(file).resolve(strict=True)
+                _file =  Path(file).resolve(strict=True)
                 # The file must belong to _local_input_dir
                 try:
                     if not _file.is_relative_to(self._local_input_dir.resolve()):

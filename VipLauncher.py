@@ -1,9 +1,8 @@
 from __future__ import annotations
 import os
 import time
-import pathlib
+from pathlib import *
 import json
-from warnings import warn
 
 import vip
 
@@ -82,7 +81,7 @@ class VipLauncher():
         # Path to the output data
         if output_dir :
             # Assign
-            self._vip_output_dir = pathlib.PurePosixPath(output_dir)
+            self._vip_output_dir = PurePosixPath(output_dir)
         # Assign & Check: Session Name
         self._session_name = (
             session_name if session_name
@@ -453,7 +452,6 @@ class VipLauncher():
         Creates a directory at `path`, on VIP servers if `location` is "vip".
 
         `path`can be a string or PathLib object.
-        `kwargs` are passed as keyword arguments to `os.mkdir()`.
         Returns the VIP path of the newly created folder.
         """
         if location != "vip": 
@@ -470,7 +468,7 @@ class VipLauncher():
 
     # Method to create a directory leaf on the top of any VIP path
     @classmethod
-    def _make_dir(cls, path: str, location="vip") -> str:
+    def _make_dir(cls, path, location="vip") -> str:
         """
         Creates each non-existent directory in `path`, on VIP servers if `location` is "vip".
 
@@ -479,7 +477,7 @@ class VipLauncher():
         # Create a PathLib object depending on the location
         if location != "vip":
             raise NotImplementedError(f"Unknown location: {location}")
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
         # Case : the current path exists
         if cls._exists(path=path, location=location) :
             return ""
@@ -661,10 +659,10 @@ class VipLauncher():
             self._pipeline_id = kwargs.pop("pipeline_id")
         # Set VIP output path (keywords `output_dir` and `_vip_output_dir`)
         if "output_dir" in kwargs:
-            self._vip_output_dir = pathlib.Path(kwargs.pop("output_dir"))
+            self._vip_output_dir = Path(kwargs.pop("output_dir"))
         # Set VIP output path (no check)
         if "_vip_output_dir" in kwargs:
-            self._vip_output_dir = pathlib.PurePosixPath(kwargs.pop("_vip_output_dir"))
+            self._vip_output_dir = PurePosixPath(kwargs.pop("_vip_output_dir"))
         # Set the Input Settings (depends on the new vip_input_path)
         if "input_settings" in kwargs:
             self._input_settings = kwargs.pop("input_settings")
@@ -692,7 +690,7 @@ class VipLauncher():
 
     # Function to delete a path on VIP with warning
     @staticmethod
-    def _delete_path(path: pathlib.PurePath, verbose=True) -> bool:
+    def _delete_path(path: PurePath, verbose=True) -> bool:
         """
         Deletes `path` on VIP servers and waits until `path` is removed.
         Raises a warning in case of failure or in case of success
