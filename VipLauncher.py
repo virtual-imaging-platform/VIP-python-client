@@ -53,6 +53,96 @@ class VipLauncher():
     # List of pipelines available to the user
     _PIPELINES = []
 
+                    ####################
+    ################ Instance attributes ##################
+                    ####################
+
+    # Session Name
+    @property
+    def session_name(self) -> str:
+        """A unique name to identify this session."""
+        return self._session_name
+    
+    @session_name.setter
+    def session_name(self, name: str) -> None:
+        """Set the session name."""
+        # Check conflicts with instance attribute
+        if self._is_defined("_session_name") and (name != self._session_name):
+            raise ValueError(f"Session name cannot be changed ('{self._session_name}' -> '{name}').")
+        # Check the name
+        self._check_session_name(name=name)
+        # Assign
+        self._session_name = name
+
+    # Pipeline identifier
+    @property
+    def pipeline_id(self) -> str:
+        """Name of the pipeline in VIP."""
+        return self._pipeline_id
+    
+    @pipeline_id.setter
+    def pipeline_id(self, pId: str) -> None:
+        """Set the pipeline identifier"""
+        # Check conflicts with instance attribute
+        if self._is_defined("_pipeline_id") and (pId != self._pipeline_id):
+            raise ValueError(f"Pipeline identifier cannot be changed for session: {self._session_name} ('{self._pipeline_id}' -> '{pId}').")
+        # Check the pipeline ID (if possible)
+        self._check_pipeline_id(pipeline_id=pId)
+        # Update
+        self._pipeline_id = pId
+
+    @pipeline_id.deleter
+    def pipeline_id(self) -> None:
+        """Delete the pipeline identifier"""
+        del self._pipeline_id
+
+    # Input settings
+    @property
+    def input_settings(self) -> dict:
+        """All parameters needed to run the pipeline."""
+        return self._input_settings
+    
+    @input_settings.setter
+    def input_settings(self, new_settings: dict):
+        """Set the input settings."""
+        # Check conflicts with instance attribute
+        if self._is_defined("_input_settings") and (new_settings != self._input_settings):
+            raise ValueError(f"Input settings cannot be changed for session: {self.session_name}.")
+        # Update
+        self._input_settings = new_settings
+
+    @input_settings.deleter
+    def input_settings(self) -> None:
+        """Delete the input settings"""
+        del self._input_settings
+
+    # Output directory
+    @property
+    def output_dir(self) -> str:
+        """Path to the VIP directory where pipeline outputs will be stored."""
+        return str(self._vip_output_dir)
+    
+    @output_dir.setter
+    def output_dir(self, new_dir: str) -> None:
+        """Set the output directory"""
+        # Check conflicts with instance value
+        if self._is_defined("_vip_output_dir") and (new_dir != self._vip_output_dir):
+            raise ValueError(f"Results directory cannot be changed for session: {self.session_name} ('{self._vip_output_dir}' -> '{new_dir}').")
+        # Assign
+        self._vip_output_dir = PurePosixPath(new_dir)
+
+    @output_dir.deleter
+    def output_dir(self) -> None:
+        """Delete the output directory"""
+        del self._vip_output_dir
+
+    # Workflows
+    @property
+    def workflows(self) -> dict:
+        """Workflows inventory"""
+        return self._workflows
+
+
                     #############
     ################ Constructor ##################
                     #############
@@ -77,40 +167,26 @@ class VipLauncher():
 
         - `output_dir` (str) Path to the VIP directory where pipeline outputs will be stored.
         """
-        # SESSION IDENTIFIERS
-        # Path to the output data
-        if output_dir :
-            # Assign
-            self._vip_output_dir = PurePosixPath(output_dir)
-        # Assign & Check: Session Name
-        self._session_name = (
+        # Session Name
+        self.session_name = (
             session_name if session_name
             # default value
             else self._NAME_PREFIX + time.strftime("%y%m%d_%H%M%S", time.localtime())
         )
-        self._check_session_name()
-        # SESSION DATA
-        if verbose: 
-            print("New VIP session")
-            print("---------------")
-        # Check & Assign: Pipeline ID
+        # Pipeline identifier
         if pipeline_id:
-            if verbose: print("Pipeline ID: ", end="")
-            self._check_pipeline_id(pipeline_id)
-            if verbose: print("Checked.")
-            self._pipeline_id = pipeline_id
-        # Check & Assign: Input settings 
+            self.pipeline_id = pipeline_id
+        # Input settings
         if input_settings:
-            if verbose: print("Input Settings: ", end="")
-            done = self._check_input_settings(input_settings) # check local values
-            self._input_settings = input_settings # set VIP values
-            if verbose: 
-                print("Checked." if done else "Unchecked.")
-        # Workflow inventory (default value)
+            self.input_settings = input_settings 
+        # Output directory
+        if output_dir :
+            self.output_dir = output_dir
+        # Workflows inventory
         self._workflows = {}
         # End
-        if verbose: 
-            print("---------------")
+        if verbose:
+            print(f"\n<<< SESSION '{self.session_name}' >>>\n")
     # ------------------------------------------------
 
                     ################
@@ -172,7 +248,7 @@ class VipLauncher():
             print("\nYou are communicating with VIP.\nAvailable pipelines:")
             print(*cls._PIPELINES, sep=", ")
         # Return a VipLauncher instance for method cascading
-        return VipLauncher(verbose=True if kwargs else False, **kwargs)
+        return VipLauncher(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
    
     # ($A.3) Launch executions on VIP 
@@ -195,67 +271,58 @@ class VipLauncher():
         - Raises RuntimeError in case of failure on VIP servers.
         """
         if verbose: print("\n<<< LAUNCH PIPELINE >>>\n")
-        # Update the pipeline identifier
-        if verbose: print("Pipeline identifier:")
+        # Parameter checks
+        if verbose: print("Parameters checks")
+        # Check & Update the pipeline identifier
+        if verbose: print("\tPipeline identifier: ", end="")
         if pipeline_id:
-            # check conflicts with instance value
-            if self._is_defined("_pipeline_id") and (pipeline_id != self._pipeline_id):
-                raise ValueError(f"Pipeline identifier is already set for this session ('{self._pipeline_id}').")
-            self._set(pipeline_id=pipeline_id)
-        # Assert the pipeline is set 
-        if not self._is_defined("_pipeline_id"):
-            raise TypeError("Please provide a pipeline identifier for Session: %s" %self._session_name)
-        # Check the pipeline identifier
-        self._check_pipeline_id()
+            self.pipeline_id = pipeline_id
+        if not self._check_pipeline_id():
+            raise TypeError("(!) Pipeline identifier could not be checked without call to init().")
         if verbose: print("OK.")
         # Update the output directory
-        if verbose: print("Output directory:")
+        if verbose: print("\tOutput directory: ", end="")
         if output_dir: 
-            # check conflicts with instance value
-            if self._is_defined("_vip_output_dir") and (output_dir != self._vip_output_dir):
-                raise ValueError(f"Results directory is already set for this session ('{self._vip_output_dir}').")
-            self._vip_output_dir=output_dir
+            self.output_dir=output_dir
         # Check existence
-        if not self._vip_output_dir:
-            raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
+        if not self._is_defined("_vip_output_dir"):
+            raise TypeError("Please provide an output directory for Session: %s" %self.session_name)
         # Ensure the directory exists
-        self._make_dir(path=self._vip_output_dir)
+        if self._make_dir(path=self._vip_output_dir, location="vip"):
+            print("Created on VIP.")
+        else:
+            print("OK.")
         # Update the input parameters
         if input_settings:
-            # check conflicts with instance value
-            if self._input_settings and input_settings != self._input_settings:
-                raise ValueError(f"Input settings are already set for Session: %s" %self._session_name)
-            self._set(input_settings=input_settings)
+            self.input_settings = input_settings
+        if verbose: print("\tInput settings: ", end="")
         # Check existence
-        if not self._input_settings:
-            raise TypeError(f"Please provide input parameters for Session: %s" %self._session_name)  
+        if not self._is_defined("_input_settings"):
+            raise TypeError("Please provide input parameters for Session: %s" %self.session_name)  
         # Check content
         try:
-            assert self._check_input_settings(), "Input parameters could not be checked."
+            if not self._check_input_settings():
+                raise TypeError("Input parameters could not be checked.")
         except RuntimeError as handled_error:
             # this may throw a RuntimeError (handled upstream)
             # if pipeline definition could not be loaded from VIP 
             if verbose: print("\n(!) Input settings could not be checked.")
-            raise handled_error
-        if verbose: print("Done.\n")
-        # First Display
+            raise handled_error from None
+        if verbose: print("OK.")
+        # End of parameters checks
+        if verbose: print()
+        # Display the launch
         if verbose:
             print("Launching %d new execution(s) on VIP" % nb_runs)
             print("-------------------------------------")
-            print("\tSession Name:", self._session_name)
-            print("\tPipeline Identifier:", self._pipeline_id)
-            print("\tStarted workflows:", end="\n\t\t")
+            print("\tSession Name:", self.session_name)
+            print("\tPipeline Identifier:", self.pipeline_id)
+            print("\tStarted Workflows:", end="\n\t\t")
         # Launch all executions in parallel
         for nEx in range(nb_runs):
-            # This part may fail for a number of reasons
             try:
-                # Initiate Execution
-                workflow_id = vip.init_exec(
-                    self._pipeline_id, 
-                    name = self._session_name, 
-                    inputValues = self._input_settings,
-                    resultsLocation = str(self._vip_output_dir)
-                )
+                # This part may fail for a number of reasons
+                workflow_id = self._init_exec()
             except RuntimeError as vip_error:
                 print("\n-------------------------------------")
                 print(f"(!) Stopped after {nEx} execution(s).")
@@ -272,6 +339,30 @@ class VipLauncher():
         # Return for method cascading
         return self
     # ------------------------------------------------
+
+    def _init_exec(
+            self, pipeline_id="", session_name="", input_settings="",
+            output_dir="") -> str:
+        """
+        Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
+        Returns the workflow identifier.
+        """
+        # Parse arguments
+        if not pipeline_id:
+            pipeline_id = self._pipeline_id
+        if not session_name:
+            session_name = self._session_name
+        if not input_settings:
+            input_settings = self._input_settings
+        if not output_dir:
+            output_dir = str(self._vip_output_dir)
+        # Launch execution
+        return vip.init_exec(
+            pipeline = pipeline_id, 
+            name = session_name, 
+            inputValues = input_settings,
+            resultsLocation = output_dir
+        )
 
     # ($A.4) Monitor worflow executions on VIP 
     def monitor_workflows(self, waiting_time=30, verbose=True) -> VipLauncher:
@@ -338,14 +429,14 @@ class VipLauncher():
                     return self
         # Initial display
         if verbose:
-            print("Ending Session:", self._session_name)
+            print("Ending Session:", self.session_name)
             print("-------------------------")
             print("Removing the output data from VIP servers ... ", end="")
         # Check data existence on VIP
         if not self._is_defined("_vip_output_dir"):
-            raise AttributeError(f"Cannot finish Session {self._session_name}: The result directory is unset.")
+            raise AttributeError(f"Cannot finish Session {self.session_name}: The result directory is unset.")
         try:
-            exists = self._exists(self._vip_output_dir, location="vip")
+            exists = self._exists(self._vip_output_dir)
         except RuntimeError as vip_error:
             self._handle_vip_error(vip_error)
         if not exists:
@@ -362,7 +453,7 @@ class VipLauncher():
         if not done:
             if verbose: 
                 print("-------------------------")
-                print(f"Session <{self._session_name}> is not over yet.")
+                print(f"Session <{self.session_name}> is not over yet.")
                 print("Run finish() again later to end the process.\n")
             return self
         # Check if the input data have been erased (this is not the case when get_inputs have been used)
@@ -386,8 +477,11 @@ class VipLauncher():
                 print("(!) Session data were not fully removed from VIP servers.")
                 print(warning_msg)
             print("-------------------------")
-            if success: print(f"Session <{self._session_name}> is now over.")
-            else: print(f"Session <{self._session_name}> is not over yet.")
+            if success: 
+                print(f"Session <{self.session_name}> is now over.\n")
+            else: 
+                print(f"Session <{self.session_name}> is not over yet.")
+                print("Run finish() again later to end the process.\n")
         # Return for method cascading
         return self
     # ------------------------------------------------
@@ -409,11 +503,11 @@ class VipLauncher():
         """
         # Data to display 
         vip_data={
-            "session_name": self._session_name,
-            "pipeline_id": self._pipeline_id,
-            "output_dir": str(self._vip_output_dir),
-            "workflows": self._workflows,
-            "input_settings": self._input_settings,
+            "session_name": self.session_name,
+            "pipeline_id": self.pipeline_id,
+            "output_dir": self.output_dir,
+            "input_settings": self.input_settings,
+            "workflows": self.workflows,
         }
         # Display
         print(json.dumps(vip_data, indent=4))
@@ -427,19 +521,17 @@ class VipLauncher():
 
     # Method to check existence of a distant resource.
     @classmethod
-    def _exists(cls, path, location="vip") -> bool:
+    def _exists(cls, path: PurePosixPath, location="vip") -> bool:
         """
         Checks existence of a distant resource (`location`="vip").
         `path` can be a string or path-like object.
         """
-        # Check input type
-        if not isinstance(path, str): path = str(path)
         # Check `location`
         if location != "vip":
             raise NotImplementedError(f"Unknown location: {location}")
         # Check path existence
         try: 
-            return vip.exists(path)
+            return vip.exists(str(path))
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
             
@@ -447,20 +539,22 @@ class VipLauncher():
     
     # Method to create a distant directory
     @classmethod
-    def _create_dir(cls, path, location="vip") -> None:
+    def _create_dir(cls, path: PurePosixPath, location="vip") -> None:
         """
         Creates a directory at `path`, on VIP servers if `location` is "vip".
 
         `path`can be a string or PathLib object.
         Returns the VIP path of the newly created folder.
         """
+        # Check `location`
         if location != "vip": 
             raise NotImplementedError(f"Unknown location: {location}")
-        # Check input type
-        if not isinstance(path, str): path=str(path)
+        # Create directory
         try: 
-            assert vip.create_dir(path), \
-                f"Could not make directory: '{path}' on VIP."
+            if not vip.create_dir(str(path)):
+                msg = f"The following directoy could not be created on VIP:\n\t{path}\n"
+                msg += "Please retry later. Contact VIP support (vip-support@creatis.insa-lyon.fr) if this cannot be fixed."
+                raise AssertionError(msg)
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)    
             
@@ -468,16 +562,15 @@ class VipLauncher():
 
     # Method to create a directory leaf on the top of any VIP path
     @classmethod
-    def _make_dir(cls, path, location="vip") -> str:
+    def _make_dir(cls, path: PurePath, location: str, **kwargs) -> str:
         """
-        Creates each non-existent directory in `path`, on VIP servers if `location` is "vip".
+        Creates each non-existent directory in `path` (like os.makedirs()), 
+        in the storage facility designed by `location`.
+        - Directories are created using: cls._create_dir(`path`, `location`, **`kwargs`)
+        - Existence is checked using: cls._exists(`path`, `location`).
 
         Returns the newly created part of `path` (empty string if `path` already exists).
         """
-        # Create a PathLib object depending on the location
-        if location != "vip":
-            raise NotImplementedError(f"Unknown location: {location}")
-        path = PurePosixPath(path)
         # Case : the current path exists
         if cls._exists(path=path, location=location) :
             return ""
@@ -486,14 +579,14 @@ class VipLauncher():
         while not cls._exists(first_node.parent, location=location):
             first_node = first_node.parent
         # Create the first node 
-        cls._create_dir(path=first_node, location=location)
+        cls._create_dir(path=first_node, location=location, **kwargs)
         # Make the other nodes one by one
         dir_to_make = first_node
         while dir_to_make != path:
             # Find the next directory to make
             dir_to_make /= path.relative_to(dir_to_make).parts[0]
             # Make the directory
-            cls._create_dir(path=dir_to_make, location=location)
+            cls._create_dir(path=dir_to_make, location=location, **kwargs)
         # Return the created nodes
         return str(path.relative_to(first_node.parent))
     # ------------------------------------------------
@@ -627,67 +720,7 @@ class VipLauncher():
             ]
         }
     # ------------------------------------------------
-    
-    ###################################
-    # ($C) Backup / Resume Session Data 
-    ###################################
-
-    # Generic method to set session properties
-    def _set(self, **kwargs) -> VipLauncher:
-        """
-        Sets session properties based on keywords arguments.
-
-        Available keywords:
-        - `session_name` (str) A name to identify this session on VIP servers.
-        - `pipeline_id` (str) The name of your pipeline in VIP, 
-        usually in format : *application_name*/*version*.
-        - `input_settings` (dict) All parameters needed to run the pipeline.
-        - `output_dir` or `_vip_output_dir` (str) The VIP path where pipeline outputs will be downloaded after computation.
-
-        For advanced users:
-        - `workflows` (dict) Inventory of all worflows launched within the session.
-            Each workflow is characterized by a status, a start date and a list of output files.
-        """
-        # Set session name
-        if "session_name" in kwargs:
-            # check the session name
-            self._check_session_name(kwargs["session_name"])
-            # Set the new value
-            self._session_name = kwargs.pop("session_name")
-        # Set pipeline ID
-        if "pipeline_id" in kwargs:
-            self._pipeline_id = kwargs.pop("pipeline_id")
-        # Set VIP output path (keywords `output_dir` and `_vip_output_dir`)
-        if "output_dir" in kwargs:
-            self._vip_output_dir = Path(kwargs.pop("output_dir"))
-        # Set VIP output path (no check)
-        if "_vip_output_dir" in kwargs:
-            self._vip_output_dir = PurePosixPath(kwargs.pop("_vip_output_dir"))
-        # Set the Input Settings (depends on the new vip_input_path)
-        if "input_settings" in kwargs:
-            self._input_settings = kwargs.pop("input_settings")
-        # Set Worflows Inventory (no check)
-        if "workflows" in kwargs:
-            self._workflows = kwargs.pop("workflows")
-        # Check unknown properties
-        if kwargs: raise TypeError(f"Unknown propertie(s) : {', '.join(kwargs.keys())}.")
-        # Return for method cascading
-        return self
-    # ------------------------------------------------
-
-    # Control the input settings
-    def _vip_input_settings(self, my_settings:dict={}) -> dict:
-        """
-        Fits `my_settings` to VIP standards.
-        Input `my_settings` (dict) must contain only strings or lists of strings.
-        """
-        # Set the results directory
-        vip_settings = my_settings
-        # vip_settings["results-directory"] = str(self._vip_output_dir)
-        # Return
-        return vip_settings
-    # ------------------------------------------------
-
+   
     # Function to delete a path on VIP with warning
     @staticmethod
     def _delete_path(path: PurePath, verbose=True) -> bool:
@@ -746,24 +779,26 @@ class VipLauncher():
     # ------------------------------------------------    
 
     # Check the pipeline identifier based on the list of available pipelines
-    def _check_pipeline_id(self, pipeline_id: str="") -> None:
+    def _check_pipeline_id(self, pipeline_id: str="") -> bool:
         """
         Checks if the pipeline identifier `pipeline_id` is available for this session.
         Raises ValueError otherwise.
         If `pipeline_id` is not provided, checks instance attribute.
-        (!) Requires prior call to VipLauncher.init() to avoid useless connexion
+        (!) Requires prior call to VipLauncher.init() to avoid useless connexion. Returns False otherwise.
         """
         # Default value
         if not pipeline_id:
+            if not self._is_defined("_pipeline_id"):
+                raise AttributeError("Please provide a pipeline identifier for Session: %s" %self.session_name)
             pipeline_id = self._pipeline_id
+        # Available pipelines
+        if not self._PIPELINES:
+            return False
         # Check pipeline identifier
-        if not (pipeline_id and (pipeline_id in self._PIPELINES)):
-            msg="Please provide a valid pipeline identifier.\n"
-            if not self._PIPELINES:
-                msg+="Run VipLauncher.init() with your API key to print available pipeline identifiers."
-            else:
-                msg+=f"Available pipeline identifiers:\n{self._PIPELINES}"
-            raise ValueError(msg)
+        if  pipeline_id not in self._PIPELINES:
+            raise ValueError(f"Please provide a valid pipeline identifier. Available pipelines :\n{', '.join(self._PIPELINES)}\n")
+        # Return
+        return True
     # ------------------------------------------------
 
     # Function that lists available pipeline identifiers for a given VIP accout
@@ -785,7 +820,7 @@ class VipLauncher():
     # ------------------------------------------------
 
     # Check the input settings based on the pipeline descriptor
-    def _check_input_settings(self, input_settings: dict={}) -> bool:
+    def _check_input_settings(self, input_settings: dict={}, verbose=True) -> bool:
         """
         Checks `input_settings` with respect to pipeline descriptor. 
         If `input_settings` is not provided, checks the instance attribute.
@@ -892,6 +927,7 @@ class VipLauncher():
             else: 
                 # TODO
                 pass
+        # ------------------------------------------------
 
     # ($D.3) Interpret common API exceptions
     ########################################
