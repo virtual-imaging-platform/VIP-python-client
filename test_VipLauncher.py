@@ -18,7 +18,7 @@ if __name__=="__main__":
         output_dir="/vip/Home/tests_VipLauncher",
         pipeline_id="LCModel/0.1", 
         input_settings=my_settings
-    ).launch_pipeline().monitor_workflows().finish()
-    VipLauncher(
-        output_dir="/vip/Home/tests_VipLauncher",
-    ).finish()
+    ).launch_pipeline().monitor_workflows().finish().display_properties()
+    # VipLauncher(
+    #     output_dir="/vip/Home/tests_VipLauncher",
+    # ).finish().display_properties
