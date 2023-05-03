@@ -256,7 +256,7 @@ class VipSession(VipLauncher):
             if input_settings:
                 if verbose: print("Input Settings: ", end="")
                 done = self._check_input_settings(input_settings, location="local") # check local values
-                self._input_settings = self._vip_input_settings(input_settings) # set VIP values
+                self.input_settings = input_settings # set VIP values
                 if verbose: 
                     print("Checked." if done else "Unchecked.")
             # Workflow inventory (default value)
@@ -274,7 +274,7 @@ class VipSession(VipLauncher):
     # ($A) Manage a session from start to finish
     #################################################
 
-    # ($A.1) Login to VIP
+    # Overwrite VipLauncher.init() to be compatible with new kwargs
     @classmethod
     def init(cls, api_key: str, verbose=True, **kwargs) -> VipSession:
         """
@@ -290,7 +290,7 @@ class VipSession(VipLauncher):
         In cases B or C, the API key will be loaded from the local file or the environment variable.        
         """
         # Handshake with VIP
-        super().init(api_key=api_key, verbose=False)
+        super().init(api_key=api_key, verbose=verbose)
         # Return a VipSession instance for method cascading
         return VipSession(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------

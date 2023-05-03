@@ -7,9 +7,9 @@ from warnings import warn
 
 import girder_client
 import vip
-from VipSession import VipSession
+from VipLauncher import VipLauncher
 
-class VipCI(VipSession):
+class VipCI(VipLauncher):
     """
     Python class to run VIP pipelines on datasets stored a Girder repository.
 
@@ -22,7 +22,7 @@ class VipCI(VipSession):
     - `output_dir` (str) Path to a Girder folder where execution results will be stored.
         Usually in format : "/collection/[collection_name]/[path_to_folder]".
 
-    N.B.: all instance methods require that `VipSession.init()` has been called with:
+    N.B.: all instance methods require that `VipCI.init()` has been called with:
     - a valid VIP API key. 
     - a valid Girder API key.
     See GitHub documentation to get your VIP API key.
@@ -32,15 +32,46 @@ class VipCI(VipSession):
     ################ Class Attributes ##################
                     ##################
 
+    # Girder data
     _GIRDER_URL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
     _PREFIX_GIRDER_ID = "pilotGirder"
     _PREFIX_GIRDER_PATH = "/collection"
+    # Properties to save for this class
+    _PROPERTIES = [
+        "session_name", 
+        "pipeline_id",
+        "output_dir", 
+        "input_settings", 
+        "workflows"
+    ]
+
+    # See VipLauncher for inherited properties
+
+    # Overwrite `input_settings` (setter function) to write VIP paths instead of the local ones
+    @property
+    def input_settings(self) -> dict:
+        """All parameters needed to run the pipeline."""
+        return self._input_settings
+    
+    @input_settings.setter
+    def input_settings(self, input_settings: dict):
+        new_settings = self._vip_input_settings(input_settings)
+        # Check conflicts with instance attribute
+        if self._is_defined("_input_settings") and (new_settings != self._input_settings):
+            raise ValueError(f"Input settings are already set for session: {self.session_name}.")
+        # Update
+        self._input_settings = new_settings
+
+    @input_settings.deleter
+    def input_settings(self) -> None:
+        del self._input_settings
+    # ------------------------------------------------
 
                     #############
     ################ Constructor ##################
                     #############
     def __init__(
-        self, output_dir="", pipeline_id="", 
+        self, result_dir="", pipeline_id="", 
         input_settings:dict={}, session_name="",
         verbose=True
     ) -> None:
@@ -67,13 +98,11 @@ class VipCI(VipSession):
         # Initialize the name, pipeline and input settings
         super().__init__(
             session_name=session_name, 
-            output_dir=output_dir,
+            result_dir=result_dir,
             pipeline_id=pipeline_id, 
             input_settings=input_settings,
             verbose=verbose
         )
-        # Update the output directory
-        self._output_dir = output_dir
     # ------------------------------------------------
 
                     ################
@@ -90,7 +119,7 @@ class VipCI(VipSession):
         """
         Handshakes with VIP and Girder using your own API keys. 
         Prints a list of pipelines available with the API key, unless `verbose` is False.
-        Returns a VipSession instance which properties can be provided as keyword arguments (`kwargs`).
+        Returns a VipCI instance which properties can be provided as keyword arguments (`kwargs`).
 
         Inputs `vip_key` and `girder_key` can be either:
         A. (unsafe) a string litteral containing your API key, or
@@ -117,18 +146,7 @@ class VipCI(VipSession):
         return VipCI(verbose=True if kwargs else False, **kwargs)
     # ------------------------------------------------
 
-    # Temporary mock function for upload_inputs()
-    def upload_inputs(self) -> VipSession:
-        """
-        This function does not work in VipCI.
-        """
-        # Print error message
-        print("(!) Class VipCI cannot upload local data.")
-        # Return for method cascading
-        return self
-    # ------------------------------------------------
-
-    def launch_pipeline(self, pipeline_id="", input_settings: dict = {}, output_dir="", nb_runs=1, verbose=True) -> VipSession:
+    def launch_pipeline(self, pipeline_id="", input_settings: dict = {}, output_dir="", nb_runs=1, verbose=True) -> VipCI:
         """
         Launches pipeline executions on VIP.
 
@@ -232,7 +250,7 @@ class VipCI(VipSession):
     # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, waiting_time=30, verbose=True) -> VipSession:
+    def monitor_workflows(self, waiting_time=30, verbose=True) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
         - If an execution is still runnig, updates status every `waiting_time` (seconds) until all runs are done.
@@ -241,19 +259,8 @@ class VipCI(VipSession):
         return super().monitor_workflows(waiting_time=waiting_time, verbose=verbose)
     # ------------------------------------------------
 
-    # Temporary mock function for download_outputs()
-    def download_outputs(self) -> VipSession:
-        """
-        This function does not work in VipCI.
-        """
-        # Print error message
-        print("(!) Class VipCI cannot download distant data.")
-        # Return for method cascading
-        return self
-    # ------------------------------------------------
-
-    # Temporary mock function for finish()
-    def finish(self) -> VipSession:
+    # Mock function for finish()
+    def finish(self) -> VipCI:
         """
         This function does not work in VipCI.
         """
@@ -266,7 +273,7 @@ class VipCI(VipSession):
     # ($A.2->A.5) Run a full VIP session 
     def run_session(
             self, nb_runs=1, waiting_time=30, verbose=True
-        ) -> VipSession:
+        ) -> VipCI:
         """
         Runs a full session from Girder data:
         1. Launches pipeline executions on VIP;
@@ -292,7 +299,7 @@ class VipCI(VipSession):
     ###########################################
 
     # ($B.1) Display session properties in their current state
-    def display_properties(self) -> VipSession:
+    def display_properties(self) -> VipCI:
         """
         Displays useful instance properties in JSON format.
         - `session_name` : current session name
@@ -316,17 +323,6 @@ class VipCI(VipSession):
         # Return for method cascading
         return self
     # ------------------------------------------------
-
-    # Temporary mock function for get_inputs()
-    def get_inputs(self) -> VipSession:
-        """
-        This function does not work in VipCI.
-        """
-        # Print error message
-        print("(!) Method get_inputs is useless in VipCI.")
-        # Return for method cascading
-        return self
-    # -----------------------------------------------
 
                     #################
     ################ Private Methods ################
