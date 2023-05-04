@@ -50,7 +50,7 @@ This module works like a state machine: first, set the `apikey` with
 You can also set the certificate for VIP with `setCertifPath(str)`. By default,
 the script will look at its location for a `'[...]/certif.crt'` file.
 You should already have a certificate when cloning this project from git. If
-it's not the case you can get it with your browser [on VIP](http://vip.creatis.insa-lyon.fr/). 
+it's not the case you can get it with your browser [on VIP](http://vip.creatis.insa-lyon.fr/).
 Get the chained one.
 
 You can now use all of the functions :blush:
@@ -79,7 +79,7 @@ If there are any VIP issues, functions will raise *RuntimeError* errors. See
 
 This Python class launches pipeline executions on the Virtual Imaging Platform (VIP) from one's personal computer. It should work on both Windows and Unix-based systems.
 
-Running a pipeline on VIP implies the following process: 
+Running a pipeline on VIP implies the following process:
 
 *Upload one's Dataset on VIP servers* **>>** *Run the Pipeline* **>>** *Download the Pipeline Results from VIP servers*.
 
@@ -96,17 +96,17 @@ A VipSession instance (hereafter named: *Session*) performs this procedure in a 
 pip install requests
 ```
 
-- Communication with VIP requires a valid API key. 
+- Communication with VIP requires a valid API key.
 See [below](#get-a-vip-api-key) how to get your own key in a few steps.
 
 ## Get Started
 
 ### Session Inputs
 
-A single Session allows you to run __1 pipeline__ on __1 dataset__ with __1 parameter set__. 
+A single Session allows you to run __1 pipeline__ on __1 dataset__ with __1 parameter set__.
 Therefore, a Session is defined with at least three inputs:
 
-1. `pipeline_id` (*str*, **required**): The name of your pipeline on VIP. 
+1. `pipeline_id` (*str*, **required**): The name of your pipeline on VIP.
     - *Usually in the format: *application_name*/*version**.
 2. `input_dir` (*str*, **required**): the local path to your dataset (*e.g.* '$HOME/project/data').
     - *This directory will be uploaded on VIP before launching the pipeline.*
@@ -115,17 +115,17 @@ Therefore, a Session is defined with at least three inputs:
 
 When a Session is created, two optional inputs can be provided to improve the user experience:
 
-4. `session_name` (*str*, **optional**) A name to identify this session and the corresponding results. 
+4. `session_name` (*str*, **optional**) A name to identify this session and the corresponding results.
     - *Default value: 'session_[date]_[time]'*
 5. `output_dir` (*str*, **optional**) Local path to the directory where pipeline outputs will be downloaded from VIP servers.
     - *Default value: './vip_outputs/`session_name`'*
 
 Inputs 4 & 5 should be unique: they cannot be shared with another Session. Inputs 1 to 5 are a Session's main **properties** they fully define its behavior throughout the Upload-Run-Download procedure.
 
-In addition, VipSession methods accept specific arguments (like `verbose` or `nb_runs`) to fine-tune their behavior. 
-See VipSession documentation for detailed information. 
+In addition, VipSession methods accept specific arguments (like `verbose` or `nb_runs`) to fine-tune their behavior.
+See VipSession documentation for detailed information.
 
-Finally, connection with VIP requires a valid [API key](#get-a-vip-api-key). 
+Finally, connection with VIP requires a valid [API key](#get-a-vip-api-key).
 This requirement is not bound to a given Session.
 
 0. `api_key` (*str*, **required**): your VIP API key.
@@ -140,13 +140,13 @@ Once a connection with VIP is established (*stage 0*), the Upload-Run-Download p
 4. **Monitor** the pipeline's workflow
 5. **Download** the outputs
 6. **Finish** the `VipSession` by removing your data (inputs & outputs) from the VIP servers
-   
+
 Each step has a dedicated method.
 ```python
 from utils.VipSession import VipSession
 
 # 0. Connect with VIP
-VipSession.init(api_key=...)  
+VipSession.init(api_key=...)
 # One call applies to multiple Sessions (until connection is lost).
 
 # 1. Create a Session
@@ -155,7 +155,7 @@ session = VipSession(session_name=...)
 session.upload_inputs(input_dir=...)
 # 3. Launch a pipeline on VIP
 session.launch_pipeline(pipeline_id=..., input_settings=...)
-# 4. Monitor its progress on VIP until all executions are over 
+# 4. Monitor its progress on VIP until all executions are over
 session.monitor_workflows()
 # 5. Download the outputs from VIP servers when all executions are over
 session.download_outputs()
@@ -163,7 +163,7 @@ session.download_outputs()
 session.finish()
 ```
 
-In this typical piece of code, `VipSession`'s [properties](#session-inputs "VipSession Inputs") (`session_name`, `input_dir`, *etc.*) are progressively passed as inputs during steps 1, 2 & 3. They can also be defined at instantiation (i.e., step 1 or even step 0: see [below](#use-session-shortcuts "Session Shortcuts")). Once set, a property cannot be modified. 
+In this typical piece of code, `VipSession`'s [properties](#session-inputs "VipSession Inputs") (`session_name`, `input_dir`, *etc.*) are progressively passed as inputs during steps 1, 2 & 3. They can also be defined at instantiation (i.e., step 1 or even step 0: see [below](#use-session-shortcuts "Session Shortcuts")). Once set, a property cannot be modified.
 
 ### Session Outputs
 
@@ -179,7 +179,7 @@ This backup can be used to [resume a finished or running Session][resume].
 #### Pipeline Results
 The `download_outputs()` procedure stores the pipeline results on your machine. If the VIP implementation of the pipeline yields a tarball (`*\*.tar.gz*`), its content is extracted (by default) and the archive is removed from your machine.
 
-When a single job\* is submitted to VIP, the pipeline results are stored in `output_dir` mirroring their structure on VIP servers: 
+When a single job\* is submitted to VIP, the pipeline results are stored in `output_dir` mirroring their structure on VIP servers:
 
 ```
 .
@@ -210,7 +210,7 @@ session = VipSession(session_name=..., input_dir=..., pipeline_id=..., input_set
 ```
 
 This can be combined with a VIP connection ([steps 0 & 1][steps]) through `VipSession.init()`:
-Once a connection is established and Session inputs are set, 
+Once a connection is established and Session inputs are set,
 the **upload-run-download** process ([steps 2->5][steps]) can be performed by `run_session()`:
 ```python
 session.run_session()
@@ -228,7 +228,7 @@ VipSession.init(api_key=..., input_dir=..., [...]).run_session().finish()
 
 ### Resume your Session
 
-A Session is backed up after every step. 
+A Session is backed up after every step.
 To load data from an old Session, instantiate it with its output directory (`ouput_dir`):
 ```python
 session = VipSession(output_dir='./vip_outputs/old_session')
@@ -239,7 +239,7 @@ session = VipSession('old_session') # Equivalent to: session = VipSession(sessio
 ```
 
 This backup/restore system is useful to:
-- [Run the *Upload-Run-Download* process intermittently][progress], without a dedicated variable ; 
+- [Run the *Upload-Run-Download* process intermittently][progress], without a dedicated variable ;
 - [Relaunch the same procedure][finished], after the Session has been "finished".
 
 [progress]: #resume-a-session-in-progress "Resume a Session in Progress"
@@ -247,19 +247,19 @@ This backup/restore system is useful to:
 
 #### Resume a Session in Progress
 
-For instance, some pipeline runs can take hours or days. 
-These runs should be monitored on the [VIP portal](vip-portal) while turning off your Python interpreter. 
+For instance, some pipeline runs can take hours or days.
+These runs should be monitored on the [VIP portal](vip-portal) while turning off your Python interpreter.
 Using an identifiable `session_name`, the procedure can be left at any time and resumed with an identical Session object.
 ```python
 # Connect with VIP
 VipSession.init(api_key=...)
 # Start a Session with a new name and upload your dataset
 VipSession("my_session").upload_inputs(input_dir=...)
-# When the upload is over, launch the pipeline 
+# When the upload is over, launch the pipeline
 VipSession("my_session").launch_pipeline(pipeline_id=..., input_settings=...)
-# 
+#
 # You can exit your Python interpreter and monitor the pipeline execution on VIP website.
-# 
+#
 # When the execution is over, connect with VIP again and download the outputs
 VipSession.init(api_key=..., session_name="my_session").download_ouputs()
 # When the download is over, remove your data from VIP servers
@@ -319,10 +319,10 @@ In this file tree:
 - *Workflow_1* gathers the results of multiple jobs.
 
 A **job** is a single task run by the pipeline on VIP, *e.g.* with a single input file and parameter set.
-One can submit multiple jobs in parallel, *e.g.* run the pipeline on multiple files and parameter sets at the same time. 
+One can submit multiple jobs in parallel, *e.g.* run the pipeline on multiple files and parameter sets at the same time.
 This can be achieved by providing *lists* of files or parameters in the `input_settings`.
 
-From a `VipSession`'s point of view, a **workflow** is a collection of jobs submitted on the same `pipeline_id` with the same `input_settings`. 
+From a `VipSession`'s point of view, a **workflow** is a collection of jobs submitted on the same `pipeline_id` with the same `input_settings`.
 Again, one `VipSession` can launch multiple workflows (\*); by calling `launch_pipeline()` several times, by increasing its optional argument `nb_runs`, or by [re-starting the session](#relaunch-a-finished-session) after it was "finished". Multiple workflows can also run in parallel on VIP.
 
 (\*) To run simultaneous workflows with your VIP account, please contact <vip-support@creatis.insa-lyon.fr> to increase your execution capacity (1 by default).*
@@ -339,11 +339,11 @@ Clever use of multiple Sessions in parallel is detailed below.
 
 ### Run Multiple Sessions on the Same Dataset
 
-As stated [above][get-started], 1 Session allows to run 1 pipeline on 1 dataset with 1 parameter set. 
+As stated [above][get-started], 1 Session allows to run 1 pipeline on 1 dataset with 1 parameter set.
 To run a pipeline with *several parameter sets*, or *several pipelines* on the same dataset, one has to start several sessions:
 ```python
 # Session Inputs
-my_dataset = "./data" 
+my_dataset = "./data"
 settings_A = ... # First parameter set
 settings_B = ... # Second parameter set
 # Connect to VIP
@@ -409,8 +409,8 @@ One can easily create a VIP account to generate one's API key: the procedure is 
 ![Vip key](imgs/VIP_key.png "How to get a VIP API key")
 
 *Useful tips*:
-- In **Step 3****, the user is asked to select an *Account Type*. This can be modified later: select only the entries relevant to your research area.
-- In **Step 6****, scroll down to the bottom of the page. 
+- In **Step 3**, the user is asked to select an *Account Type*. This can be modified later: select only the entries relevant to your research area.
+- In **Step 6**, scroll down to the bottom of the page.
 
 If you encounter any issues, please contact us at:
 <vip-support@creatis.insa-lyon.fr>
