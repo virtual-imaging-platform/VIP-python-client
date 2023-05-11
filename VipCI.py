@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import json
 import time
-import pathlib
+from pathlib import *
 from warnings import warn
 
 import girder_client
@@ -40,17 +40,21 @@ class VipCI(VipLauncher):
     _PROPERTIES = [
         "session_name", 
         "pipeline_id",
-        "output_dir", 
+        "vip_output_dir", 
         "input_settings", 
         "workflows"
     ]
 
+                    #################
+    ################ Main Properties ##################
+                    ################# 
     # See VipLauncher for inherited properties
 
-    # Overwrite `input_settings` (setter function) to write VIP paths instead of the local ones
+    # Overwrite `input_settings` (setter function) to write Girder IDs instead of the collection paths
     @property
     def input_settings(self) -> dict:
-        """All parameters needed to run the pipeline."""
+        """All parameters needed to run the pipeline 
+        Run show_pipeline() for more information"""
         return self._input_settings
     
     @input_settings.setter
@@ -71,7 +75,7 @@ class VipCI(VipLauncher):
     ################ Constructor ##################
                     #############
     def __init__(
-        self, result_dir="", pipeline_id="", 
+        self, output_dir="", pipeline_id="", 
         input_settings:dict={}, session_name="",
         verbose=True
     ) -> None:
@@ -98,7 +102,7 @@ class VipCI(VipLauncher):
         # Initialize the name, pipeline and input settings
         super().__init__(
             session_name=session_name, 
-            result_dir=result_dir,
+            output_dir=output_dir,
             pipeline_id=pipeline_id, 
             input_settings=input_settings,
             verbose=verbose
@@ -146,107 +150,77 @@ class VipCI(VipLauncher):
         return VipCI(verbose=True if kwargs else False, **kwargs)
     # ------------------------------------------------
 
-    def launch_pipeline(self, pipeline_id="", input_settings: dict = {}, output_dir="", nb_runs=1, verbose=True) -> VipCI:
+    def launch_pipeline(
+            self, pipeline_id="", input_settings:dict={}, output_dir="", nb_runs=1, verbose=True
+        ) -> VipCI:
         """
         Launches pipeline executions on VIP.
 
         Input parameters :
-        - `pipeline_id` (str) The name of your pipeline in VIP.
+        - `pipeline_id` (str) The name of your pipeline in VIP, 
+        usually in format : *application_name*/*version*.
         - `input_settings` (dict) All parameters needed to run the pipeline.
-        - `output_dir` (str) Path to the Girder folder where execution results will be stored.
-        - `nb_runs` (int) Number of parallel runs of the same pipeline with the same settings.
-        - Set `verbose` to False to run silently.
+        - `output_dir` (str) Path to the VIP folder where execution results will be stored.
+        - `nb_runs` (int) Number of parallel workflows to launch with the same settings.
+        - Set `verbose` to False to launch silently.
         
         Default behaviour:
-        - Raises TypeError if inputs are missing
-        - Raises ValueError in case of conflict with previous inputs
+        - Raises AssertionError in case of wrong inputs 
         - Raises RuntimeError in case of failure on VIP servers.
-        - After pipeline launch, the Session is saved in `output_dir`'s metadata on Girder.
+        - In any case, session is backed up after pipeline launch
         """
-        if verbose:
-            print("\n<<< LAUNCH PIPELINE >>>\n")
-            print("Checking parameters and data ... ", end="")
-        # Update the pipeline identifier
-        if pipeline_id:
-            # check conflicts with instance value
-            if self._pipeline_id and (pipeline_id != self._pipeline_id):
-                raise ValueError(f"Pipeline identifier is already set for this session ('{self._pipeline_id}').")
-            # update instance property
-            self._set(pipeline_id=pipeline_id)
-        # Check pipeline existence
-        if not self._pipeline_id:
-            raise TypeError("Please provide a pipeline identifier for Session: %s" %self._session_name)
-        # Check the pipeline identifier
-        self._check_pipeline_id()
-        # Update the output directory
-        if output_dir: 
-            self._output_dir = output_dir
-        # Check existence
-        if not self._output_dir:
-            raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
-        # Ensure the directory exists
-        self._make_dir(path=self._output_dir, location="girder",
-                        description=f"VIP executions from the VipCI client under Session name: '{self._session_name}'")
-        # Update the input parameters
-        if input_settings:
-            # check conflicts with instance value
-            if self._input_settings and (self._vip_input_settings(input_settings) != self._input_settings):
-                raise ValueError(f"Input settings are already set for Session: %s" %self._session_name)
-            self._set(input_settings=input_settings)
-        # Check existence
-        if not self._input_settings:
-            raise TypeError(f"Please provide input parameters for Session: %s" %self._session_name)  
-        # Check content
-        try:
-            assert self._check_input_settings(), "Input parameters could not be checked."
-        except RuntimeError as handled_error:
-            # this may throw a RuntimeError (handled upstream)
-            # if pipeline definition could not be loaded from VIP 
-            if verbose: print("\n(!) Input settings could not be checked.")
-            raise handled_error
-        if verbose: print("Done.\n")
-        # First Display
-        if verbose:
-            print("Launching %d new execution(s) on VIP" % nb_runs)
-            print("-------------------------------------")
-            print("\tSession Name:", self._session_name)
-            print("\tPipeline Identifier:", self._pipeline_id)
-            print("\tStarted workflows:", end="\n\t\t")
-        # Launch all executions in parallel on VIP
-        try:
-            for nEx in range(nb_runs):
-                # Create a workflow-specific result directory
-                res_path = pathlib.PurePosixPath(self._output_dir) \
-                    /  time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) # no way to rename later with workflow_id
-                res_id = self._create_dir(
-                    path=res_path, location="girder", 
-                    description="VIP outputs from a single workflow"
-                )["_id"]
-                # Update the input_settings with new results directory
-                self._input_settings["results-directory"] = self._vip_girder_id(res_id)
-                # Initiate Execution
-                workflow_id = vip.init_exec(self._pipeline_id, self._session_name, self._input_settings)
-                # Display the workflow name
-                if verbose: print(workflow_id, end=", ")
-                # Update the workflow inventory
-                self._workflows[workflow_id] = self._get_exec_infos(workflow_id)
-                # Add the path to output files
-                self._workflows[workflow_id]["output_path"] = str(res_path)
-            # Update the input_settings with no results directory
-            del self._input_settings["results-directory"]
-            # Display success
-            if verbose: 
-                print("\n-------------------------------------")
-                print("Done.")
-        except RuntimeError as vip_error:
-            print("\n-------------------------------------")
-            print(f"(!) Stopped after {nEx} execution(s).")
-            self._handle_vip_error(vip_error)
+
+        try :
+            super().launch_pipeline(
+                pipeline_id = pipeline_id, # default
+                input_settings = input_settings, # default
+                output_dir = output_dir, # default
+                nb_runs = nb_runs, # default
+                verbose = verbose # default
+            )
+        except Exception as e:
+            raise e
         finally:
-            # In any case, save session properties on Girder
+            # In any case, save session properties
             self._save_session(verbose=True)
         # Return for method cascading
         return self
+    # ------------------------------------------------
+
+    # (A.3) Launch pipeline executions on VIP servers
+    ##################################################
+    def _init_exec(
+            self, pipeline_id="", session_name="", input_settings="",
+            output_dir="") -> str:
+        """
+        Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
+        Returns the workflow identifier.
+        """
+        # Parse arguments
+        if not pipeline_id:
+            pipeline_id = self._pipeline_id
+        if not session_name:
+            session_name = self._session_name
+        if not input_settings:
+            input_settings = self._input_settings
+        if not output_dir:
+            output_dir = str(self._vip_output_dir)
+        # Girder-specific instructions : create a workflow-specific result directory
+        res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) # no way to rename later with workflow_id
+        res_id = self._mkdirs(
+            path=res_path, location="girder", 
+            description=f"VIP outputs from one workflow in Session '{self._session_name}'"
+        )
+        # Launch execution
+        workflow_id = vip.init_exec(
+            pipeline = pipeline_id, 
+            name = session_name, 
+            inputValues = input_settings,
+            resultsLocation = self._vip_girder_id(res_id)
+        )
+        # Girder-specific instructions : Record the path to output files (create the workflow entry)
+        self._workflows[workflow_id] = {"output_path": str(res_path)}
+        return workflow_id
     # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
@@ -294,39 +268,85 @@ class VipCI(VipLauncher):
         )
     # ------------------------------------------------
 
-    ###########################################
-    # ($B) Additional Features for Advanced Use
-    ###########################################
-
     # ($B.1) Display session properties in their current state
-    def display_properties(self) -> VipCI:
+    def show_properties(self) -> VipCI:
         """
-        Displays useful instance properties in JSON format.
+        Displays useful properties in JSON format.
         - `session_name` : current session name
         - `pipeline_id`: pipeline identifier
-        - `local_output_dir` : path to the pipeline outputs *on your machine*
-        - `vip_ouput_dir` : path to the pipeline outputs *in your VIP Home directory*
-        - `input_settings` : input parameters sent to VIP 
-        (note that file locations are bound to `vip_input_dir`).
+        - `output_dir` : path to the pipeline outputs
+        - `input_settings` : input parameters sent to VIP
         - `workflows`: workflow inventory, identifying all pipeline runs in this session.
         """
-        # Data to display 
-        vip_data={
-            "session_name": self._session_name,
-            "pipeline_id": self._pipeline_id,
-            "vip_output_dir": self._output_dir,
-            "workflows": self._workflows,
-            "input_settings": self._input_settings,
-        }
-        # Display
-        print(json.dumps(vip_data, indent=4))
         # Return for method cascading
-        return self
+        return super().show_properties()
     # ------------------------------------------------
 
                     #################
     ################ Private Methods ################
                     #################
+
+    ###################################################################
+    # Methods that must be overwritten to adapt VipLauncher methods to
+    # new location: "girder"
+    ###################################################################
+
+    # Path to delete during session finish
+    def _path_to_delete(self) -> dict:
+        """Returns the folders to delete during session finish, with appropriate location."""
+        return {}
+    # ------------------------------------------------
+
+    # Method to check existence of a resource on Girder.
+    @classmethod
+    def _exists(cls, path: PurePath, location="girder") -> bool:
+        """
+        Checks existence of a resource on Girder.
+        """
+        # Check path existence in `location`
+        if location=="girder":
+            try: 
+                cls._girder_client.resourceLookup(path=str(path))
+                return True
+            except girder_client.HttpError: 
+                return False
+        else: 
+            raise NotImplementedError(f"Unknown location: {location}")
+    # ------------------------------------------------
+    
+    # Method to create a distant or local directory
+    @classmethod
+    def _create_dir(cls, path: PurePath, location="girder", **kwargs) -> str:
+        """
+        Creates a directory at `path` on Girder if `location` is "girder".
+
+        `path` should be a PathLib object.
+        `kwargs` can be passed as keyword arguments to `girder-client.createFolder()`.
+        Returns the Girder ID of the newly created folder.
+        """
+        if location == "girder": 
+            # Find the parent ID and type
+            parentId, parentType = cls._girder_path_to_id(str(path.parent))
+            # Check the parent is a directory
+            if not (parentType == "folder"):
+                raise ValueError(f"Cannot create folder {path} in '{path.parent}': parent is not a Girder folder")
+            # Create the new directory with additional keyword arguments
+            return cls._girder_client.createFolder(
+                parentId=parentId, name=str(path.name), reuseExisting=True, **kwargs
+                )["_id"]
+        else: 
+            raise NotImplementedError(f"Unknown location: {location}")
+    # ------------------------------------------------
+
+    # Function to delete a path
+    @classmethod
+    def _delete_path(cls, path: PurePath, location="vip") -> None:
+        raise NotImplementedError("VipCI cannot delete data.")
+
+    # Function to delete a path on VIP with warning
+    @classmethod
+    def _delete_and_check(cls, path: PurePath, location="vip", timeout=300) -> bool:
+        raise NotImplementedError("VipCI cannot delete data.")
 
     #################################################
     # Save / Load Session as / from Girder metadata
@@ -352,9 +372,9 @@ class VipCI(VipLauncher):
             "input_settings": self._input_settings,
         }
         # Ensure the output directory exists on Girder
-        self._make_dir(path=self._output_dir, location="girder")
+        self._mkdirs(path=self._vip_output_dir, location="girder")
         # Save metadata in the global output directory
-        folderId, _ = self._girder_path_to_id(self._output_dir)
+        folderId, _ = self._girder_path_to_id(self._vip_output_dir)
         self._girder_client.addMetadataToFolder(folderId=folderId, metadata=vip_data)
         # Update metadata for each workflow
         for workflow_id in self._workflows:
@@ -364,7 +384,7 @@ class VipCI(VipLauncher):
         # Display
         if verbose:
             print("\nSession properties were saved as metadata under folder:")
-            print(f"\t{self._output_dir}")
+            print(f"\t{self._vip_output_dir}")
             print(f"\t(Girder ID: {folderId})\n")
     # ------------------------------------------------
 
@@ -377,7 +397,7 @@ class VipCI(VipLauncher):
         """
         try:
             # Load the metadata on Girder
-            girder_id, _ = self._girder_path_to_id(self._local_output_dir, verbose=False)
+            girder_id, _ = self._girder_path_to_id(self.vip_output_dir, verbose=False)
             folder = self._girder_client.getFolder(folderId=girder_id)
         except girder_client.HttpError as e:
             if e.status == 400: # Folder was not found
@@ -385,11 +405,11 @@ class VipCI(VipLauncher):
         # Set all instance properties
         self._set(**folder["meta"])
         # Update the output directory
-        self._set(vip_output_dir=self._local_output_dir)
+        self._set(vip_output_dir=self.vip_output_dir)
         # Display
         if verbose:
             print("An existing session was found.")
-            print("Session properties were loaded from:\n\t", self._local_output_dir)
+            print("Session properties were loaded from:\n\t", self.vip_output_dir)
         # Return
         return True
     # ------------------------------------------------
@@ -521,7 +541,7 @@ class VipCI(VipLauncher):
         # Check the input type
         assert isinstance(my_settings, dict), \
             "Please provide input parameters in dictionnary shape."
-        # Convert local paths into VIP-Girder IDs
+        # Convert collection paths into VIP-Girder IDs
         vip_settings = {}
         for parameter in my_settings: 
             input = my_settings[parameter]
@@ -587,104 +607,6 @@ class VipCI(VipLauncher):
                 + ", ".join(unknown_fields) # "results-directory" should be absent in VipCI
         return True
     # ---------------------------------------------------------
-    
-    # Method to check existence of a distant or local resource.
-    @classmethod
-    def _exists(cls, path, location="girder") -> bool:
-        """
-        Checks existence 
-        """
-        # Check input type
-        if not isinstance(path, str): path = str(path)
-        # Check path existence in `location`
-        if location=="local":
-            return os.path.exists(path)
-        elif location=="girder":
-            try: 
-                cls._girder_client.resourceLookup(path=path)
-                return True
-            except girder_client.HttpError: 
-                return False
-        else: 
-            raise NotImplementedError(f"Unknown location: {location}")
-    # ------------------------------------------------
-    
-    # Method to create a distant or local directory
-    @classmethod
-    def _create_dir(cls, path, location="girder", **kwargs) -> str:
-        """
-        Creates a directory at `path` :
-        - locally if `location` is "local";
-        - on Girder if `location` is "girder".
-
-        `path`can be a string or PathLib object.
-        `kwargs` can be passed as keyword arguments to `os.mkdir()` or `girder-client.createFolder()`.
-        Returns the Girder ID or local path of the newly created folder.
-        """
-        if location == "local": 
-            # Check input type
-            if isinstance(path, str): path=pathlib.PurePath(path)
-            # Check the parent is a directory
-            assert os.path.isdir(path.parent),\
-                f"Cannot create subdirectories in '{str(path.parent)}': not a folder"
-            # Create the new directory with additional keyword arguments
-            os.mkdir(path=path, **kwargs)
-            # return
-            return path
-        elif location == "girder": 
-            # Check input type
-            if isinstance(path, str): path=pathlib.PurePosixPath(path)
-            # Find the parent ID and type
-            parentId, parentType = cls._girder_path_to_id(str(path.parent))
-            # Check the parent is a directory
-            assert (parentType == "folder"),\
-                f"Cannot create subdirectories in '{str(path.parent)}': not a Girder folder"
-            # Create the new directory with additional keyword arguments
-            return cls._girder_client.createFolder(parentId=parentId, name=str(path.name), reuseExisting=True, **kwargs)
-        else: 
-            raise NotImplementedError(f"Unknown location: {location}")
-    # ------------------------------------------------
-
-    # Method to create a distant or local directory leaf on the top of any path
-    @classmethod
-    def _make_dir(cls, path, location="girder", **kwargs) -> str:
-        """
-        Creates each non-existent directory in `path` :
-        - locally if `location` is "local";
-        - on Girder if `location` is "girder".
-
-        `kwargs` can be passed as additional arguments to the girder-client method `createFolder()`.
-        Returns the newly created part of `path` (empty string if `path` already exists).
-        """
-        # Create a PathLib object depending on the location
-        if location == "local":
-            path = pathlib.PurePath(path)
-        else:
-            path = pathlib.PurePosixPath(path)
-        # Case : the current path exists
-        if cls._exists(path=path, location=location) :
-            return ""
-        # Find the 1rst non-existent node in the arborescence
-        first_node = path
-        while not cls._exists(first_node.parent, location):
-            first_node = first_node.parent
-        # Make the path from there
-        if location == "local":
-            # Create the full arborescence locally
-            os.makedirs(path, exist_ok=True)
-        else: 
-            # Create the first node 
-            cls._create_dir(path=first_node, location=location, **kwargs)
-            # Make the other nodes one by one
-            dir_to_make = first_node
-            while dir_to_make != path:
-                # Find the next directory to make
-                dir_to_make /= path.relative_to(dir_to_make).parts[0]
-                # Make the directory
-                cls._create_dir(path=dir_to_make, location=location, **kwargs)
-        # Return the created nodes
-        return str(path.relative_to(first_node.parent))
-    # ------------------------------------------------
 
     #################################################
     # Workflow Monitoring
@@ -699,7 +621,7 @@ class VipCI(VipLauncher):
             "workflow_status": self._workflows[workflow_id]["status"]
         }
 
-    # Method to get useful information about a given workflow
+    # Overwrite _get_exec_infos() to bypass call to vip.get_exec_results() (does not work at this time)
     @classmethod
     def _get_exec_infos(cls, workflow_id: str) -> dict:
         """
