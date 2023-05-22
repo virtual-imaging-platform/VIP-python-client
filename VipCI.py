@@ -1,9 +1,7 @@
 from __future__ import annotations
 import os
-import json
 import time
 from pathlib import *
-from warnings import warn
 
 import girder_client
 import vip
@@ -11,27 +9,28 @@ from VipLauncher import VipLauncher
 
 class VipCI(VipLauncher):
     """
-    Python class to run VIP pipelines on datasets stored a Girder repository.
+    Python class to run VIP pipelines on datasets located on Girder.
 
-    1 "session" allows to run 1 pipeline with 1 parameter set (any number of pipeline runs).
-    Minimal inputs:
-    - `pipeline_id` (str) Name of the pipeline in VIP nomenclature. 
-        Usually in format : "[application_name]/[version]".
+    1 "session" allows to run 1 pipeline with 1 parameter set (any number of runs).
+    Pipeline runs need at least three inputs:
+    - `pipeline_id` (str) Name of the pipeline. 
     - `input_settings` (dict) All parameters needed to run the pipeline.
-        See pipeline description.
     - `output_dir` (str) Path to a Girder folder where execution results will be stored.
-        Usually in format : "/collection/[collection_name]/[path_to_folder]".
 
     N.B.: all instance methods require that `VipCI.init()` has been called with:
-    - a valid VIP API key. 
+    - a valid VIP API key;
     - a valid Girder API key.
-    See GitHub documentation to get your VIP API key.
     """
 
                     ##################
     ################ Class Attributes ##################
                     ##################
+    # See VipLauncher for inherited attributes
 
+    # Class name
+    __name__ = "VipCI"
+    # Default location for computation outputs (different from the parent class)
+    _DISTANT_LOCATION = "girder"
     # Girder data
     _GIRDER_URL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
     _PREFIX_GIRDER_ID = "pilotGirder"
@@ -50,27 +49,6 @@ class VipCI(VipLauncher):
                     ################# 
     # See VipLauncher for inherited properties
 
-    # Overwrite `input_settings` (setter function) to write Girder IDs instead of the collection paths
-    @property
-    def input_settings(self) -> dict:
-        """All parameters needed to run the pipeline 
-        Run show_pipeline() for more information"""
-        return self._input_settings
-    
-    @input_settings.setter
-    def input_settings(self, input_settings: dict):
-        new_settings = self._vip_input_settings(input_settings)
-        # Check conflicts with instance attribute
-        if self._is_defined("_input_settings") and (new_settings != self._input_settings):
-            raise ValueError(f"Input settings are already set for session: {self.session_name}.")
-        # Update
-        self._input_settings = new_settings
-
-    @input_settings.deleter
-    def input_settings(self) -> None:
-        del self._input_settings
-    # ------------------------------------------------
-
                     #############
     ################ Constructor ##################
                     #############
@@ -87,14 +65,14 @@ class VipCI(VipLauncher):
         - `output_dir` (str) Path to a Girder folder where execution results will be stored.
             Usually in format : "/collection/[collection_name]/[path_to_folder]"
 
-        - `session_name` (str) A name to identify this session.
-            Default value: 'session_[date]_[time]'
-
         - `pipeline_id` (str) Name of your pipeline in VIP. 
             Usually in format : "[application_name]/[version]".
 
         - `input_settings` (dict) All parameters needed to run the pipeline.
             See pipeline description for more information.
+
+        - `session_name` (str) A name to identify this session.
+            Default value: 'VipCI_[date]-[time]'
 
         If `output_dir` leads to data from a previous session, 
         all properties will be loaded from the folder metadata on Girder.
@@ -107,6 +85,7 @@ class VipCI(VipLauncher):
             input_settings=input_settings,
             verbose=verbose
         )
+        
     # ------------------------------------------------
 
                     ################
@@ -158,7 +137,7 @@ class VipCI(VipLauncher):
 
         Input parameters :
         - `pipeline_id` (str) The name of your pipeline in VIP, 
-        usually in format : *application_name*/*version*.
+            usually in format : *application_name*/*version*.
         - `input_settings` (dict) All parameters needed to run the pipeline.
         - `output_dir` (str) Path to the VIP folder where execution results will be stored.
         - `nb_runs` (int) Number of parallel workflows to launch with the same settings.
@@ -169,7 +148,6 @@ class VipCI(VipLauncher):
         - Raises RuntimeError in case of failure on VIP servers.
         - In any case, session is backed up after pipeline launch
         """
-
         try :
             super().launch_pipeline(
                 pipeline_id = pipeline_id, # default
@@ -181,72 +159,66 @@ class VipCI(VipLauncher):
         except Exception as e:
             raise e
         finally:
-            # In any case, save session properties
-            self._save_session(verbose=True)
+            # Save session properties if at least one worflow has been launched
+            if self.workflows:
+                self._save_session(verbose=True)
         # Return for method cascading
         return self
     # ------------------------------------------------
 
     # (A.3) Launch pipeline executions on VIP servers
     ##################################################
-    def _init_exec(
-            self, pipeline_id="", session_name="", input_settings="",
-            output_dir="") -> str:
+    def _init_exec(self) -> str:
         """
         Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
         Returns the workflow identifier.
         """
-        # Parse arguments
-        if not pipeline_id:
-            pipeline_id = self._pipeline_id
-        if not session_name:
-            session_name = self._session_name
-        if not input_settings:
-            input_settings = self._input_settings
-        if not output_dir:
-            output_dir = str(self._vip_output_dir)
-        # Girder-specific instructions : create a workflow-specific result directory
+        # Get function arguments
+        pipeline_id = self._pipeline_id
+        session_name = self._session_name
+        input_settings = self._vip_input_settings(self._input_settings)
+        # Create a workflow-specific result directory
         res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) # no way to rename later with workflow_id
-        res_id = self._mkdirs(
+        res_id = self._create_dir(
             path=res_path, location="girder", 
             description=f"VIP outputs from one workflow in Session '{self._session_name}'"
         )
+        res_vip = self._vip_girder_id(res_id)
         # Launch execution
         workflow_id = vip.init_exec(
             pipeline = pipeline_id, 
             name = session_name, 
             inputValues = input_settings,
-            resultsLocation = self._vip_girder_id(res_id)
+            resultsLocation = res_vip
         )
-        # Girder-specific instructions : Record the path to output files (create the workflow entry)
+        # Record the path to output files (create the workflow entry)
         self._workflows[workflow_id] = {"output_path": str(res_path)}
         return workflow_id
     # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, waiting_time=30, verbose=True) -> VipCI:
+    def monitor_workflows(self, refresh_time=30, verbose=True) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
-        - If an execution is still runnig, updates status every `waiting_time` (seconds) until all runs are done.
+        - If an execution is still runnig, updates status every `refresh_time` (seconds) until all runs are done.
         - If `verbose`is True, displays a full report when all executions are done.
         """
-        return super().monitor_workflows(waiting_time=waiting_time, verbose=verbose)
+        return super().monitor_workflows(refresh_time=refresh_time, verbose=verbose)
     # ------------------------------------------------
 
     # Mock function for finish()
-    def finish(self) -> VipCI:
+    def finish(self, timeout=300, verbose=True) -> None:
         """
         This function does not work in VipCI.
         """
-        # Print error message
-        print("(!) Class VipCI cannot delete distant data.")
-        # Return for method cascading
-        return self
+        if verbose: print("\n<<< FINISH >>>\n")
+        # Raise error message
+        raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
 
     # ($A.2->A.5) Run a full VIP session 
     def run_session(
-            self, nb_runs=1, waiting_time=30, verbose=True
+            self, nb_runs=1, refresh_time=30, verbose=True
         ) -> VipCI:
         """
         Runs a full session from Girder data:
@@ -257,19 +229,19 @@ class VipCI(VipLauncher):
         /!\ This function assumes that all session properties are already set.
         Optional arguments can be provided:
         - Increase `nb_runs` to run more than 1 execution at once;
-        - Set `waiting_time` to modify the default monitoring time;
+        - Set `refresh_time` to modify the default refresh time;
         - Set `verbose` to False to run silently.
         """
         return (
             # 1. Launch `nb_runs` pipeline executions on VIP
             self.launch_pipeline(nb_runs=nb_runs, verbose=verbose)
             # 2. Monitor pipeline executions until they are over
-            .monitor_workflows(waiting_time=waiting_time, verbose=verbose)
+            .monitor_workflows(refresh_time=refresh_time, verbose=verbose)
         )
     # ------------------------------------------------
 
     # ($B.1) Display session properties in their current state
-    def show_properties(self) -> VipCI:
+    def display(self) -> VipCI:
         """
         Displays useful properties in JSON format.
         - `session_name` : current session name
@@ -279,7 +251,7 @@ class VipCI(VipLauncher):
         - `workflows`: workflow inventory, identifying all pipeline runs in this session.
         """
         # Return for method cascading
-        return super().show_properties()
+        return super().display()
     # ------------------------------------------------
 
                     #################
@@ -365,17 +337,12 @@ class VipCI(VipLauncher):
         - `workflows`: workflow inventory.
         """
         # Data to save 
-        vip_data={
-            "session_name": self._session_name,
-            "pipeline_id": self._pipeline_id,
-            "workflows": self._workflows,
-            "input_settings": self._input_settings,
-        }
+        session_data = self._get(*self._PROPERTIES)
         # Ensure the output directory exists on Girder
-        self._mkdirs(path=self._vip_output_dir, location="girder")
+        self._mkdirs(path=self._vip_output_dir, location=self._DISTANT_LOCATION)
         # Save metadata in the global output directory
         folderId, _ = self._girder_path_to_id(self._vip_output_dir)
-        self._girder_client.addMetadataToFolder(folderId=folderId, metadata=vip_data)
+        self._girder_client.addMetadataToFolder(folderId=folderId, metadata=session_data)
         # Update metadata for each workflow
         for workflow_id in self._workflows:
             metadata = self._meta_workflow(workflow_id=workflow_id)
@@ -408,7 +375,6 @@ class VipCI(VipLauncher):
         self._set(vip_output_dir=self.vip_output_dir)
         # Display
         if verbose:
-            print("An existing session was found.")
             print("Session properties were loaded from:\n\t", self.vip_output_dir)
         # Return
         return True
@@ -481,7 +447,7 @@ class VipCI(VipLauncher):
     def _vip_input_settings(self, my_settings:dict={}) -> dict:
         """
         Fits `my_settings` to the VIP-Girder standard, i.e. converts Girder paths to: 
-        "[_PREFIX_GIRDER_ID]:[Girder_ID]".
+        "[VipCI._PREFIX_GIRDER_ID]:[Girder_ID]".
         Returns the modified settings.
 
         Input `my_settings` (dict) must contain only strings or lists of strings.
@@ -559,54 +525,6 @@ class VipCI(VipLauncher):
         # Return
         return vip_settings
     # ------------------------------------------------
-    
-    # Check the input settings based on pipeline descriptor
-    def _check_input_settings(self, input_settings: dict={}) -> bool:
-        """
-        Checks `input_settings` with respect to pipeline descriptor. 
-        If `input_settings` is not provided, checks the instance attribute.
-        
-        This function uses instance properties like `_pipeline_id` to run assertions.
-        Returns True if each assertion could be tested, False otherwise.
-        
-        Detailed behaviour:
-        - Raises AssertionError if `input_settings` do not match pipeline requirements 
-        or if any file does not exist. 
-        - Raises RuntimeError if communication failed with VIP servers.
-        """ 
-        # Check arguments & instance properties
-        if not input_settings:
-            assert self._input_settings, "Please provide input settings."
-            input_settings = self._input_settings
-        # Check the pipeline identifier
-        if not self._pipeline_id: 
-            warn("Input settings could not be checked without a pipeline identifier.")
-            return False
-        # Get the true pipeline parameters
-        try :            
-            parameters = vip.pipeline_def(self._pipeline_id)["parameters"]
-        except RuntimeError as vip_error:
-            super()._handle_vip_error(vip_error)
-        # PARAMETER NAMES -----------------------------------------------------------
-        # Check every required field is there 
-        missing_fields = (
-            # requested pipeline parameters
-            {param["name"] for param in parameters 
-                if not param["isOptional"] and (param["defaultValue"] == "$input.getDefaultValue()")} 
-            # current parameters in self 
-            - set(input_settings.keys()) 
-        )
-        assert not missing_fields, "Missing input parameters :\n" + ", ".join(missing_fields) 
-        # Check every input parameter is a valid field
-        unknown_fields = (
-            set(input_settings.keys()) # current parameters in self 
-            - {param["name"] for param in parameters} # pipeline parameters
-        )
-        assert not unknown_fields, \
-            "The following parameters are not in the pipeline description :\n" \
-                + ", ".join(unknown_fields) # "results-directory" should be absent in VipCI
-        return True
-    # ---------------------------------------------------------
 
     #################################################
     # Workflow Monitoring

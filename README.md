@@ -99,7 +99,7 @@ Therefore, a Session is defined with at least three inputs:
 When a Session is created, two optional inputs can be provided to improve user experience:
 
 4. `session_name` (*str*, **optional**) A name to identify this session and the corresponding results. 
-    - *Default value: 'session_[date]_[time]'*
+    - *Default value: 'VipSession_[date]_[time]'*
 5. `output_dir` (*str*, **optional**) Local path to the directory where pipeline outputs will be downloaded from VIP servers.
     - *Default value: './vip_outputs/`session_name`'*
 
@@ -397,3 +397,10 @@ One can easily create a VIP account to generate one's own API key : the procedur
 
 If you encounter any issues, please contact us:
 <vip-support@creatis.insa-lyon.fr>
+
+
+---
+NOUVEAUTES
+- Gestion des attributs des sessions
+- Support Pathlib
+- show_pipeline()
