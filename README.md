@@ -402,5 +402,5 @@ If you encounter any issues, please contact us:
 ---
 NOUVEAUTES
 - Gestion des attributs des sessions
-- Support Pathlib
+- Support os.PathLike
 - show_pipeline()

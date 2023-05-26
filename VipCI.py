@@ -25,17 +25,12 @@ class VipCI(VipLauncher):
                     ##################
     ################ Class Attributes ##################
                     ##################
-    # See VipLauncher for inherited attributes
+
+    # --- Overriden from the parent class ---
 
     # Class name
     __name__ = "VipCI"
-    # Default location for computation outputs (different from the parent class)
-    _DISTANT_LOCATION = "girder"
-    # Girder data
-    _GIRDER_URL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
-    _PREFIX_GIRDER_ID = "pilotGirder"
-    _PREFIX_GIRDER_PATH = "/collection"
-    # Properties to save for this class
+    # Properties to save / display for this class
     _PROPERTIES = [
         "session_name", 
         "pipeline_id",
@@ -43,11 +38,50 @@ class VipCI(VipLauncher):
         "input_settings", 
         "workflows"
     ]
+    # Default location for VIP inputs/outputs (different from the parent class)
+    _SERVER_NAME = "girder"
+    # Prefix that defines a Girder path 
+    _SERVER_PATH_PREFIX = "/collection"
+    # Verbose state for display
+    _VERBOSE = True
+
+    # --- New Attributes ---
+
+    # Prefix that defines a Girder ID
+    _GIRDER_ID_PREFIX = "pilotGirder"
+    # Grider portal
+    _GIRDER_PORTAL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
 
                     #################
     ################ Main Properties ##################
                     ################# 
-    # See VipLauncher for inherited properties
+    
+    # --- Overriden from the parent class ---
+
+    # Output directory
+    @property
+    def vip_output_dir(self) -> str:
+        """Path to the VIP directory where pipeline outputs will be stored"""
+        return str(self._vip_output_dir) if self._is_defined("_vip_output_dir") else None
+    
+    @vip_output_dir.setter
+    def vip_output_dir(self, new_dir) -> None:
+        # Check type
+        if not isinstance(new_dir, (str, os.PathLike)):
+            raise TypeError("Property `vip_output_dir` should be a string or os.PathLike object")
+        # Check for conflict with instance attributes
+        if self._is_defined("_vip_output_dir") and (new_dir != self.vip_output_dir):
+            raise ValueError(f"Results directory is already set for session: {self._session_name} ('{self._vip_output_dir}' -> '{new_dir}').")
+        # Assign
+        self._vip_output_dir = PurePosixPath(new_dir)
+        # Load session data if relevant
+        self._load() 
+
+    @vip_output_dir.deleter
+    def vip_output_dir(self) -> None:
+        """Delete the result directory"""
+        del self._vip_output_dir
+    # ------------------------------------------------
 
                     #############
     ################ Constructor ##################
@@ -77,15 +111,23 @@ class VipCI(VipLauncher):
         If `output_dir` leads to data from a previous session, 
         all properties will be loaded from the folder metadata on Girder.
         """
-        # Initialize the name, pipeline and input settings
-        super().__init__(
-            session_name=session_name, 
-            output_dir=output_dir,
-            pipeline_id=pipeline_id, 
-            input_settings=input_settings,
-            verbose=verbose
-        )
-        
+        # Update the verbose state for private methods
+        self._VERBOSE = verbose
+        # Set the output directory if provided
+        if output_dir:
+            self.vip_output_dir = output_dir
+            # Providing the output directory will automatically load a session
+        # Check existence of data from a previous session
+        if not self._is_defined("_session_name)"):
+            # Initialize with the name, pipeline and input settings
+            super().__init__(
+                session_name = session_name, 
+                pipeline_id = pipeline_id, 
+                input_settings = input_settings,
+                verbose=verbose
+            )
+        # End display
+        if verbose and (self.__name__ == "VipCI"): print()
     # ------------------------------------------------
 
                     ################
@@ -98,7 +140,7 @@ class VipCI(VipLauncher):
 
     # Login to VIP and Girder
     @classmethod
-    def init(cls, vip_key: str, girder_key: str, **kwargs) -> VipCI:
+    def init(cls, vip_key: str, girder_key: str, verbose=True, **kwargs) -> VipCI:
         """
         Handshakes with VIP and Girder using your own API keys. 
         Prints a list of pipelines available with the API key, unless `verbose` is False.
@@ -114,7 +156,7 @@ class VipCI(VipLauncher):
         # Initiate a Vip Session
         super().init(api_key=vip_key)
         # Instantiate a Girder client
-        cls._girder_client = girder_client.GirderClient(apiUrl=cls._GIRDER_URL)
+        cls._girder_client = girder_client.GirderClient(apiUrl=cls._GIRDER_PORTAL)
         # Check if `girder_key` is in a local file or environment variable
         if os.path.exists(girder_key): # local file
             with open(girder_key, "r") as kfile:
@@ -126,11 +168,12 @@ class VipCI(VipLauncher):
         # Authenticate with Girdre API key
         cls._girder_client.authenticate(apiKey=true_key)
         # Return a VipCI instance for method cascading
-        return VipCI(verbose=True if kwargs else False, **kwargs)
+        return VipCI(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
 
     def launch_pipeline(
-            self, pipeline_id="", input_settings:dict={}, output_dir="", nb_runs=1, verbose=True
+            self, pipeline_id="", input_settings:dict={}, output_dir="", nb_runs=1, 
+            verbose=_VERBOSE
         ) -> VipCI:
         """
         Launches pipeline executions on VIP.
@@ -166,38 +209,8 @@ class VipCI(VipLauncher):
         return self
     # ------------------------------------------------
 
-    # (A.3) Launch pipeline executions on VIP servers
-    ##################################################
-    def _init_exec(self) -> str:
-        """
-        Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
-        Returns the workflow identifier.
-        """
-        # Get function arguments
-        pipeline_id = self._pipeline_id
-        session_name = self._session_name
-        input_settings = self._vip_input_settings(self._input_settings)
-        # Create a workflow-specific result directory
-        res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) # no way to rename later with workflow_id
-        res_id = self._create_dir(
-            path=res_path, location="girder", 
-            description=f"VIP outputs from one workflow in Session '{self._session_name}'"
-        )
-        res_vip = self._vip_girder_id(res_id)
-        # Launch execution
-        workflow_id = vip.init_exec(
-            pipeline = pipeline_id, 
-            name = session_name, 
-            inputValues = input_settings,
-            resultsLocation = res_vip
-        )
-        # Record the path to output files (create the workflow entry)
-        self._workflows[workflow_id] = {"output_path": str(res_path)}
-        return workflow_id
-    # ------------------------------------------------
-
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, refresh_time=30, verbose=True) -> VipCI:
+    def monitor_workflows(self, refresh_time=30, verbose=_VERBOSE) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
         - If an execution is still runnig, updates status every `refresh_time` (seconds) until all runs are done.
@@ -207,10 +220,12 @@ class VipCI(VipLauncher):
     # ------------------------------------------------
 
     # Mock function for finish()
-    def finish(self, timeout=300, verbose=True) -> None:
+    def finish(self, verbose=_VERBOSE) -> None:
         """
         This function does not work in VipCI.
         """
+        # Update the verbose state for private methods
+        self._VERBOSE = verbose
         if verbose: print("\n<<< FINISH >>>\n")
         # Raise error message
         raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
@@ -319,213 +334,39 @@ class VipCI(VipLauncher):
     @classmethod
     def _delete_and_check(cls, path: PurePath, location="vip", timeout=300) -> bool:
         raise NotImplementedError("VipCI cannot delete data.")
+    
+    ##################################################
+     # (A.3) Launch pipeline executions on VIP servers
+    ##################################################
 
-    #################################################
-    # Save / Load Session as / from Girder metadata
-    #################################################
-
-    # Save session properties in a JSON file
-    def _save_session(self, verbose=False) -> None:
+    def _init_exec(self) -> str:
         """
-        Saves useful properties as metadata in session's Girder directory.
-        Also displays this path is `verbose` is True.
-
-        The saved properties are :
-        - `session_name`: current session name
-        - `pipeline_id`: pipeline identifier
-        - `input_settings`: input parameters sent to VIP, 
-        - `workflows`: workflow inventory.
+        Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
+        Returns the workflow identifier.
         """
-        # Data to save 
-        session_data = self._get(*self._PROPERTIES)
-        # Ensure the output directory exists on Girder
-        self._mkdirs(path=self._vip_output_dir, location=self._DISTANT_LOCATION)
-        # Save metadata in the global output directory
-        folderId, _ = self._girder_path_to_id(self._vip_output_dir)
-        self._girder_client.addMetadataToFolder(folderId=folderId, metadata=session_data)
-        # Update metadata for each workflow
-        for workflow_id in self._workflows:
-            metadata = self._meta_workflow(workflow_id=workflow_id)
-            folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
-            self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
-        # Display
-        if verbose:
-            print("\nSession properties were saved as metadata under folder:")
-            print(f"\t{self._vip_output_dir}")
-            print(f"\t(Girder ID: {folderId})\n")
-    # ------------------------------------------------
-
-    # Load session properties from Girder metadata
-    def _load_session(self, verbose=True) -> bool:
-        """
-        Loads Session properties from the metadata stored in the Session folder on Girder.
-        Returns a success flag. Displays success message unless `verbose` is False.
-        If current properties (i.e. `session_name`, etc.) are already set, they will be replaced.
-        """
-        try:
-            # Load the metadata on Girder
-            girder_id, _ = self._girder_path_to_id(self.vip_output_dir, verbose=False)
-            folder = self._girder_client.getFolder(folderId=girder_id)
-        except girder_client.HttpError as e:
-            if e.status == 400: # Folder was not found
-                return False
-        # Set all instance properties
-        self._set(**folder["meta"])
-        # Update the output directory
-        self._set(vip_output_dir=self.vip_output_dir)
-        # Display
-        if verbose:
-            print("Session properties were loaded from:\n\t", self.vip_output_dir)
-        # Return
-        return True
+        # Get function arguments
+        # input_settings = self._vip_input_settings(self._input_settings)
+        input_settings = self._get_input_settings(target="vip-girder")
+        # Create a workflow-specific result directory
+        res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) 
+            # no simple way to rename later with workflow_id
+        res_id = self._create_dir(
+            path=res_path, location="girder", 
+            description=f"VIP outputs from one workflow in Session '{self._session_name}'"
+        )
+        res_vip = self._vip_girder_id(res_id)
+        # Launch execution
+        workflow_id = vip.init_exec(
+            pipeline = self.pipeline_id, 
+            name = self.session_name, 
+            inputValues = input_settings,
+            resultsLocation = res_vip
+        )
+        # Record the path to output files (create the workflow entry)
+        self._workflows[workflow_id] = {"output_path": str(res_path)}
+        return workflow_id
     # ------------------------------------------------
     
-    #################################################
-    # Manipulate Resources on Girder
-    #################################################
-
-    # Function to get a resource ID
-    @classmethod
-    def _girder_path_to_id(cls, path: str, verbose=True) -> tuple[str, str]:
-        """
-        Returns a resource ID from its `path` within a Girder collection.
-        Parameter `path` should begin with: "/collection/[collection_name]/...".
-
-        Raises `girder_client.HttpError` if the resource was not found. 
-        Adds intepretation message unless `verbose` is False.
-        """
-        try :
-            resource = cls._girder_client.resourceLookup(path)
-        except girder_client.HttpError as e:
-            if verbose and e.status == 400:
-                print("(!) The following path is invalid or refers to a resource that does not exist:")
-                print(f"    \t{path}")
-                print("    Original error from Girder API:")
-            raise e
-        # Return the resource ID and type
-        try:
-            return resource['_id'], resource['_modelType']
-        except KeyError as ke:
-            if verbose: print("Unhandled type of resource: \n\t{resource}\n")
-            raise ke
-    # ------------------------------------------------
-    
-    # Function to get a resource path
-    @classmethod
-    def _girder_id_to_path(cls, id: str, type: str, verbose=True) -> str:
-        """
-        Returns a resource path from its Girder `id`.
-        The resource `type` (item, folder, collection) must be provided.
-
-        Raises `girder_client.HttpError` if the resource was not found.
-        """
-        try :
-            return cls._girder_client.get(f"/resource/{id}/path", {"type": type})
-        except girder_client.HttpError as e:
-            if verbose and e.status == 400:
-                print("(!) Invalid Girder ID or resource type.")
-                print("    Original error from Girder API:")
-            raise e
-    # ------------------------------------------------
-    
-    # Function to convert a Girder ID to Girder-VIP standard
-    @classmethod
-    def _vip_girder_id(cls, girder_id) -> str:
-        """
-        Prefixes a Girder ID with the VIP standard. 
-        Input `girder_id` should be a string or a list of strings.
-        """
-        if isinstance(girder_id, str):
-            return ":".join([cls._PREFIX_GIRDER_ID, girder_id])
-        elif isinstance(girder_id, list):
-            return [ ":".join([cls._PREFIX_GIRDER_ID, id]) for id in girder_id ]
-        else:
-            raise TypeError("Input should be a string or a list of strings")
-    # ------------------------------------------------
-
-    # Function 
-    def _vip_input_settings(self, my_settings:dict={}) -> dict:
-        """
-        Fits `my_settings` to the VIP-Girder standard, i.e. converts Girder paths to: 
-        "[VipCI._PREFIX_GIRDER_ID]:[Girder_ID]".
-        Returns the modified settings.
-
-        Input `my_settings` (dict) must contain only strings or lists of strings.
-        """
-        # Function to get the VIP-Girder standard from 1 input path
-        def get_files(input_path: str, get_folder=True):
-            # Check if the input is a Girder path
-            assert input_path.startswith(self._PREFIX_GIRDER_PATH), \
-                f"The following parameter should contain only Girder paths: {parameter}"
-            # Look up for the resource in Girder & get the Girder ID
-            girder_id, girder_type = self._girder_path_to_id(input_path)
-            # 
-            if girder_type == "file":
-                # Prefix the girder ID
-                return self._vip_girder_id(girder_id)
-            elif girder_type == "item":
-                # Retrieve the files ID
-                files = [
-                    f["_id"] for f in self._girder_client.listFile(itemId=girder_id)
-                ]
-                # Check the number of files (1 per item)
-                nFiles = len(files)
-                if nFiles != 1:
-                    msg = f"Item : {self._girder_id_to_path(id=itemId, type='item')}"
-                    msg += f"contains {nFiles} files : it cannot be handled in VIP input settings."
-                    raise AssertionError(msg)
-                # Prefix the girder ID
-                return self._vip_girder_id(files[0])
-            elif girder_type == "folder":
-                if not get_folder: 
-                    raise ValueError(f"Girder type: '{girder_type}' is not permitted in this context.\n\tBad resource: {input_path}")
-                new_inputs = []
-                # Retrieve all items
-                items = [it["_id"] for it in self._girder_client.listItem(folderId=girder_id)]
-                for itemId in items:
-                    # Retrieve the corresponding files
-                    files = [
-                        f["_id"] for f in self._girder_client.listFile(itemId=itemId)
-                    ]
-                    # Check the number of files (1 per item)
-                    nFiles = len(files)
-                    if nFiles != 1:
-                        msg = f"Item : {self._girder_id_to_path(id=itemId, type='item')}"
-                        msg += f"contains {nFiles} files : it cannot be handled in VIP input settings."
-                        raise AssertionError(msg)
-                    # Update the file list with prefixed Girder ID
-                    new_inputs.append(self._vip_girder_id(files[0]))
-                # Append the list of files
-                return new_inputs
-            else: 
-                # Girder type = collection or other
-                raise ValueError(f"Girder type: '{girder_type}' is not permitted in this context.\n\tBad resource: {input_path}")
-        # -----------------------------------------------
-        # Return if my_settings is empty:
-        if not my_settings :
-            return {}
-        # Check the input type
-        assert isinstance(my_settings, dict), \
-            "Please provide input parameters in dictionnary shape."
-        # Convert collection paths into VIP-Girder IDs
-        vip_settings = {}
-        for parameter in my_settings: 
-            input = my_settings[parameter]
-            # Check if this parameter (either string or list) contains a Girder path
-            if isinstance(input, str) and input.startswith(self._PREFIX_GIRDER_PATH):
-                vip_settings[parameter] = get_files(input)
-            elif isinstance(input, list) and (len(input) != 0) \
-                and isinstance(input[0], str) and input[0].startswith(self._PREFIX_GIRDER_PATH):
-                vip_settings[parameter] = [
-                    get_files(path) for path in input
-                ]                      
-            else:
-                # No Girder path was found: append the original object
-                vip_settings[parameter] = input
-        # Return
-        return vip_settings
-    # ------------------------------------------------
-
     #################################################
     # Workflow Monitoring
     #################################################
@@ -565,6 +406,255 @@ class VipCI(VipLauncher):
                 ),
             # # Returned files
             # "outputs": infos["returnedFiles"]["output_file"]
+        }
+    # ------------------------------------------------
+
+    #################################################
+    # Save / Load Session as / from Girder metadata
+    #################################################
+
+    # Save session properties in a JSON file
+    def _save_session(self, session_data: dict) -> bool:
+        """
+        Saves `session_data` as a JSON file in the VIP output directory.
+        Returns a success flag.
+        Also displays this path is `_VERBOSE` is True.
+        """
+        # Data to save 
+        session_data = self._data_to_save()
+        # Ensure the output directory exists on Girder
+        self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME)
+        # Save metadata in the global output directory
+        folderId, _ = self._girder_path_to_id(self._vip_output_dir)
+        self._girder_client.addMetadataToFolder(folderId=folderId, metadata=session_data)
+        # Update metadata for each workflow
+        for workflow_id in self._workflows:
+            metadata = self._meta_workflow(workflow_id=workflow_id)
+            folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
+            self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
+        # Display
+        if self._VERBOSE:
+            print("\nSession properties were saved as metadata under folder:")
+            print(f"\t{self._vip_output_dir}")
+            print(f"\t(Girder ID: {folderId})\n")
+        # Return
+        return True
+    # ------------------------------------------------
+
+    def _load_session(self) -> dict:
+        """
+        Loads & Returns Session properties from the metadata stored in the Session folder on Girder.
+        """
+        # Check the output directory is defined
+        if self.vip_output_dir is None: 
+            return None
+        # Load the metadata on Girder
+        try:
+            girder_id, _ = self._girder_path_to_id(self.vip_output_dir)
+            folder = self._girder_client.getFolder(folderId=girder_id)
+        except girder_client.HttpError as e:
+            if e.status == 400: # Folder was not found
+                return None
+        # Display success if the folder was found
+        if self._VERBOSE:
+            print("Session properties were loaded from:\n\t", self.vip_output_dir)
+        # Return session metadata 
+        return folder["meta"]
+    # ------------------------------------------------
+    
+    #################################################
+    # Manipulate Resources on Girder
+    #################################################
+
+    # Function to get a resource ID
+    @classmethod
+    def _girder_path_to_id(cls, path) -> tuple[str, str]:
+        """
+        Returns a resource ID from its `path` within a Girder collection.
+        `path` should begin with: "/collection/[collection_name]/...".
+        `path` can be a string or PathLib object.
+
+        Raises `girder_client.HttpError` if the resource was not found. 
+        Adds intepretation message unless `_VERBOSE` is False.
+        """
+        try :
+            resource = cls._girder_client.resourceLookup(str(path))
+        except girder_client.HttpError as e:
+            if cls._VERBOSE and e.status == 400:
+                print("(!) The following path is invalid or refers to a resource that does not exist:")
+                print(f"    \t{path}")
+                print("    Original error from Girder API:")
+            raise e
+        # Return the resource ID and type
+        try:
+            return resource['_id'], resource['_modelType']
+        except KeyError as ke:
+            if cls._VERBOSE: print("Unhandled type of resource: \n\t{resource}\n")
+            raise ke
+    # ------------------------------------------------
+    
+    # Function to get a resource path
+    @classmethod
+    def _girder_id_to_path(cls, id: str, type: str) -> PurePosixPath:
+        """
+        Returns a resource path from its Girder `id`.
+        The resource `type` (item, folder, collection) must be provided.
+
+        Raises `girder_client.HttpError` if the resource was not found.
+        """
+        try :
+            return PurePosixPath(cls._girder_client.get(f"/resource/{id}/path", {"type": type}))
+        except girder_client.HttpError as e:
+            if cls._VERBOSE and e.status == 400:
+                print("(!) Invalid Girder ID or resource type.")
+                print("    Original error from Girder API:")
+            raise e
+    # ------------------------------------------------
+    
+    # Function to convert a Girder ID to Girder-VIP standard
+    @classmethod
+    def _vip_girder_id(cls, resource) -> str:
+        """
+        Prefixes a Girder ID with the VIP standard. 
+        Input `resource` should be a Girder Id (str) or a Girder path (PurePosixPath)
+        """
+        if isinstance(resource, str):
+            # Prefix the ID
+            return ":".join([cls._GIRDER_ID_PREFIX, resource])
+        elif isinstance(resource, PurePath):
+            # Get the Girder ID
+            girder_id, _ = cls._girder_path_to_id(resource)
+            # Prefix the ID
+            return ":".join([cls._GIRDER_ID_PREFIX, girder_id])
+    # ------------------------------------------------
+
+    # Changer get / parse pour affichage
+    # Séparer la Vip_Girder_id des chemins
+
+    # Store the VIP paths as PathLib objects.
+    # This is mainly useful for subclasses
+    def _parse_input_settings(self, input_settings) -> dict:
+        """
+        Parses the input settings, i.e.:
+        - Converts all input paths to PathLib objects 
+        - Leave the other parameters untouched.
+
+        Prerequisites: `input_settings` must contain only strings or os.PathLike objects (incl. PathLib), or lists of both types. 
+            (Otherwise: Raises TypeError).
+        """
+        # Function to extract file from Girder item
+        def get_file_from_item(itemId: str) -> str:
+            """Returns the Girder ID of a single file contained in `itemId`"""
+            files = [
+                f["_id"] for f in self._girder_client.listFile(itemId=itemId)
+            ]
+            # Check the number of files (1 per item)
+            if len(files) != 1:
+                msg = f"Unable to parse the Girder item : {self._girder_id_to_path(id=itemId, type='item')}"
+                msg += "Contains more than 1 file."
+                raise NotImplementedError(msg)
+            return files[0]
+        # -- End of get_file_from_item() --
+        # Function to extract all files from a Girder resource
+        def get_files(input_path: str):
+            """
+            Returns the path of all files contained in the Girder resource pointed by `input_path`.
+            The Girder resource can be a file, an item with 1 file or a folder with multiple items.
+            """
+            # Look up for the resource in Girder & get the Girder ID
+            girder_id, girder_type = self._girder_path_to_id(input_path)
+            # Retrieve all files based on the resource type
+            if girder_type == "file":
+                # Return the Girder path
+                return PurePosixPath(input_path)
+            elif girder_type == "item":
+                # Retrieve the corresponding file
+                fileId = get_file_from_item(girder_id)
+                # Return the Girder path
+                return self._girder_id_to_path(id=fileId, type='file')
+            elif girder_type == "folder":
+                # Retrieve all items
+                items = [ it["_id"] for it in self._girder_client.listItem(folderId=girder_id) ]
+                # Browse items
+                for itemId in items:
+                    new_inputs = []
+                    # Retrieve the corresponding file
+                    fileId = get_file_from_item(itemId)
+                    # Update the file list with new Girder path
+                    new_inputs.append(self._girder_id_to_path(id=fileId, type='file'))
+                # Return the list of files
+                return new_inputs
+            else: 
+                # Girder type = collection or other
+                raise ValueError(f"Bad resource: {input_path}\n\tGirder type '{girder_type}' is not permitted in this context.")
+        # -- End of get_files() --
+        # Function to parse Girder paths
+        def parse_value(input):
+            # Case: single input, string or path-like
+            if isinstance(input, (str, os.PathLike)):
+                # Case: Girder path
+                if str(input).startswith(self._SERVER_PATH_PREFIX): 
+                    return get_files(input)
+                # Case: any other input
+                else: return input
+            # Case: multiple inputs
+            elif isinstance(input, list):
+                new_input = []
+                # Browse elements
+                for element in input:
+                    # Parse element
+                    parsed = parse_value(element)
+                    # Merge the lists if `element` is a folder
+                    if isinstance(parsed, list): new_input += parsed
+                    # Append if `element` is a file
+                    else: new_input.append(parsed)
+                # Return the list of files
+                return new_input
+           # Case not string nor path-like: raise TypeError
+            else:
+                # (this case may be updated in the future)
+                raise TypeError(f"`input_settings` can contain only strings or os.PathLike objects"
+                                +" (including PathLib objects), or lists of both types.")
+        # -- End of parse_value() --
+        # Return the parsed value of each parameter
+        return {
+            key: parse_value(value)
+            for key, value in input_settings.items()
+        }
+    # ------------------------------------------------
+
+    # Get the input settings after files are parsed as PathLib objects
+    def _get_input_settings(self, target="girder") -> dict:
+        """
+        Returns the input settings with filenames adapted to `target`.
+        - if `target` = "girder", returns Girder paths string format.
+        - if `target` = "vip-girder", returns the prefixed Girder ID for VIP.
+        """
+        # Function to get the VIP-Girder standard from 1 input path
+        def get_input(value, target) -> str:
+            """
+            If `value` is a path, returns the corresponding string.
+            Value can be a single input or a list of inputs.
+            """
+            # Case: multiple inputs
+            if isinstance(value, list):
+                return [ get_input(element, target) for element in value ]
+            # Case : path to Girder resource
+            elif isinstance(value, PurePath): 
+                if target == "girder":
+                    return str(value)
+                elif target == "vip-girder":
+                    return self._vip_girder_id(value)
+            # Case: other parameter
+            else: return value
+        # --------------------
+        # Raise an error if `target` cannot be parsed
+        if target not in ("girder", "vip-girder"):
+            raise NotImplementedError(f"Unknown target: {target}")
+        # Browse input settings
+        return {
+            key: get_input(value, target)
+            for key, value in self._input_settings.items()
         }
     # ------------------------------------------------
 
