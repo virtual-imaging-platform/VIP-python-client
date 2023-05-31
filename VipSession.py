@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import json
 import tarfile
+import time
 from pathlib import *
 
 from VipLauncher import VipLauncher
@@ -66,6 +67,8 @@ class VipSession(VipLauncher):
     ]
     # Verbose state for display
     _VERBOSE = True
+    # Default backup behaviour 
+    _BACKUP = True
 
     # --- New Attributes ---
 
@@ -83,12 +86,18 @@ class VipSession(VipLauncher):
     # Alias `output_dir` refers to the *local* output directory
     @property
     def output_dir(self) -> str:
-        """Same as `local_output_dir`"""
+        """
+        Same as `local_output_dir`.
+        Setting `output_dir` will automatically load backup data if any.
+        """
         return self.local_output_dir
     
     @output_dir.setter
     def output_dir(self, new_dir: str) -> None:
+        # Set the new output directory
         self.local_output_dir = new_dir
+        # Load backup data from the new output directory
+        self._load()
 
     @output_dir.deleter
     def output_dir(self) -> None:
@@ -96,6 +105,30 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # --- New Properties ---
+
+    # Local output directory (contains backup data)
+    @property
+    def local_output_dir(self) -> str:
+        """Local path to the output data"""
+        return str(self._local_output_dir) if self._is_defined("_local_output_dir") else None
+    
+    @local_output_dir.setter
+    def local_output_dir(self, new_dir) -> None:
+        # Check type
+        if not isinstance(new_dir, (str, os.PathLike)):
+            raise TypeError("Property `local_output_dir` should be a string or os.PathLike object")
+        # Path-ify to account for relative paths
+        new_path = Path(new_dir)
+        # Check conflicts with instance value
+        if self._is_defined("_local_output_dir") and (new_path.resolve() != self._local_output_dir.resolve()):
+            raise ValueError(f"Output directory is already set for session: {self._session_name} ('{self._local_output_dir}' -> '{new_dir}').")
+        # Assign
+        self._local_output_dir = new_path
+
+    @local_output_dir.deleter
+    def local_output_dir(self) -> None:
+        del self._local_output_dir
+    # ------------------------------------------------
 
     # Local input directory
     @property
@@ -162,30 +195,6 @@ class VipSession(VipLauncher):
     def vip_input_dir(self) -> None:
         del self._vip_input_dir
     # ------------------------------------------------
-
-    # Local output directory
-    @property
-    def local_output_dir(self) -> str:
-        """Local path to the output data"""
-        return str(self._local_output_dir) if self._is_defined("_local_output_dir") else None
-    
-    @local_output_dir.setter
-    def local_output_dir(self, new_dir) -> None:
-        # Check type
-        if not isinstance(new_dir, (str, os.PathLike)):
-            raise TypeError("Property `local_output_dir` should be a string or os.PathLike object")
-        # Path-ify to account for relative paths
-        new_path = Path(new_dir)
-        # Check conflicts with instance value
-        if self._is_defined("_local_output_dir") and (new_path.resolve() != self._local_output_dir.resolve()):
-            raise ValueError(f"Output directory is already set for session: {self._session_name} ('{self._local_output_dir}' -> '{new_dir}').")
-        # Assign
-        self._local_output_dir = new_path
-
-    @local_output_dir.deleter
-    def local_output_dir(self) -> None:
-        del self._local_output_dir
-    # ------------------------------------------------
     
     # VIP path to all session data
     @property
@@ -217,8 +226,7 @@ class VipSession(VipLauncher):
 
         - `input_settings` (dict) All parameters needed to run the pipeline.
             - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
-            - The dictionary should contain only strings or os.PathLike objects (including PathLib objects), 
-                or lists of both types. 
+            - The dictionary can contain any object that can be converted to strings, or lists of such objects.
             - Lists of parameters launch parallel workflows on VIP.
 
         - `output_dir` (str | os.PathLike) Local path to the directory where: 
@@ -230,36 +238,35 @@ class VipSession(VipLauncher):
         If `session_name` or `output_dir` lead to data from a previous session, 
         all properties will be loaded from the session file ('session_data.json').
         """
+        # Default values for the session name and output directory
+        if not session_name:
+            session_name = self.__name__ + "_" + time.strftime("%y%m%d-%H%M%S", time.localtime())
+        if not output_dir:
+            output_dir = self._LOCAL_DEFAULT_PATH / session_name
         # Initiate parameters from the parent class
         super().__init__(
+            output_dir = output_dir,
             session_name = session_name,
             pipeline_id = pipeline_id,
             input_settings = input_settings,
             verbose = verbose
         )
-        # Set the local output directory
-        if output_dir:
-            self.local_output_dir = output_dir
-        else:
-            self.local_output_dir = self._LOCAL_DEFAULT_PATH / self._session_name
-        # Check existence of data from a previous session
-        if not self._load_session(verbose=verbose):
-            # Set the VIP input directory (default value)
+        # Set the VIP input directory (default value)
+        if not self.vip_input_dir:
             self.vip_input_dir = self._vip_dir / "INPUTS"
-            # Set the VIP output directory (default value, masked to the user)
+        # Set the VIP output directory (default value, masked to the user)
+        if not self.vip_output_dir:
             self.vip_output_dir = self._vip_dir / "OUTPUTS"
-            # Set the local input directory
-            if input_dir:
-                print("Input Directory:", input_dir, end="")
-                self.local_input_dir = input_dir
-                if verbose and self._exists(input_dir, "local"):
-                    print(" [checked]")
-                elif verbose: 
-                    print(f"\n(!) `input_dir` does not exist in the local file system.")
-                    print(f"    This will throw an error during upload_inputs().")
-        # Display the output directory
-        if verbose:
-            print("Output Path:", self._local_output_dir)
+        # Set the local input directory
+        if input_dir and not self.input_dir:
+            print("Input Directory:", input_dir, end="")
+            self.input_dir = input_dir
+            # Resolve the path if possible
+            if verbose and self._exists(input_dir, "local"):
+                print(" [checked]")
+            elif verbose: 
+                print(f"\n(!) `input_dir` does not exist in the local file system.")
+                print(f"    This will throw an error during upload_inputs().")
         # End display if we're in this class
         if verbose and (self.__name__ == "VipSession"): print()
     # ------------------------------------------------
@@ -294,7 +301,7 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
    
     # ($A.2) Upload a dataset on VIP servers
-    def upload_inputs(self, input_dir="", update_files=True, verbose=_VERBOSE) -> VipSession:
+    def upload_inputs(self, input_dir="", update_files=True, verbose=True) -> VipSession:
         """
         Uploads to VIP servers a dataset contained in the local directory `input_dir` (if needed).
         - If `input_dir` is not provided, `self.input_dir` will be used.
@@ -327,7 +334,7 @@ class VipSession(VipLauncher):
             return self
         # Set local input directory
         if input_dir:
-            self.local_input_dir = input_dir
+            self.input_dir = input_dir
         elif not self._is_defined("_local_input_dir"): 
             raise TypeError(f"Session >{self._session_name}>: Please provide an input directory.")
         # Check local input directory
@@ -345,9 +352,7 @@ class VipSession(VipLauncher):
                 if verbose: print("Skipped (missing properties).")
             except(TypeError, ValueError, RuntimeError) as e:
                 if verbose: 
-                    print("Skipped. The following exception was raised:")
-                    print("\t", e)
-                    print("This will throw an error during launch_pipeline().")
+                    print("\tThe following exception was raised:\n\t\t", e)
             if verbose: print()
         # Initial display
         if verbose:
@@ -373,7 +378,7 @@ class VipSession(VipLauncher):
             raise e from None
         finally:
             # In any case, save session properties
-            self._save_session()
+            self._save()
         # Return for method cascading
         return self
     # ------------------------------------------------
@@ -390,8 +395,7 @@ class VipSession(VipLauncher):
             Usually in format : *application_name*/*version*.
         - `input_settings` (dict) All parameters needed to run the pipeline.
             - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
-            - The dictionary should contain only strings or os.PathLike objects (including PathLib objects), 
-                or lists of both types. 
+            - The dictionary can contain any object that can be converted to strings, or lists of such objects.
             - Lists of parameters launch parallel workflows on VIP.
         - `nb_runs` (int) Number of parallel workflows to launch with the same `pipeline_id`/`input_settings`.
         - Set `verbose` to False to run silently.
@@ -409,25 +413,17 @@ class VipSession(VipLauncher):
         
         Session is backed up at the end of the procedure.
         """
-        try :
-            super().launch_pipeline(
-                pipeline_id = pipeline_id, # default
-                input_settings = input_settings, # default
-                output_dir = self.vip_output_dir, # VIP output directory
-                nb_runs = nb_runs, # default
-                verbose = verbose # default
-            )
-        except Exception as e:
-            raise e
-        finally:
-            # In any case, save session properties
-            self._save_session()
-        # Return for method cascading
-        return self
+        return super().launch_pipeline(
+            pipeline_id = pipeline_id, # default
+            input_settings = input_settings, # default
+            output_dir = self.vip_output_dir, # VIP output directory
+            nb_runs = nb_runs, # default
+            verbose = verbose # default
+        )
     # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, refresh_time=30, verbose=_VERBOSE) -> VipSession:
+    def monitor_workflows(self, refresh_time=30, verbose=True) -> VipSession:
         """
         Updates and displays the status for each execution launched in the current session.
         - If an execution is still running, updates status every `refresh_time` (seconds) until all runs are finished.
@@ -435,16 +431,11 @@ class VipSession(VipLauncher):
 
         Session is backed up at the end of the procedure.
         """
-        # Monitor the workflows
-        super().monitor_workflows(refresh_time=refresh_time, verbose=verbose)
-        # Session properties are automatically saved within super() through the call to `update_workflows()`
-        if verbose: print(f"\nSession properties were saved.\n")
-        # Return for method cascading
-        return self
+        return super().monitor_workflows(refresh_time=refresh_time, verbose=verbose)
     # ------------------------------------------------
 
     # ($A.5) Download execution outputs from VIP servers 
-    def download_outputs(self, get_status=["Finished"], unzip=True, verbose=_VERBOSE) -> VipSession:
+    def download_outputs(self, get_status=["Finished"], unzip=True, verbose=True) -> VipSession:
         """
         Downloads all session outputs from VIP servers.
         - If `unzip` is True, extracts the data if any output is a .tar file.
@@ -464,11 +455,11 @@ class VipSession(VipLauncher):
             return self
         # Update the worflow inventory
         if verbose: print("Updating workflow status ... ", end="")
-        self._update_workflows(save_session=False)
+        self._update_workflows()
         if verbose: print("Done.\n")
         # Initial display
         if verbose:
-            print("Downloading pipeline outputs to:\n\t", self._local_output_dir)
+            print("Downloading pipeline outputs to:", self._local_output_dir)
             print("--------------------------------")
         # Get execution report
         report = self._execution_report(display=False)
@@ -618,25 +609,28 @@ class VipSession(VipLauncher):
         
         Set `verbose` to False to run silently. 
         """
+        # Update the verbose state for private methods
+        self._VERBOSE = verbose
+        # Upload-run-download procedure
         return (
             # 1. Upload the database on VIP or check the uploaded files
-            self.upload_inputs(update_files=update_files, verbose=verbose)
+            self.upload_inputs(update_files=update_files)
             # 2. Launche `nb_runs` pipeline executions on VIP
-            .launch_pipeline(nb_runs=nb_runs, verbose=verbose)
+            .launch_pipeline(nb_runs=nb_runs)
             # 3. Monitor pipeline executions until they are all over
-            .monitor_workflows(refresh_time=refresh_time, verbose=verbose)
+            .monitor_workflows(refresh_time=refresh_time)
             # 4. Download execution results from VIP
-            .download_outputs(get_status=get_status, unzip=unzip, verbose=verbose)
+            .download_outputs(get_status=get_status, unzip=unzip)
         )
 
     # ($A.6) Clean session data on VIP
-    def finish(self, timeout=300, verbose=_VERBOSE) -> VipSession:
+    def finish(self, timeout=300, verbose=True) -> VipSession:
         """
         Removes session's data from VIP servers (INPUTS and OUTPUTS). 
         The downloaded outputs and the input dataset are kept on the local machine.
 
         Detailed behaviour:
-        - This process checks for actual deletion on VPI servers until `timeout` (seconds) is reached.
+        - This process checks for actual deletion on VIP servers until `timeout` (seconds) is reached.
             If deletion could not be verified, the procedure ends with a warning message.
         - Workflows status are set to "Removed" when the corresponding outputs have been removed from VIP servers.
         
@@ -650,9 +644,11 @@ class VipSession(VipLauncher):
             and verbose
             ):
             print(f"(!) The input data are still on VIP:\n\t{self.vip_input_dir}")
-            print("They belong to another session.")
-            print("Please run finish() from the original session or remove them manually through the VIP portal:")
-            print(f"\t{self._VIP_PORTAL}")         
+            print( "    They belong to another session.")
+            print( "    Please run finish() from the original session or remove them manually on the VIP portal:")
+            print(f"\t{self._VIP_PORTAL}")
+        # Save the session
+        self._save()    
         # Return for method cascading
         return self
     # ------------------------------------------------
@@ -679,7 +675,7 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # ($B.2) Get inputs from another session to avoid double uploads
-    def get_inputs(self, session: VipSession, get_pipeline=False, get_settings=False, verbose=_VERBOSE) -> VipSession:
+    def get_inputs(self, session: VipSession, get_pipeline=False, get_settings=False, verbose=True) -> VipSession:
         """
         Binds the current session to the inputs of another (`session`), to avoid re-uploading the same dataset on VIP servers.
         
@@ -701,7 +697,7 @@ class VipSession(VipLauncher):
         if self._vip_input_dir == session._vip_input_dir:
             # Display
             if verbose: 
-                print(f"\nSessions '{self._session_name}' and '{session._session_name}' already share the same inputs on VIP.")
+                print(f"\nSessions <{self._session_name}> and <{session._session_name}> share the same inputs on VIP.")
             # Return for method cascading
             return self
         # Check if current session do not have data on VIP
@@ -725,11 +721,10 @@ class VipSession(VipLauncher):
             self._set(input_settings=session.input_settings)
         # Display success
         if verbose : 
-            print(
-                f"\nSession '{self._session_name}' now shares its inputs "\
-                + f"with session '{session._session_name}'." )
+            print(f"\n<< Session <{self._session_name}> now shares its inputs "\
+                + f"with session <{session._session_name}>" )
         # Save new properties
-        self._save_session()
+        self._save()
         # Return for method cascading
         return self
     # -----------------------------------------------
@@ -931,11 +926,11 @@ class VipSession(VipLauncher):
     ###################################
 
     # ($C.1) Save session properties in a JSON file
-    def _save_session(self, session_data:dict) -> bool:
+    def _save_session(self, session_data: dict) -> bool:
         """
-        Saves `session_data` as a JSON file in the LOCAL output directory.
+        Saves dictionary `session_data` to a JSON file in the output directory.
         Returns a success flag.
-        Also displays this path is `_VERBOSE` is True.
+        Displays success / failure unless `verbose` is False.
         """
         # Return if the local input directory is not defined
         if not self._is_defined("_local_output_dir"):
@@ -949,17 +944,18 @@ class VipSession(VipLauncher):
             json.dump(session_data, outfile, indent=4)
         # Display
         if self._VERBOSE:
-            if is_new: print(f"\nSession properties are saved in:\n\t{file}\n")
-            else: print(f"\nSession properties have been saved.")
+            if is_new: print(f"\n>> Session was backed up in: {file}\n")
+            else: print(f"\n>> Session backed up\n")
         return True
     # ------------------------------------------------
 
     # ($C.2) Load session properties from a JSON file
-    def _load_session(self) -> dict:
+    def _load_session(self, verbose=True) -> dict:
         """
-        Loads session properties from the local output directory.
-        Returns properties as a dictionary. 
-        Displays success message unless `_VERBOSE` is False.
+        Loads backup data from the output directory.
+        If the backup file could not be read, returns None.
+        Otherwise, returns session properties as a dictionary. 
+        Displays success / failure unless `verbose` is False.
         """
         # Return if the local input directory is not defined
         if not self._is_defined("_local_output_dir"):
@@ -972,27 +968,11 @@ class VipSession(VipLauncher):
         with file.open() as fid:
             session_data = json.load(fid)
         # Update the local output directory
-        session_data["local_output_dir"] = file.parent
+        session_data["local_output_dir"] = self.local_output_dir
         # Display success & return
-        if self._VERBOSE:
-            print("Session properties were loaded from:\n\t", self._local_output_dir)
+        if verbose and self._VERBOSE:
+            print("\n<< Session restored from its output directory\n")
         return session_data
-    # ------------------------------------------------
-
-    # Overwrite _update_workflows() to automatically save the session 
-    # once worflows are updated
-    def _update_workflows(self, save_session=True) -> None:
-        """
-        Updates the status of each workflow in the inventory. 
-        Saves the session silently unless `save_session` is False.
-        """
-        # Update the workflow
-        super()._update_workflows()
-        # Save the session silently
-        if save_session:
-
-            self._VERBOSE = False
-            self._save_session(display=False)
     # ------------------------------------------------
 
     ######################################
@@ -1009,11 +989,7 @@ class VipSession(VipLauncher):
         Parses the input settings, i.e.:
         - Converts all input paths (local or VIP) to PathLib objects 
             and write them relatively to their input directory ;
-        - Leave the other parameters untouched.
-
-        Prerequisites: 
-        - `input_settings` must contain only strings or os.PathLike objects (incl. PathLib), or lists of both types. 
-            (Otherwise: Raises TypeError).
+        - Leaves the other parameters untouched.
         """
         # Function to convert local / VIP path to relative paths
         def parse_value(input):
@@ -1033,7 +1009,7 @@ class VipSession(VipLauncher):
                         input_path = PurePosixPath(input)
                     else: # Return input if `_vip_input_dir` is unset
                         return input
-                # Case: local path or any other input
+                # Case: local path or any other string input
                 else:     
                     if self._is_defined('_local_input_dir'): 
                         # We must use absolute paths to find the relative parts
@@ -1047,11 +1023,8 @@ class VipSession(VipLauncher):
                 except ValueError:
                     # This is the case when no relative part could be found
                     return input
-            # Case not string or path-like: raise an error
-            else:
-                # (this case may be updated in the future)
-                raise TypeError(f"`input_settings` can contain only strings or os.PathLike objects"
-                                +" (including PathLib objects), or lists of both types.")
+            # Case not string or path-like: return as is
+            else: return input
         # -- End of parse_value() --
         # Return the parsed value of each parameter
         return {
@@ -1061,43 +1034,41 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # Get the input settings after they are parsed
-    def _get_input_settings(self, target="vip") -> dict:
+    def _get_input_settings(self, location="vip") -> dict:
         """
-        Fits `self._input_settings` to `target`, i.e. write the input paths relatively to `target`.
+        Fits `self._input_settings` to `location`, i.e. write the input paths relatively to `location`.
         Returns the modified settings.
 
-        Prerequisites:
-        - input_settings is defined and contains only strings, PathLib objects or lists of both types
-        - input directories are defined depending on `target`
+        Prerequisite: input directories are defined depending on `location`
         """
-        def get_input(value, target) -> str:
+        def get_input(value, location) -> str:
             """
-            If `value` is a path, binds this path to `target`.
+            If `value` is a path, binds this path to `location`.
+            Otherwise, returns it as a string.
             Value can be a single input or a list of inputs.
             """
             # Case: multiple inputs
             if isinstance(value, list):
-                return [ get_input(element, target) for element in value ]
+                return [ get_input(element, location) for element in value ]
             # Case : not a path
             elif not isinstance(value, PurePath):
                 return value
             # Case : Path relative to any `input_dir` => Cannot be distinguished from other parameters when parsing
             # Case : VIP path
-            elif (target == "vip") and self._is_defined("_vip_input_dir"):
+            elif (location == "vip") and self._is_defined("_vip_input_dir"):
                 return str(self._vip_input_dir / value) 
             # Case: local path
-            elif (target == "local") and self._is_defined("_local_input_dir"):
+            elif (location == "local") and self._is_defined("_local_input_dir"):
                 return str(self._local_input_dir / value)
-            else: 
-                # for data inspection (this should not happen to users)
-                return str(value)
+            # Otherwise, return input as a string
+            else: return str(value)
         # -----------------------
-        # Raise an error if `target` cannot be parsed
-        if target not in ("vip", "local"):
-            raise NotImplementedError(f"Unknown target: {target}")
+        # Raise an error if `location` cannot be parsed
+        if location not in ("vip", "local"):
+            raise NotImplementedError(f"Unknown location: {location}")
         # Browse input settings
         return {
-            key: get_input(value, target)
+            key: get_input(value, location)
             for key, value in self._input_settings.items()
         }
     # ------------------------------------------------
@@ -1111,31 +1082,6 @@ class VipSession(VipLauncher):
             self._input_settings = self._parse_input_settings(self._input_settings)
     # ------------------------------------------------
 
-    def _check_input_settings(self, input_settings: dict={}, location="") -> None:
-        """
-        Checks `input_settings` with respect to pipeline descriptor. 
-        
-        `location` refers to the storage infrastructure where input files should be found (e.g., VIP).
-        Use the same nomenclature as defined in self._exists() (e.g., `location="vip"`).
-        
-        Detailed output:
-            - Prints warnings unless `_VERBOSE` is False.
-            - Raises AttributeError if the input settings or pipeline identifier were not found.
-            - Raises TypeError if some input parameter is missing.
-            - Raises ValueError if some input value does not the fit with the pipeline definition.
-            - Raises FileNotFoundError some input file does not exist. 
-            - Raises RuntimeError if communication failed with VIP servers.
-        """
-        # If input_settings are provided, parse them 
-        if input_settings:
-            input_settings = self._parse_input_settings(input_settings)
-        # If input_settings are defined, get them
-        elif self._is_defined("_input_settings"):
-            input_settings = self._get_input_settings(target=location)
-        # Check the input settings
-        return super()._check_input_settings(input_settings, location)
-    # ------------------------------------------------
-
     # Function to convert a VIP path to local output directory
     def _get_local_output_path(self, vip_output_path: PurePosixPath) -> Path:
         """
@@ -1146,12 +1092,11 @@ class VipSession(VipLauncher):
         # Replace `vip_output_dir`" by `local_output_dir` in the path
         new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
         # Replace forbidden characters by '-' if current OS is windows
-        invalid_for_windows = '<>:"?* '
-        new_str = str(new.resolve())
-        if isinstance(new, WindowsPath):
-            for char in invalid_for_windows: new_str = new_str.replace(char, '-')
+        if isinstance(new, PureWindowsPath):
+            for char in '<>:"?* ': 
+                new = str(new).replace(char, '-')
         # Return
-        return Path(new_str).resolve()
+        return Path(new)
     # ------------------------------------------------
 
 #######################################################

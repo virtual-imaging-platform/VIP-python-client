@@ -38,4 +38,4 @@ if __name__=="__main__":
     #     input_settings=my_settings, 
     #     output_dir="/collection/ReproVIPSpectro/results/new-folder2"
     # )
-    VipCI("/collection/ReproVIPSpectro/results/new-folder").finish()
+    # VipCI("/collection/ReproVIPSpectro/results/new-folder").finish()

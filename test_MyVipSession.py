@@ -49,15 +49,12 @@ if __name__=="__main__":
     }
     VipSession.init("VIP_API_KEY")
     sess = VipSession(
-        session_name="test-lcmodel", 
-        input_dir=my_input_dir,
-        pipeline_id="LCModel/0.1", 
+        session_name="test-lcmodel",
         input_settings=my_settings
     )
 
-    sess.upload_inputs()
-    exit()
-    sess.launch_pipeline()
+    sess.upload_inputs(input_dir=my_input_dir,)
+    sess.launch_pipeline(pipeline_id="LCModel/0.1")
     sess.download_outputs(get_status=["Finished", "Running"])
     VipSession("test-lcmodel").display()
     VipSession("test-lcmodel").monitor_workflows(refresh_time=2)

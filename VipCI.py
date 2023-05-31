@@ -44,6 +44,8 @@ class VipCI(VipLauncher):
     _SERVER_PATH_PREFIX = "/collection"
     # Verbose state for display
     _VERBOSE = True
+    # Default backup behaviour
+    _BACKUP = True
 
     # --- New Attributes ---
 
@@ -57,31 +59,6 @@ class VipCI(VipLauncher):
                     ################# 
     
     # --- Overriden from the parent class ---
-
-    # Output directory
-    @property
-    def vip_output_dir(self) -> str:
-        """Path to the VIP directory where pipeline outputs will be stored"""
-        return str(self._vip_output_dir) if self._is_defined("_vip_output_dir") else None
-    
-    @vip_output_dir.setter
-    def vip_output_dir(self, new_dir) -> None:
-        # Check type
-        if not isinstance(new_dir, (str, os.PathLike)):
-            raise TypeError("Property `vip_output_dir` should be a string or os.PathLike object")
-        # Check for conflict with instance attributes
-        if self._is_defined("_vip_output_dir") and (new_dir != self.vip_output_dir):
-            raise ValueError(f"Results directory is already set for session: {self._session_name} ('{self._vip_output_dir}' -> '{new_dir}').")
-        # Assign
-        self._vip_output_dir = PurePosixPath(new_dir)
-        # Load session data if relevant
-        self._load() 
-
-    @vip_output_dir.deleter
-    def vip_output_dir(self) -> None:
-        """Delete the result directory"""
-        del self._vip_output_dir
-    # ------------------------------------------------
 
                     #############
     ################ Constructor ##################
@@ -103,7 +80,9 @@ class VipCI(VipLauncher):
             Usually in format : "[application_name]/[version]".
 
         - `input_settings` (dict) All parameters needed to run the pipeline.
-            See pipeline description for more information.
+            - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
+            - The dictionary can contain any object that can be converted to strings, or lists of such objects.
+            - Lists of parameters launch parallel workflows on VIP.
 
         - `session_name` (str) A name to identify this session.
             Default value: 'VipCI_[date]-[time]'
@@ -111,21 +90,14 @@ class VipCI(VipLauncher):
         If `output_dir` leads to data from a previous session, 
         all properties will be loaded from the folder metadata on Girder.
         """
-        # Update the verbose state for private methods
-        self._VERBOSE = verbose
-        # Set the output directory if provided
-        if output_dir:
-            self.vip_output_dir = output_dir
-            # Providing the output directory will automatically load a session
-        # Check existence of data from a previous session
-        if not self._is_defined("_session_name)"):
-            # Initialize with the name, pipeline and input settings
-            super().__init__(
-                session_name = session_name, 
-                pipeline_id = pipeline_id, 
-                input_settings = input_settings,
-                verbose=verbose
-            )
+        # Initialize with the name, pipeline and input settings
+        super().__init__(
+            output_dir = output_dir,
+            session_name = session_name, 
+            pipeline_id = pipeline_id, 
+            input_settings = input_settings,
+            # verbose=verbose
+        )
         # End display
         if verbose and (self.__name__ == "VipCI"): print()
     # ------------------------------------------------
@@ -173,7 +145,7 @@ class VipCI(VipLauncher):
 
     def launch_pipeline(
             self, pipeline_id="", input_settings:dict={}, output_dir="", nb_runs=1, 
-            verbose=_VERBOSE
+            verbose=True
         ) -> VipCI:
         """
         Launches pipeline executions on VIP.
@@ -182,6 +154,9 @@ class VipCI(VipLauncher):
         - `pipeline_id` (str) The name of your pipeline in VIP, 
             usually in format : *application_name*/*version*.
         - `input_settings` (dict) All parameters needed to run the pipeline.
+            - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
+            - The dictionary can contain any object that can be converted to strings, or lists of such objects.
+            - Lists of parameters launch parallel workflows on VIP.
         - `output_dir` (str) Path to the VIP folder where execution results will be stored.
         - `nb_runs` (int) Number of parallel workflows to launch with the same settings.
         - Set `verbose` to False to launch silently.
@@ -191,26 +166,17 @@ class VipCI(VipLauncher):
         - Raises RuntimeError in case of failure on VIP servers.
         - In any case, session is backed up after pipeline launch
         """
-        try :
-            super().launch_pipeline(
-                pipeline_id = pipeline_id, # default
-                input_settings = input_settings, # default
-                output_dir = output_dir, # default
-                nb_runs = nb_runs, # default
-                verbose = verbose # default
-            )
-        except Exception as e:
-            raise e
-        finally:
-            # Save session properties if at least one worflow has been launched
-            if self.workflows:
-                self._save_session(verbose=True)
-        # Return for method cascading
-        return self
-    # ------------------------------------------------
+        return super().launch_pipeline(
+            pipeline_id = pipeline_id, # default
+            input_settings = input_settings, # default
+            output_dir = output_dir, # default
+            nb_runs = nb_runs, # default
+            verbose = verbose # default
+        )
+    # --------------------_VERBOSE----------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, refresh_time=30, verbose=_VERBOSE) -> VipCI:
+    def monitor_workflows(self, refresh_time=30, verbose=True) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
         - If an execution is still runnig, updates status every `refresh_time` (seconds) until all runs are done.
@@ -220,7 +186,7 @@ class VipCI(VipLauncher):
     # ------------------------------------------------
 
     # Mock function for finish()
-    def finish(self, verbose=_VERBOSE) -> None:
+    def finish(self, verbose=True) -> None:
         """
         This function does not work in VipCI.
         """
@@ -247,11 +213,14 @@ class VipCI(VipLauncher):
         - Set `refresh_time` to modify the default refresh time;
         - Set `verbose` to False to run silently.
         """
+        # Update the verbose state for private methods
+        self._VERBOSE = verbose
+        # Run the pipeline
         return (
             # 1. Launch `nb_runs` pipeline executions on VIP
-            self.launch_pipeline(nb_runs=nb_runs, verbose=verbose)
+            self.launch_pipeline(nb_runs=nb_runs)
             # 2. Monitor pipeline executions until they are over
-            .monitor_workflows(refresh_time=refresh_time, verbose=verbose)
+            .monitor_workflows(refresh_time=refresh_time)
         )
     # ------------------------------------------------
 
@@ -346,7 +315,7 @@ class VipCI(VipLauncher):
         """
         # Get function arguments
         # input_settings = self._vip_input_settings(self._input_settings)
-        input_settings = self._get_input_settings(target="vip-girder")
+        input_settings = self._get_input_settings(location="vip-girder")
         # Create a workflow-specific result directory
         res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) 
             # no simple way to rename later with workflow_id
@@ -416,14 +385,12 @@ class VipCI(VipLauncher):
     # Save session properties in a JSON file
     def _save_session(self, session_data: dict) -> bool:
         """
-        Saves `session_data` as a JSON file in the VIP output directory.
+        Saves dictionary `session_data` as metadata in the output directory on Girder.
         Returns a success flag.
-        Also displays this path is `_VERBOSE` is True.
+        Displays success / failure unless `_VERBOSE` is False.
         """
-        # Data to save 
-        session_data = self._data_to_save()
         # Ensure the output directory exists on Girder
-        self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME)
+        is_new = self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME)
         # Save metadata in the global output directory
         folderId, _ = self._girder_path_to_id(self._vip_output_dir)
         self._girder_client.addMetadataToFolder(folderId=folderId, metadata=session_data)
@@ -434,16 +401,21 @@ class VipCI(VipLauncher):
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
         if self._VERBOSE:
-            print("\nSession properties were saved as metadata under folder:")
-            print(f"\t{self._vip_output_dir}")
-            print(f"\t(Girder ID: {folderId})\n")
+            if is_new:
+                print("\n>> Session was backed up as Girder metadata in:")
+                print(f"\t{self._vip_output_dir} (Girder ID: {folderId})\n")
+            else:
+                print("\n>> Session backed up\n")
         # Return
         return True
     # ------------------------------------------------
 
-    def _load_session(self) -> dict:
+    def _load_session(self, verbose=True) -> dict:
         """
-        Loads & Returns Session properties from the metadata stored in the Session folder on Girder.
+        Loads backup data from the metadata stored in the output directory on Girder.
+        If the metadata could not be found, returns None.
+        Otherwise, returns session properties as a dictionary. 
+        Displays success unless `verbose` is False.
         """
         # Check the output directory is defined
         if self.vip_output_dir is None: 
@@ -456,8 +428,8 @@ class VipCI(VipLauncher):
             if e.status == 400: # Folder was not found
                 return None
         # Display success if the folder was found
-        if self._VERBOSE:
-            print("Session properties were loaded from:\n\t", self.vip_output_dir)
+        if verbose and self._VERBOSE:
+            print("\n<< Session restored from its output directory\n")
         # Return session metadata 
         return folder["meta"]
     # ------------------------------------------------
@@ -528,19 +500,14 @@ class VipCI(VipLauncher):
             return ":".join([cls._GIRDER_ID_PREFIX, girder_id])
     # ------------------------------------------------
 
-    # Changer get / parse pour affichage
-    # Séparer la Vip_Girder_id des chemins
-
     # Store the VIP paths as PathLib objects.
-    # This is mainly useful for subclasses
     def _parse_input_settings(self, input_settings) -> dict:
         """
         Parses the input settings, i.e.:
-        - Converts all input paths to PathLib objects 
-        - Leave the other parameters untouched.
-
-        Prerequisites: `input_settings` must contain only strings or os.PathLike objects (incl. PathLib), or lists of both types. 
-            (Otherwise: Raises TypeError).
+        - Resolves any reference to a Binder collection and turns a folder name 
+            into a list of files
+        - Converts all Girder paths to PathLib objects 
+        - Leaves the other parameters untouched.
         """
         # Function to extract file from Girder item
         def get_file_from_item(itemId: str) -> str:
@@ -610,11 +577,8 @@ class VipCI(VipLauncher):
                     else: new_input.append(parsed)
                 # Return the list of files
                 return new_input
-           # Case not string nor path-like: raise TypeError
-            else:
-                # (this case may be updated in the future)
-                raise TypeError(f"`input_settings` can contain only strings or os.PathLike objects"
-                                +" (including PathLib objects), or lists of both types.")
+           # Case not string nor path-like: return as is
+            else: return input
         # -- End of parse_value() --
         # Return the parsed value of each parameter
         return {
@@ -624,36 +588,38 @@ class VipCI(VipLauncher):
     # ------------------------------------------------
 
     # Get the input settings after files are parsed as PathLib objects
-    def _get_input_settings(self, target="girder") -> dict:
+    def _get_input_settings(self, location="girder") -> dict:
         """
-        Returns the input settings with filenames adapted to `target`.
-        - if `target` = "girder", returns Girder paths string format.
-        - if `target` = "vip-girder", returns the prefixed Girder ID for VIP.
+        Returns the input settings with filenames adapted to `location`.
+        - if `location` = "girder", returns Girder paths string format.
+        - if `location` = "vip-girder", returns the prefixed Girder ID for VIP.
+
+        Returns a string version of any other parameter.
         """
         # Function to get the VIP-Girder standard from 1 input path
-        def get_input(value, target) -> str:
+        def get_input(value, location) -> str:
             """
             If `value` is a path, returns the corresponding string.
             Value can be a single input or a list of inputs.
             """
             # Case: multiple inputs
             if isinstance(value, list):
-                return [ get_input(element, target) for element in value ]
+                return [ get_input(element, location) for element in value ]
             # Case : path to Girder resource
             elif isinstance(value, PurePath): 
-                if target == "girder":
+                if location == "girder":
                     return str(value)
-                elif target == "vip-girder":
+                elif location == "vip-girder":
                     return self._vip_girder_id(value)
             # Case: other parameter
-            else: return value
+            else: return str(value)
         # --------------------
-        # Raise an error if `target` cannot be parsed
-        if target not in ("girder", "vip-girder"):
-            raise NotImplementedError(f"Unknown target: {target}")
+        # Raise an error if `location` cannot be parsed
+        if location not in ("girder", "vip-girder"):
+            raise NotImplementedError(f"Unknown location: {location}")
         # Browse input settings
         return {
-            key: get_input(value, target)
+            key: get_input(value, location)
             for key, value in self._input_settings.items()
         }
     # ------------------------------------------------
