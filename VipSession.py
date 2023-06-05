@@ -65,10 +65,8 @@ class VipSession(VipLauncher):
         "input_settings", 
         "workflows"
     ]
-    # Verbose state for display
-    _VERBOSE = True
     # Default backup behaviour 
-    _BACKUP = True
+    _BACKUP_LOCATION = "local"
 
     # --- New Attributes ---
 
@@ -317,7 +315,7 @@ class VipSession(VipLauncher):
         Session is backed up at the end of the procedure.
         """
         # Update the verbose state for private methods
-        self._VERBOSE = verbose
+        self._verbose = verbose
         # First Display
         if verbose: print("\n<<< UPLOAD INPUTS >>>\n")
         # Check the distant (VIP) input directory        
@@ -442,7 +440,7 @@ class VipSession(VipLauncher):
         - Set `verbose` to False to download silently.
         """
         # Update the verbose state for private methods
-        self._VERBOSE = verbose
+        self._verbose = verbose
         # First display
         if verbose: print("\n<<< DOWNLOAD OUTPUTS >>>\n")
         # Check if current session has existing workflows
@@ -610,7 +608,7 @@ class VipSession(VipLauncher):
         Set `verbose` to False to run silently. 
         """
         # Update the verbose state for private methods
-        self._VERBOSE = verbose
+        self._verbose = verbose
         # Upload-run-download procedure
         return (
             # 1. Upload the database on VIP or check the uploaded files
@@ -790,31 +788,30 @@ class VipSession(VipLauncher):
     ###########################################################
 
     # Function to upload all files from a local directory
-    @classmethod
-    def _upload_dir(cls, local_path: Path, vip_path: PurePosixPath) -> list:
+    def _upload_dir(self, local_path: Path, vip_path: PurePosixPath) -> list:
         """
         Uploads all files in `local_path` to `vip_path` (if needed).
-        Displays what it does if _VERBOSE is set to True.
+        Displays what it does if self._verbose is True.
         Returns a list of files which failed to be uploaded on VIP.
         """
         # Scan the local directory
-        assert cls._exists(local_path), f"{local_path} does not exist."
+        assert self._exists(local_path), f"{local_path} does not exist."
         # First display
-        if cls._VERBOSE: print(f"Cloning: {local_path} ", end="... ")
+        if self._verbose: print(f"Cloning: {local_path} ", end="... ")
         # Look for subdirectories
         subdirs = [
             elem for elem in local_path.iterdir() 
             if elem.is_dir()
         ]
         # Scan the distant directory and look for files to upload
-        if cls._mkdirs(vip_path, location="vip"):
+        if self._mkdirs(vip_path, location="vip"):
             # The distant directory did not exist before call
             # -> upload all the data (no scan to save time)
             files_to_upload = [
                 elem for elem in local_path.iterdir()
                 if elem.is_file()
             ]
-            if cls._VERBOSE:
+            if self._verbose:
                 print("(Created on VIP)")
                 if files_to_upload:
                     print(f"\t{len(files_to_upload)} files to upload.")
@@ -830,7 +827,7 @@ class VipSession(VipLauncher):
                 if elem.is_file() and (elem.name not in vip_filenames)
             ]
             # Update the display
-            if cls._VERBOSE:
+            if self._verbose:
                 if files_to_upload: 
                     print(f"\n\tVIP clone already exists and will be updated with {len(files_to_upload)} files.")
                 else:
@@ -841,22 +838,22 @@ class VipSession(VipLauncher):
         for local_file in files_to_upload :
             nFile+=1
             # Display the current file
-            if cls._VERBOSE:
+            if self._verbose:
                 size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
                 print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
             # Upload the file on VIP
             vip_file = vip_path/local_file.name # file path on VIP
-            if cls._upload_file(local_path=local_file, vip_path=vip_file):
+            if self._upload_file(local_path=local_file, vip_path=vip_file):
                 # Upload was successful
-                if cls._VERBOSE: print("Done.")
+                if self._verbose: print("Done.")
             else:
                 # Update display
-                if cls._VERBOSE: print(f"\n(!) Something went wrong during the upload.")
+                if self._verbose: print(f"\n(!) Something went wrong during the upload.")
                 # Update missing files
                 failures.append(str(local_file))
         # Recurse this function over sub-directories
         for subdir in subdirs:
-            failures += cls._upload_dir(
+            failures += self._upload_dir(
                 local_path=subdir,
                 vip_path=vip_path/subdir.name
             )
@@ -926,12 +923,14 @@ class VipSession(VipLauncher):
     ###################################
 
     # ($C.1) Save session properties in a JSON file
-    def _save_session(self, session_data: dict) -> bool:
+    def _save_session(self, session_data: dict, location="local") -> bool:
         """
-        Saves dictionary `session_data` to a JSON file in the output directory.
+        Saves dictionary `session_data` to a JSON file in the LOCAL output directory.
         Returns a success flag.
-        Displays success / failure unless `verbose` is False.
         """
+        # Call parent class if location is unknown
+        if location != "local":
+            return super()._save_session(session_data=session_data, location=location)
         # Return if the local input directory is not defined
         if not self._is_defined("_local_output_dir"):
             return False
@@ -943,20 +942,23 @@ class VipSession(VipLauncher):
         with file.open("w") as outfile:
             json.dump(session_data, outfile, indent=4)
         # Display
-        if self._VERBOSE:
-            if is_new: print(f"\n>> Session was backed up in: {file}\n")
-            else: print(f"\n>> Session backed up\n")
+        if self._verbose:
+            if is_new: print(f"\n>> Session was saved in: {file}\n")
+            else: print(f"\n>> Session saved\n")
         return True
     # ------------------------------------------------
 
     # ($C.2) Load session properties from a JSON file
-    def _load_session(self, verbose=True) -> dict:
+    def _load_session(self, location="local", display=True) -> dict:
         """
-        Loads backup data from the output directory.
+        Loads backup data from the LOCAL output directory.
         If the backup file could not be read, returns None.
         Otherwise, returns session properties as a dictionary. 
-        Displays success / failure unless `verbose` is False.
+        Displays success / failure unless `display` is False.
         """
+        # Call parent class if location is unknown
+        if location != "local":
+            return super()._load_session(location=location, display=display)
         # Return if the local input directory is not defined
         if not self._is_defined("_local_output_dir"):
             return None
@@ -970,7 +972,7 @@ class VipSession(VipLauncher):
         # Update the local output directory
         session_data["local_output_dir"] = self.local_output_dir
         # Display success & return
-        if verbose and self._VERBOSE:
+        if display and self._verbose:
             print("\n<< Session restored from its output directory\n")
         return session_data
     # ------------------------------------------------

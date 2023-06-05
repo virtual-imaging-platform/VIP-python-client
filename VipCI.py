@@ -42,10 +42,9 @@ class VipCI(VipLauncher):
     _SERVER_NAME = "girder"
     # Prefix that defines a Girder path 
     _SERVER_PATH_PREFIX = "/collection"
-    # Verbose state for display
-    _VERBOSE = True
-    # Default backup behaviour
-    _BACKUP = True
+    # Default backup location 
+    # (set to None to avoid saving and loading backup files)
+    _BACKUP_LOCATION = "girder"
 
     # --- New Attributes ---
 
@@ -173,7 +172,7 @@ class VipCI(VipLauncher):
             nb_runs = nb_runs, # default
             verbose = verbose # default
         )
-    # --------------------_VERBOSE----------------------------
+    # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
     def monitor_workflows(self, refresh_time=30, verbose=True) -> VipCI:
@@ -183,18 +182,6 @@ class VipCI(VipLauncher):
         - If `verbose`is True, displays a full report when all executions are done.
         """
         return super().monitor_workflows(refresh_time=refresh_time, verbose=verbose)
-    # ------------------------------------------------
-
-    # Mock function for finish()
-    def finish(self, verbose=True) -> None:
-        """
-        This function does not work in VipCI.
-        """
-        # Update the verbose state for private methods
-        self._VERBOSE = verbose
-        if verbose: print("\n<<< FINISH >>>\n")
-        # Raise error message
-        raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
 
     # ($A.2->A.5) Run a full VIP session 
@@ -213,15 +200,7 @@ class VipCI(VipLauncher):
         - Set `refresh_time` to modify the default refresh time;
         - Set `verbose` to False to run silently.
         """
-        # Update the verbose state for private methods
-        self._VERBOSE = verbose
-        # Run the pipeline
-        return (
-            # 1. Launch `nb_runs` pipeline executions on VIP
-            self.launch_pipeline(nb_runs=nb_runs)
-            # 2. Monitor pipeline executions until they are over
-            .monitor_workflows(refresh_time=refresh_time)
-        )
+        return super().run_session(nb_runs=nb_runs, refresh_time=refresh_time, verbose=verbose)
     # ------------------------------------------------
 
     # ($B.1) Display session properties in their current state
@@ -236,6 +215,18 @@ class VipCI(VipLauncher):
         """
         # Return for method cascading
         return super().display()
+    # ------------------------------------------------
+
+    # Mock function for finish()
+    def finish(self, verbose=True) -> None:
+        """
+        This function does not work in VipCI.
+        """
+        # Update the verbose state for private methods
+        self._verbose = verbose
+        if verbose: print("\n<<< FINISH >>>\n")
+        # Raise error message
+        raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
 
                     #################
@@ -383,14 +374,17 @@ class VipCI(VipLauncher):
     #################################################
 
     # Save session properties in a JSON file
-    def _save_session(self, session_data: dict) -> bool:
+    def _save_session(self, session_data: dict, location="girder") -> bool:
         """
         Saves dictionary `session_data` as metadata in the output directory on Girder.
         Returns a success flag.
-        Displays success / failure unless `_VERBOSE` is False.
+        Displays success / failure unless `_verbose` is False.
         """
+        # Thow error if location is not "girder" because this session does no interact with VIP
+        if location != "girder":
+            return NotImplementedError(f"Location '{location}' is unknown for {self.__name__}")
         # Ensure the output directory exists on Girder
-        is_new = self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME)
+        is_new = self._mkdirs(path=self._vip_output_dir, location=location)
         # Save metadata in the global output directory
         folderId, _ = self._girder_path_to_id(self._vip_output_dir)
         self._girder_client.addMetadataToFolder(folderId=folderId, metadata=session_data)
@@ -400,7 +394,7 @@ class VipCI(VipLauncher):
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
-        if self._VERBOSE:
+        if self._verbose:
             if is_new:
                 print("\n>> Session was backed up as Girder metadata in:")
                 print(f"\t{self._vip_output_dir} (Girder ID: {folderId})\n")
@@ -410,13 +404,16 @@ class VipCI(VipLauncher):
         return True
     # ------------------------------------------------
 
-    def _load_session(self, verbose=True) -> dict:
+    def _load_session(self, location="girder", display=True) -> dict:
         """
         Loads backup data from the metadata stored in the output directory on Girder.
         If the metadata could not be found, returns None.
         Otherwise, returns session properties as a dictionary. 
-        Displays success unless `verbose` is False.
+        Displays success unless `display` is False.
         """
+        # Thow error if location is not "girder"
+        if location != "girder":
+            return NotImplementedError(f"Location '{location}' is unknown for {self.__name__}")
         # Check the output directory is defined
         if self.vip_output_dir is None: 
             return None
@@ -428,7 +425,7 @@ class VipCI(VipLauncher):
             if e.status == 400: # Folder was not found
                 return None
         # Display success if the folder was found
-        if verbose and self._VERBOSE:
+        if display and self._verbose:
             print("\n<< Session restored from its output directory\n")
         # Return session metadata 
         return folder["meta"]
@@ -447,12 +444,12 @@ class VipCI(VipLauncher):
         `path` can be a string or PathLib object.
 
         Raises `girder_client.HttpError` if the resource was not found. 
-        Adds intepretation message unless `_VERBOSE` is False.
+        Adds intepretation message unless `self.verbose` is False.
         """
         try :
             resource = cls._girder_client.resourceLookup(str(path))
         except girder_client.HttpError as e:
-            if cls._VERBOSE and e.status == 400:
+            if cls.VERBOSE and e.status == 400:
                 print("(!) The following path is invalid or refers to a resource that does not exist:")
                 print(f"    \t{path}")
                 print("    Original error from Girder API:")
@@ -461,7 +458,7 @@ class VipCI(VipLauncher):
         try:
             return resource['_id'], resource['_modelType']
         except KeyError as ke:
-            if cls._VERBOSE: print("Unhandled type of resource: \n\t{resource}\n")
+            if cls.VERBOSE: print(f"Unhandled type of resource: \n\t{resource}\n")
             raise ke
     # ------------------------------------------------
     
@@ -477,7 +474,7 @@ class VipCI(VipLauncher):
         try :
             return PurePosixPath(cls._girder_client.get(f"/resource/{id}/path", {"type": type}))
         except girder_client.HttpError as e:
-            if cls._VERBOSE and e.status == 400:
+            if cls.VERBOSE and e.status == 400:
                 print("(!) Invalid Girder ID or resource type.")
                 print("    Original error from Girder API:")
             raise e

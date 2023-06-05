@@ -175,7 +175,8 @@ def upload(path, where_to_save)->bool:
                 'apikey': __apikey,
                 'Content-Type': 'application/octet-stream',
               }
-    data = open(path, 'rb').read()
+    with open(path, 'rb') as fid:
+        data = fid.read()
     rq = requests.put(url, headers=headers, data=data, verify=__certif)
     try:
         manage_errors(rq)
