@@ -50,6 +50,8 @@ class VipLauncher():
     _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
     # List of pipelines available to the user
     _AVAILABLE_PIPELINES = []
+    # Boolean to lock session properties
+    _LOCK_PROPERTIES = True
 
                     #################
     ################ Main Properties ##################
@@ -66,11 +68,10 @@ class VipLauncher():
         # Check type
         if not isinstance(name, str):
             raise TypeError("`session_name` should be a string")
-        # Check for conflict with instance attributes
-        if self._is_defined("_session_name") and (name != self._session_name):
-            raise ValueError(f"Session name is already set ('{self._session_name}' -> '{name}').")
+        # Check conflict with instance attributes
+        self._check_value("session_name", name)
         # Check the name
-        self._check_session_name(name=name)
+        self._check_session_name(name)
         # Assign
         self._session_name = name
 
@@ -87,14 +88,16 @@ class VipLauncher():
     
     @pipeline_id.setter
     def pipeline_id(self, pId: str) -> None:
+        # Display
+        self._print("New Pipeline ID:", pId, end="")
         # Check type
         if not isinstance(pId, str):
             raise TypeError("`pipeline_id` should be a string")
         # Check for conflict with instance attributes
-        if self._is_defined("_pipeline_id") and (pId != self._pipeline_id):
-            raise ValueError(f"Pipeline identifier is already set for session: {self._session_name} ('{self._pipeline_id}' -> '{pId}').")
-        # Check the pipeline ID (if possible)
-        self._check_pipeline_id(pipeline_id=pId)
+        self._check_value("pipeline_id", pId)
+        # Check the ID (if possible)
+        if self._check_pipeline_id(pId):
+            self._print("checked")
         # Assign
         self._pipeline_id = pId
 
@@ -112,14 +115,15 @@ class VipLauncher():
     
     @input_settings.setter
     def input_settings(self, input_settings: dict):
+        self._print("New Input Settings -> ", end="")
         # Check type
         if not isinstance(input_settings, dict):
             raise TypeError("`input_settings` should be a dictionary")
         # Parse input settings (old and new)
         new_settings = self._parse_input_settings(input_settings)
+        self._print("parsed")
         # Check conflicts with instance attribute
-        if self._is_defined("_input_settings") and (new_settings != self._input_settings):
-            raise ValueError(f"Input settings are already set for session: {self._session_name}.")
+        self._check_value("input_settings", input_settings)
         # Update
         self._input_settings = new_settings
 
@@ -139,9 +143,8 @@ class VipLauncher():
         # Check type
         if not isinstance(new_dir, (str, os.PathLike)):
             raise TypeError("`vip_output_dir` should be a string or os.PathLike object")
-        # Check for conflict with instance attributes
-        if self._is_defined("_vip_output_dir") and (new_dir != self.vip_output_dir):
-            raise ValueError(f"Results directory is already set for session: {self._session_name} ('{self._vip_output_dir}' -> '{new_dir}').")
+        # Check conflict with instance attributes
+        self._check_value("vip_output_dir", new_dir)
         # Assign
         self._vip_output_dir = PurePosixPath(new_dir)
 
@@ -184,8 +187,7 @@ class VipLauncher():
         if not isinstance(workflows, dict):
             raise TypeError("`workflows` should be a dictionary")
         # Check conflicts with instance value
-        if self._is_defined("_workflows") and (workflows != self.workflows):
-            raise ValueError(f"Workflows inventory is already set for session: {self._session_name}.")
+        self._check_value("workflows", workflows)
         # Assign
         self._workflows = workflows
 
@@ -206,12 +208,26 @@ class VipLauncher():
     def verbose(self, verbose: bool) -> None:
         # Check conflict with class properties
         if verbose and not self.VERBOSE:
-            raise ValueError(f"{self.__name__}.VERBOSE must be True")
+            raise ValueError(f"{self.__name__}.VERBOSE must be True to put Session <{self.session_name}> in verbose state.")
         # Set
         self._verbose = verbose
     # -----------------------------------------------
 
-    # Pipeline definition (read_only, for advanced use)
+    # Lock Properties to avoid accidental confusion between VIP executions
+    @property
+    def _lock_properties(self) -> bool:
+        """
+        Boolean for locking session properties. 
+        If True, a property must be deleted before reassignment.
+        """
+        return self._LOCK_PROPERTIES if not self._is_defined("__lock_properties") else self.__lock_properties
+    
+    @_lock_properties.setter
+    def _lock_properties(self, lock) -> None:
+        self.__lock_properties = lock
+    # -----------------------------------------------
+
+    # Pipeline definition (read_only)
     @property
     def _pipeline_def(self) -> dict:
         """
@@ -227,6 +243,7 @@ class VipLauncher():
         # Return the attribute
         return self.__pipeline_def
     # ------------------------------------------------
+    
 
                     #############
     ################ Constructor ##################
@@ -235,9 +252,10 @@ class VipLauncher():
     # RAF: 
     # Contrôle des effets de bord
         # backup / verbose class-wise & instance-wise -> Done
-    # Gestion de conflits entre paramètres et fichier session    
-    # Verbose intégrée à self.print() comme backup intégrée à self.load()
-    # Arguments prennent None en valeur par défaut
+    # Gestion de conflits entre paramètres et fichier session -> A tester
+        # Variable pour verrouiller les propriétés -> Done 
+    # Verbose intégrée à self.print() comme backup intégrée à self.load() -> Done
+    # Arguments prennent None en valeur par défaut -> RAF après tests
     # Test pour les 3 classes
         # Vérifier verbose / backup
         # Linux / Windows
@@ -267,7 +285,7 @@ class VipLauncher():
             - Lists of parameters launch parallel workflows on VIP.
         """
         # Set the verbose state for private methods
-        self.verbose = verbose 
+        self._verbose = verbose 
         # Set the session name
         self.session_name = (
             session_name if session_name
@@ -275,27 +293,28 @@ class VipLauncher():
             else self.__name__ + "_" + time.strftime("%y%m%d-%H%M%S", time.localtime())
         )
         # Display the session name
-        if verbose and any([session_name, output_dir]):
-            print(f"\n<<< SESSION '{self._session_name}' >>>\n")
+        if any([session_name, output_dir]):
+            self._print(f"\n<<< SESSION '{self._session_name}' >>>\n")
         # Set the output directory (/!\ this will load the corresponding backup data if any /!\)
         if output_dir :
-            if verbose: print("Output directory:", output_dir)
+            self._print("Output directory:", output_dir)
             self.output_dir = output_dir
-        # Set the pipeline identifier (if not loaded)
-        if pipeline_id and not self.pipeline_id:
-            if verbose: print("Pipeline ID:", pipeline_id, end="")
+        # Set the rest (unlock session properties)
+        self._lock_properties = False
+        # Pipeline identifier
+        if pipeline_id:
             self.pipeline_id = pipeline_id
-            if verbose: print(" [checked]")
-        # Set the Input settings (if not loaded)
-        if input_settings and not self.input_settings:
-            if verbose: print("Input Settings:", end="")
+        # Input settings
+        if input_settings:
             self.input_settings = input_settings 
-            if verbose: print(" [parsed]")
-        # Set the Workflows inventory (if not loaded)
+        # Workflows inventory
         if not self.workflows:
             self.workflows = {}
+        # Restore default property lock
+        self._lock_properties = self._LOCK_PROPERTIES
         # End display if we're in this class
-        if verbose and self.__name__ == "VipLauncher": print()
+        if any([session_name, output_dir]) and self.__name__ == "VipLauncher": 
+            self._print()
     # ------------------------------------------------
 
                     ################
@@ -307,32 +326,62 @@ class VipLauncher():
     #################################################
 
     def _print(self, *args, **kwargs) -> None:
-
-        # Function to count the number of newlines at the beginning of a message
+        """
+        Behaves as Python built-in `print()` function with two additional conditions:
+        1. Does not print anything if `self.verbose is False`
+        2. Does not print more than `max_blank` blank lines between several prints, 
+            where `max_blank` (default: 2) can be passed as keyword argument.
+        """
+        # Function to count the number of blank lines at the beginning of a message
         def nb_blank_intro(msg: str) -> int:
             n = 0
-            for char in message:
+            for char in msg:
                 if char == '\n':  n += 1
                 else: break
             return n
-        # Number of newlines ath the end of last message
-        if "nlines" not in self._print.__dict__:
-            self._print.nlines = 0
+        # Number of blank lines at the end of last message
+        if not self._is_defined("_blank_lines"):
+            self._blank_lines = 0
         # Get sep and end
-        sep = kwargs.pop("sep") if sep in kwargs else ' '
-        end = kwargs.pop("end") if end in kwargs else '\n'
+        sep = kwargs.pop("sep") if "sep" in kwargs else ' '
+        end = kwargs.pop("end") if "end" in kwargs else '\n'
+        # Get the maximum number of blank lines
+        max_blank = kwargs.pop("max_blank") if "max_blank" in kwargs else 2
         # Get the message
-        message = sep.join(map(str, args))
-        # Count newlines at the beginning
-        n = nb_blank_intro(message)
-        # Trim the number of newlines a the beginning depending on the previous number
-        message = "\n" * min(n, 2 - self._print.nlines) + message.lstrip("\n")
+        message = sep.join(map(str, args)) + end
+        # Count the blank lines at the beginning of the message
+        n_start = nb_blank_intro(message)
+        # Trim the number of newlines at the beginning of the message
+        message = "\n" * min(n_start, max_blank - self._blank_lines) + message.lstrip("\n")
         # Record the number of newlines at the end of the message
-        self._print.nlines = min(2, nb_blank_intro(reversed(message)))
-        # Trim the number of newlines a the end
-        message = message.rstrip("\n") + "\n" * self._print.nlines
-        # Finally print the message with the rest of keywords arguments
-        return print(message, end='', **kwargs)
+        if not message.strip("\n"): # Blank messaage:
+            # Add blank lines to previous count
+            self._blank_lines += message.count("\n")
+        else: # Regular message : 
+            # Count the newlines at the end of the message
+            n_end = nb_blank_intro(reversed(message))
+            # Trim the number of newlines a the end of the message
+            message = message.rstrip("\n") + "\n" * min(n_end, max_blank + 1) # `+1` because the last line is not blank
+            # Reset the blank line count
+            self._blank_lines = max(n_end-1, 0) 
+        # Print the message with the rest of keywords arguments IF self.verbose is True
+        if self.verbose:
+            print(message, end='', **kwargs)
+    # ------------------------------------------------
+
+    def _check_value(self, property: str, new_value) -> None:
+        """
+        If session properties are locked, raises ValueError if an attempt is made 
+        to change `property` with `new_value`.
+        """
+        # Get current value
+        current_value = getattr(self, property)
+        # Check conflict
+        if (self._lock_properties # Session properties are locked
+            and current_value is not None # Property is already set
+            and current_value != new_value): # Conflicting values
+            self.print()
+            raise ValueError(f"'{property}' is already set for session: <{self.session_name}>.")
     # ------------------------------------------------
 
     # ($A.1) Login to VIP
@@ -388,7 +437,7 @@ class VipLauncher():
             print("----------------------------------")
             print()
         # Double check user can access pipelines
-        if not cls._AVAILABLE_PIPELINES: 
+        if not cls._AVAILABLE_PIPELINES and verbose: 
             print("(!) Your API key does not allow you to execute pipelines on VIP.")
             print(f"    Please join some research group(s) on the Web portal: {cls._VIP_PORTAL}")  
         # Return a VipLauncher instance for method cascading
@@ -427,48 +476,46 @@ class VipLauncher():
         """
         # Update the verbose state for private methods
         self._verbose = verbose
-        if verbose: print("\n<<< LAUNCH PIPELINE >>>\n")
+        self._print("\n<<< LAUNCH PIPELINE >>>\n")
         # Parameter checks
-        if verbose: 
-            print("Parameter checks")
-            print("----------------")
+        self._print("Parameter checks")
+        self._print("----------------")
         # Check & Update the pipeline identifier
-        if verbose: print("Pipeline identifier: ", end="")
+        self._print("Pipeline identifier: ", end="")
         if pipeline_id:
             self.pipeline_id = pipeline_id
         if not self._check_pipeline_id():
             raise TypeError("(!) Pipeline identifier could not be checked without call to init().")
-        if verbose: print("OK")
+        self._print("OK")
         # Update the result directory
         if output_dir: 
             self.vip_output_dir = output_dir
         # Check existence
         if not self._is_defined("_vip_output_dir"):
             raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
-        elif verbose: print("Output directory: ", end="")
+        else: self._print("Output directory: ", end="")
         # Ensure the directory exists
         if self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME):
-            print(f"Created on {self._SERVER_NAME.upper()}")
+            self._print(f"Created on {self._SERVER_NAME.upper()}")
         else:
-            print("OK")
+            self._print("OK")
         # Update the input parameters
         if input_settings:
             self.input_settings = input_settings
-        if verbose: print("Input settings: ", end="")
+        self._print("Input settings: ", end="")
         # Check existence
         if not self._is_defined("_input_settings"):
             raise TypeError("Please provide input parameters for Session: %s" %self._session_name)  
         # Check content
         self._check_input_settings(location=self._SERVER_NAME)
-        if verbose: print("OK")
+        self._print("OK")
         # End of parameters checks
-        if verbose: print("----------------\n")
+        self._print("----------------\n")
         # Display the launch
-        if verbose:
-            print("Launching %d new execution(s) on VIP" % nb_runs)
-            print("-------------------------------------")
-            print("Execution Name:", self._session_name)
-            print("Started Workflows:", end="\n\t")
+        self._print("Launching %d new execution(s) on VIP" % nb_runs)
+        self._print("-------------------------------------")
+        self._print("Execution Name:", self._session_name)
+        self._print("Started Workflows:", end="\n\t")
         # Launch all executions in parallel
         for nEx in range(nb_runs):
             # Initiate execution
@@ -476,12 +523,12 @@ class VipLauncher():
                 workflow_id = self._init_exec()
             # This part may fail for a number of reasons
             except Exception as e: 
-                print("\n-------------------------------------")
-                print(f"(!) Stopped after {nEx} execution(s).\n")
+                self._print("\n-------------------------------------")
+                self._print(f"(!) Stopped after {nEx} execution(s).\n")
                 self._save()
                 raise e from None
             # Display
-            if verbose: print(workflow_id, end=", ")
+            self._print(workflow_id, end=", ")
             # Get workflow informations
             try: 
                 exec_infos = self._get_exec_infos(workflow_id)
@@ -494,9 +541,8 @@ class VipLauncher():
             else: 
                 self._workflows[workflow_id] = exec_infos
         # Display success
-        if verbose: 
-            print("\n-------------------------------------")
-            print("Done.")
+        self._print("\n-------------------------------------")
+        self._print("Done.")
         # Save the session
         self._save()
         # Return for method cascading
@@ -515,28 +561,26 @@ class VipLauncher():
         """
         # Update the verbose state for private methods
         self._verbose = verbose
-        if verbose: print("\n<<< MONITOR WORKFLOW >>>\n")
+        self._print("\n<<< MONITOR WORKFLOW >>>\n")
         # Check if current session has existing workflows
         if not self._workflows:
-            if verbose:
-                print("This session has not launched any execution.")
-                print("Run launch_pipeline() to launch workflows on VIP.")
+            self._print("This session has not launched any execution.")
+            self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update existing workflows
-        if verbose: print("Updating worflow inventory ... ", end="")
+        self._print("Updating worflow inventory ... ", end="")
         self._update_workflows()
-        if verbose: print("Done.")
+        self._print("Done.")
         # Check if workflows are still running
         if self._still_running():
             # First execution report
             self._execution_report(display=verbose)
             # Display standby
-            if verbose:
-                print("\n-------------------------------------------------------------")
-                print("The current proccess will wait until all executions are over.")
-                print("Their progress can be monitored on VIP portal:")
-                print(f"\t{self._VIP_PORTAL}")
-                print("-------------------------------------------------------------")
+            self._print("\n-------------------------------------------------------------")
+            self._print("The current proccess will wait until all executions are over.")
+            self._print("Their progress can be monitored on VIP portal:")
+            self._print(f"\t{self._VIP_PORTAL}")
+            self._print("-------------------------------------------------------------")
             # Standby until all executions are over
             while self._still_running():
                 time.sleep(refresh_time)
@@ -545,17 +589,16 @@ class VipLauncher():
                     self._update_workflows()
                 except Exception as e:
                     # Print warning message
-                    if verbose: 
-                        print("(!) Connection with VIP was interrupted following an unexpected error (see below).")
-                        print("    This does not affect your executions on VIP servers.")
-                        print("    Relaunch monitor_workflows() or visit the VIP portal to see their current status.\n")
+                    self._print("(!) Connection with VIP was interrupted following an unexpected error (see below).")
+                    self._print("    This does not affect your executions on VIP servers.")
+                    self._print("    Relaunch monitor_workflows() or visit the VIP portal to see their current status.\n")
                     # Save the session
                     self._save()
                     # Raise the error
                     raise e
             # End of monitoring time
             # Display the end of executions
-            if verbose: print("All executions are over.")
+            self._print("All executions are over.")
         # Last execution report
         self._execution_report(display=verbose)
         # Save the session
@@ -604,59 +647,55 @@ class VipLauncher():
         # Update the verbose state for private methods
         self._verbose = verbose
         # Initial display
-        if verbose: print("\n<<< FINISH >>>\n")
+        self._print("\n<<< FINISH >>>\n")
         # Check if workflows are still running (without call to VIP)
         if self._still_running():
             # Update the workflow inventory
-            if verbose: print("Updating worflow inventory ... ", end="")
+            self._print("Updating worflow inventory ... ", end="")
             self._update_workflows()
-            if verbose: print("Done.")
+            self._print("Done.")
             # Return is workflows are still running
             if self._still_running():
-                if verbose: 
-                    print("\n(!) This session cannot be finished since the pipeline might still generate data.\n")
-                    self._execution_report(display=verbose)
+                self._print("\n(!) This session cannot be finished since the pipeline might still generate data.\n")
+                self._execution_report(display=verbose)
                 return self
         # Initial display
-        if verbose:
-            print("Ending Session:", self._session_name)
-            print("Removing session data")
-            print("---------------------")
+        self._print("Ending Session:", self._session_name)
+        self._print("Removing session data")
+        self._print("---------------------")
         # Browse paths to delete
         success = True
         for path, location in self._path_to_delete().items():
             # Display progression
-            if verbose: print(f"[{location}] {path} ... ", end="")
+            self._print(f"[{location}] {path} ... ", end="")
             # Check data existence
             if not self._exists(path, location):
                 # Session may be already over
-                if verbose: print("Already removed.")
+                self._print("Already removed.")
             else:
                 # Erase the path
                 done = self._delete_and_check(
                     path=path, location=location, timeout=timeout
                     )
                 # Display 
-                if verbose: 
-                    if done:
-                        print("Done.")
-                    else:
-                        print(f"\n\t(!) Timeout reached ({timeout} seconds).")
+                if done:
+                    self._print("Done.")
+                else:
+                    self._print(f"\n\t(!) Timeout reached ({timeout} seconds).")
                 # Update success
                 success = success and done
         # End of loop
-        if verbose: 
-            print("---------------------\n")
-            print("Updating workflows status")
-            print("-------------------------")
+        self._print("---------------------\n")
+        self._print("Updating workflows status")
+        self._print("-------------------------")
         # Set the workflow status to "removed" to avoid dead links in future downloads
-        if not self._workflows and verbose:
-            print(f"No registered workflow")
+        if not self._workflows:
+            self._print(f"No registered workflow")
             removed_outputs = success
         else:
             removed_outputs = True
         for wid in self._workflows:
-            if verbose: print(f"{wid}: ", end="")
+            self._print(f"{wid}: ", end="")
             if (
                 # The output list is empty
                 not self._workflows[wid]["outputs"] 
@@ -665,24 +704,23 @@ class VipLauncher():
             ):
                 # Set the workflow status to "Removed"
                 self._workflows[wid]["status"] = "Removed"
-                if verbose: print("Removed")
+                self._print("Removed")
             else:
                 # Workflow's outputs still exist on VIP
                 removed_outputs = False
-                if verbose: print("Still on VIP")
+                self._print("Still on VIP")
         # Last display
-        if verbose:
-            print("-------------------------")
-            if removed_outputs:
-                print("All output data have been removed from VIP.")
-                if success:
-                    print(f"Session <{self._session_name}> is now over.")
-            else:
-                print("(!) There may still be temporary data on VIP.")
-                print(f"Please run finish() again or check the following path(s) on the VIP portal ({self._VIP_PORTAL}):")
-                print('\n\t'.join(self._path_to_delete().keys()))
+        self._print("-------------------------")
+        if removed_outputs:
+            self._print("All output data have been removed from VIP.")
+            if success:
+                self._print(f"Session <{self._session_name}> is now over.")
+        else:
+            self._print("(!) There may still be temporary data on VIP.")
+            self._print(f"Please run finish() again or check the following path(s) on the VIP portal ({self._VIP_PORTAL}):")
+            self._print('\n\t'.join(self._path_to_delete().keys()))
             # Finish display
-            print()
+            self._print()
         # Return 
         return self
     # ------------------------------------------------
@@ -704,6 +742,8 @@ class VipLauncher():
         - If `pipeline_id` is not exact, shows pipelines with a *partial*, *case-insensitive* match.
         - If `pipeline_id` is exact, shows the list of parameters required to run `pipeline_id`.
         """
+        # Return if VERBOSE is False
+        if not cls.VERBOSE: return
         # Check init() was called first
         if not cls._AVAILABLE_PIPELINES:
             raise TypeError(
@@ -775,16 +815,16 @@ class VipLauncher():
         session_data = self._data_to_save()
         # Print session name
         name_str = f'Session: "{session_data["session_name"]}"'
-        print("-"*len(name_str))
-        print(name_str)
-        print("-"*len(name_str))
+        self._print("-"*len(name_str))
+        self._print(name_str)
+        self._print("-"*len(name_str))
         del session_data["session_name"]
         # Print the rest
         for prop in session_data:
-            print(f"{prop}: {json.dumps(session_data[prop], indent=3)}")
-        print("-"*len(name_str))
+            self._print(f"{prop}: {json.dumps(session_data[prop], indent=3)}")
+        self._print("-"*len(name_str))
         # End the display 
-        print()
+        self._print()
         # Return for method cascading
         return self
     # ------------------------------------------------
@@ -1008,41 +1048,41 @@ class VipLauncher():
             # Function to print a detailed worfklow list
             def detail(worfklows: list): 
                 for wid in worfklows:
-                    print("\t", wid, ", started on:", self._workflows[wid]["start"])
+                    self._print("\t", wid, ", started on:", self._workflows[wid]["start"])
             # Browse status
             for status in report:
                 # Display running executions
                 if status == 'Running':
                     # check if every workflow is running
                     if len(report[status])==len(self._workflows):
-                        print(f"All executions are currently running on VIP.")
+                        self._print(f"All executions are currently running on VIP.")
                     else: # show details
-                        print(f"{len(report[status])} execution(s) is/are currently running on VIP:")
+                        self._print(f"{len(report[status])} execution(s) is/are currently running on VIP:")
                         detail(report[status])
                 # Display successful executions
                 elif status == 'Finished':
                     # check if every run was successful
                     if len(report[status])==len(self._workflows):
-                        print(f"All executions ({len(report[status])}) ended with success.")
+                        self._print(f"All executions ({len(report[status])}) ended with success.")
                     else: # show details
-                        print(f"{len(report[status])} execution(s) ended with success:")
+                        self._print(f"{len(report[status])} execution(s) ended with success:")
                         detail(report[status])
                 # Display executions with removed data
                 elif status == 'Removed':
                     # check if every run was removed
                     if len(report[status])==len(self._workflows):
-                        print("This session is over.")
-                        print("All output data were removed from VIP servers.")
+                        self._print("This session is over.")
+                        self._print("All output data were removed from VIP servers.")
                     else: # show details
-                        print(f"Outputs from {len(report[status])} execution(s) were removed from VIP servers:")
+                        self._print(f"Outputs from {len(report[status])} execution(s) were removed from VIP servers:")
                         detail(report[status])
                 # Display failed executions
                 else:
                     # check if every run had the same cause of failure:
                     if len(report[status])==len(self._workflows):
-                        print(f"All executions ({len(report[status])}) ended with status:", status)
+                        self._print(f"All executions ({len(report[status])}) ended with status:", status)
                     else: # show details
-                        print(f"{len(report[status])} execution(s) ended with status:", status)
+                        self._print(f"{len(report[status])} execution(s) ended with status:", status)
                         detail(report[status])
             # End of display loop
         # Return the report
@@ -1200,8 +1240,7 @@ class VipLauncher():
                     and (session_data[prop] is not None )
                     and (session_data[prop] != backup_data[prop])) ]
         if diff:
-            if self._verbose:
-                print(f"(!) The following properties will be overwritten during the next session backup:\n\t{', '.join(diff)}\n")
+            self._print(f"(!) The following properties will be overwritten during the next session backup:\n\t{', '.join(diff)}\n")
             return False
         # After all checkpoints are passed, overwrite all instance properties and return True
         self._set(**backup_data)
@@ -1219,8 +1258,7 @@ class VipLauncher():
         if location != "vip":
             return NotImplementedError(f"Location '{location}' is unknown for {self.__name__}")
         # Display
-        if self._verbose:
-            print(f"\nSaving session properties ...")
+        self._print(f"\nSaving session properties ...")
         # Temporary file to save session data
         tmp_file = Path("tmp_save.json")
         # Save the data in JSON format
@@ -1238,10 +1276,9 @@ class VipLauncher():
         # Delete the temporary file
         tmp_file.unlink()
         # Display
-        if self._verbose:
-            if done and is_new: print(f">> Session was saved in: {vip_file}\n")
-            elif done:  print(f">> Session saved\n")
-            else: print(f"\n(!) Session backup failed\n")
+        if done and is_new: self._print(f">> Session was saved in: {vip_file}\n")
+        elif done:  self._print(f">> Session saved\n")
+        else: self._print(f"\n(!) Session backup failed\n")
         return done
     # ------------------------------------------------
 
@@ -1256,8 +1293,8 @@ class VipLauncher():
         if location != "vip":
             return NotImplementedError(f"Location '{location}' is unknown for {self.__name__}")
         # Display
-        if display and self._verbose:
-            print(f"Loading session properties ...")
+        if display:
+            self._print(f"Loading session properties ...")
         # Return if the VIP input directory is not defined
         if not self._is_defined("_vip_output_dir"):
             return None
@@ -1270,8 +1307,7 @@ class VipLauncher():
         # Download the file
         done = self._download_file(vip_file, tmp_file)
         if not (done and tmp_file.exists()):
-            if self._verbose:
-                print("\n(!) Unable to load backup data from session's output directory\n")
+            self._print("\n(!) Unable to load backup data from session's output directory\n")
             return None
         # Load the JSON file
         with tmp_file.open() as fid:
@@ -1279,8 +1315,8 @@ class VipLauncher():
         # Delete the temporary file
         tmp_file.unlink()
         # Display success
-        if display and self._verbose:
-            print("<< Session restored from its output directory\n")
+        if display:
+            self._print("<< Session restored from its output directory\n")
         # Return
         return session_data
     # ------------------------------------------------
@@ -1515,8 +1551,8 @@ class VipLauncher():
             - {param["name"] for param in self._pipeline_def['parameters']} # pipeline parameters
         )
         # Display a warning in case of useless inputs
-        if unknown_fields and self._verbose:
-            print("(!) The following input parameters: ['" + "', '".join(unknown_fields) \
+        if unknown_fields :
+            self._print("(!) The following input parameters: ['" + "', '".join(unknown_fields) \
              + f"'] are useless for pipeline '{self._pipeline_id}'. This may throw RuntimeError later.")
     # ------------------------------------------------
     
@@ -1545,7 +1581,7 @@ class VipLauncher():
                 # Ensure every file exists at `location`
                 missing_file = self._first_missing_file(value, location)
                 if missing_file:
-                    raise FileNotFoundError(f"(!) At least one file is missing in the {location.upper()} file system: {missing_file}")
+                    raise FileNotFoundError(f"(!) The following file is missing in the {location.upper()} file system:\n\t{missing_file}")
             # Check other input formats ?
             else: pass # TODO
     # ------------------------------------------------
@@ -1635,4 +1671,6 @@ class VipLauncher():
 #######################################################
 
 if __name__=="__main__":
-    pass
+    from VipLauncher  import VipLauncher
+    sess = VipLauncher()
+    sess._print(3*"\n", max_blank=2)

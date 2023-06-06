@@ -57,7 +57,7 @@ class VipCI(VipLauncher):
     ################ Main Properties ##################
                     ################# 
     
-    # --- Overriden from the parent class ---
+    # Same as the parent class
 
                     #############
     ################ Constructor ##################
@@ -98,7 +98,8 @@ class VipCI(VipLauncher):
             # verbose=verbose
         )
         # End display
-        if verbose and (self.__name__ == "VipCI"): print()
+        if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
+            self._print()
     # ------------------------------------------------
 
                     ################
@@ -222,9 +223,9 @@ class VipCI(VipLauncher):
         """
         This function does not work in VipCI.
         """
-        # Update the verbose state for private methods
+        # Update the verbose state and display
         self._verbose = verbose
-        if verbose: print("\n<<< FINISH >>>\n")
+        self._print("\n<<< FINISH >>>\n")
         # Raise error message
         raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
@@ -394,12 +395,11 @@ class VipCI(VipLauncher):
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
-        if self._verbose:
-            if is_new:
-                print("\n>> Session was backed up as Girder metadata in:")
-                print(f"\t{self._vip_output_dir} (Girder ID: {folderId})\n")
-            else:
-                print("\n>> Session backed up\n")
+        if is_new:
+            self._print("\n>> Session was backed up as Girder metadata in:")
+            self._print(f"\t{self._vip_output_dir} (Girder ID: {folderId})\n")
+        else:
+            self._print("\n>> Session backed up\n")
         # Return
         return True
     # ------------------------------------------------
@@ -425,8 +425,8 @@ class VipCI(VipLauncher):
             if e.status == 400: # Folder was not found
                 return None
         # Display success if the folder was found
-        if display and self._verbose:
-            print("\n<< Session restored from its output directory\n")
+        if display:
+            self._print("\n<< Session restored from its output directory\n")
         # Return session metadata 
         return folder["meta"]
     # ------------------------------------------------
@@ -444,7 +444,7 @@ class VipCI(VipLauncher):
         `path` can be a string or PathLib object.
 
         Raises `girder_client.HttpError` if the resource was not found. 
-        Adds intepretation message unless `self.verbose` is False.
+        Adds intepretation message unless `cls.VERBOSE` is False.
         """
         try :
             resource = cls._girder_client.resourceLookup(str(path))

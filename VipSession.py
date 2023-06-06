@@ -117,9 +117,8 @@ class VipSession(VipLauncher):
             raise TypeError("Property `local_output_dir` should be a string or os.PathLike object")
         # Path-ify to account for relative paths
         new_path = Path(new_dir)
-        # Check conflicts with instance value
-        if self._is_defined("_local_output_dir") and (new_path.resolve() != self._local_output_dir.resolve()):
-            raise ValueError(f"Output directory is already set for session: {self._session_name} ('{self._local_output_dir}' -> '{new_dir}').")
+        # Check conflicts with instance attribute
+        self._check_value("local_output_dir", new_dir)
         # Assign
         self._local_output_dir = new_path
 
@@ -136,15 +135,19 @@ class VipSession(VipLauncher):
     
     @local_input_dir.setter
     def local_input_dir(self, new_dir) -> None:
+        self._print("New Input Directory:", new_dir, end="")
         # Check type
         if not isinstance(new_dir, (str, os.PathLike)):
-            raise TypeError("Property `local_input_dir` should be a string or os.PathLike object")
+            raise TypeError("`local_input_dir` should be a string or os.PathLike object")
         # Path-ify to account for relative paths
         new_path = Path(new_dir)
-        # Check conflicts with instance value
-        if self._is_defined("_local_input_dir") and (new_path.resolve() != self._local_input_dir.resolve()):
-            raise ValueError(f"Input directory is already set for session: {self._session_name} ('{self._local_input_dir}' -> '{new_dir}').")
-        # File existence is not checked for session portability between machines
+        # Check conflicts with instance attribute
+        self._check_value("local_input_dir", new_dir)
+        # Resolve the path if possible
+        if self._exists(new_path, "local"):
+            self._print(" -> checked")
+        else:
+            self._print(f"\n(!) `input_dir` does not exist in the local file system. This may throw an error later.")
         # Assign
         self._local_input_dir = new_path
         # Update the `input_settings` with this new input directory
@@ -182,8 +185,7 @@ class VipSession(VipLauncher):
         if not isinstance(new_dir, (str, os.PathLike)):
             raise TypeError("Property `vip_input_dir` should be a string or os.PathLike object")
         # Check conflicts with instance value
-        if self._is_defined("_vip_input_dir") and (new_dir != self.vip_input_dir):
-            raise ValueError(f"Input directory is already set for session: {self._session_name} ('{self.vip_input_dir}' -> '{new_dir}').")
+        self._check_value("vip_input_dir", new_dir)
         # Assign
         self._vip_input_dir = PurePosixPath(new_dir)
         # Update the `input_settings` with this new input directory
@@ -194,7 +196,7 @@ class VipSession(VipLauncher):
         del self._vip_input_dir
     # ------------------------------------------------
     
-    # VIP path to all session data
+    # VIP path to all session data (read only)
     @property
     def _vip_dir(self) -> str:
         """Default VIP path containing all session data"""
@@ -249,24 +251,22 @@ class VipSession(VipLauncher):
             input_settings = input_settings,
             verbose = verbose
         )
-        # Set the VIP input directory (default value)
+        # Set the rest (unlock session properties)
+        self._lock_properties = False
+        # Set the VIP input directory to default if still unset
         if not self.vip_input_dir:
             self.vip_input_dir = self._vip_dir / "INPUTS"
-        # Set the VIP output directory (default value, masked to the user)
+        # Set the VIP output directory to default if still unset
         if not self.vip_output_dir:
             self.vip_output_dir = self._vip_dir / "OUTPUTS"
         # Set the local input directory
-        if input_dir and not self.input_dir:
-            print("Input Directory:", input_dir, end="")
+        if input_dir:
             self.input_dir = input_dir
-            # Resolve the path if possible
-            if verbose and self._exists(input_dir, "local"):
-                print(" [checked]")
-            elif verbose: 
-                print(f"\n(!) `input_dir` does not exist in the local file system.")
-                print(f"    This will throw an error during upload_inputs().")
+        # Restore default property lock
+        self._lock_properties = self._LOCK_PROPERTIES
         # End display if we're in this class
-        if verbose and (self.__name__ == "VipSession"): print()
+        if any([session_name, output_dir]) and (self.__name__ == "VipSession"): 
+            self._print()
     # ------------------------------------------------
 
                     ################
@@ -317,7 +317,7 @@ class VipSession(VipLauncher):
         # Update the verbose state for private methods
         self._verbose = verbose
         # First Display
-        if verbose: print("\n<<< UPLOAD INPUTS >>>\n")
+        self._print("\n<<< UPLOAD INPUTS >>>\n")
         # Check the distant (VIP) input directory        
         try: 
             # Check connection with VIP 
@@ -326,8 +326,7 @@ class VipSession(VipLauncher):
             self._handle_vip_error(vip_error)
         # Return if `update_files` is False and input data are already on VIP
         if exists and not update_files:
-            if verbose: 
-                print("Skipped : There are already input data on VIP.")
+            self._print("Skipped : There are already input data on VIP.")
             # Return 
             return self
         # Set local input directory
@@ -340,39 +339,35 @@ class VipSession(VipLauncher):
             raise FileNotFoundError(f"Session '{self._session_name}': Input directory does not exist.")
         # Check the local values of `input_settings` before uploading
         if self._is_defined("_input_settings"):
-            if verbose: print("Checking references to the dataset within Input Settings ... ", end="")
+            self._print("Checking references to the dataset within Input Settings ... ", end="")
             try: 
                 self._check_input_settings(location="local")
-                print("OK.")
+                self._print("OK.")
             except FileNotFoundError as fe:
                 raise fe from None
             except AttributeError:
-                if verbose: print("Skipped (missing properties).")
+                self._print("Skipped (missing properties).")
             except(TypeError, ValueError, RuntimeError) as e:
-                if verbose: 
-                    print("\tThe following exception was raised:\n\t\t", e)
-            if verbose: print()
+                self._print("\tThe following exception was raised:\n\t\t", e)
+            self._print()
         # Initial display
-        if verbose:
-            print("Uploading the dataset on VIP")
-            print("-----------------------------")
+        self._print("Uploading the dataset on VIP")
+        self._print("-----------------------------")
         # Upload the input repository
         try:
             failures = self._upload_dir(self._local_input_dir, self._vip_input_dir)
             # Display report
-            if verbose:
-                print("-----------------------------")
-                if not failures :
-                    print( "Everything is on VIP.")
-                else: 
-                    print("End of the process.") 
-                    print( "The following files could not be uploaded on VIP:\n\t")
-                    print( "\n\t".join(failures))
+            self._print("-----------------------------")
+            if not failures :
+                self._print( "Everything is on VIP.")
+            else: 
+                self._print("End of the process.") 
+                self._print( "The following files could not be uploaded on VIP:\n\t")
+                self._print( "\n\t".join(failures))
         except Exception as e:
             # An unexpected error occurred
-            if verbose:
-                print("-----------------------------")
-                print("\n(!) Upload was stopped following an unexpected error.")
+            self._print("-----------------------------")
+            self._print("\n(!) Upload was stopped following an unexpected error.")
             raise e from None
         finally:
             # In any case, save session properties
@@ -442,23 +437,19 @@ class VipSession(VipLauncher):
         # Update the verbose state for private methods
         self._verbose = verbose
         # First display
-        if verbose: print("\n<<< DOWNLOAD OUTPUTS >>>\n")
+        self._print("\n<<< DOWNLOAD OUTPUTS >>>\n")
         # Check if current session has existing workflows
         if not self._workflows:
-            if verbose:
-                print("This session has not yet launched any execution.")
-                print("Run launch_pipeline() to launch workflows on VIP.")
-                print("Current session properties are:")
-                self.display()
+            self._print("This session has not yet launched any execution.")
+            self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update the worflow inventory
-        if verbose: print("Updating workflow status ... ", end="")
+        self._print("Updating workflow status ... ", end="")
         self._update_workflows()
-        if verbose: print("Done.\n")
+        self._print("Done.\n")
         # Initial display
-        if verbose:
-            print("Downloading pipeline outputs to:", self._local_output_dir)
-            print("--------------------------------")
+        self._print("Downloading pipeline outputs to:", self._local_output_dir)
+        self._print("--------------------------------")
         # Get execution report
         report = self._execution_report(display=False)
         # Count the number of executions to process
@@ -472,13 +463,12 @@ class VipSession(VipLauncher):
             for wid in report["Removed"]:
                 nExec+=1
                 # Display current execution
-                if verbose: 
-                    print(f"[{nExec}/{nb_exec}] Outputs from:", wid, "-> REMOVED from VIP servers")
+                self._print(f"[{nExec}/{nb_exec}] Outputs from:", wid, "-> REMOVED from VIP servers")
                 # Get the path of the returned files on VIP
                 vip_outputs = self._workflows[wid]["outputs"]
                 # If there is no output file, go to the next execution
                 if not vip_outputs: 
-                    if verbose: print("\tNothing to download.")
+                    self._print("\tNothing to download.")
                     continue
                 # Browse the output files to check if they have already been downloaded
                 missing_file = False
@@ -491,17 +481,15 @@ class VipSession(VipLauncher):
                     if not local_file.exists(): 
                         missing_file = True
                 # After checking all files, update the display
-                if verbose: 
-                    if not missing_file: 
-                        print("\tOutput files are already in:", local_file.parent.resolve())
-                    else: 
-                        print("(!)\tCannot download the missing files.")
+                if not missing_file: 
+                    self._print("\tOutput files are already in:", local_file.parent)
+                else: 
+                    self._print("(!)\tCannot download the missing files.")
         # Check if any workflow with the desired status is available
         if not any([status in report for status in get_status]):
-            if verbose:
-                print("--------------------------------")
-                print("Nothing to download for the current session.") 
-                print("Run monitor_workflows() for more information.") 
+            self._print("--------------------------------")
+            self._print("Nothing to download for the current session.") 
+            self._print("Run monitor_workflows() for more information.") 
             return self
         # Download each output file for each execution and keep track of failed downloads
         failures = []
@@ -511,15 +499,14 @@ class VipSession(VipLauncher):
                 continue
             nExec+=1 
             # Display current execution
-            if verbose: 
-                print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
-                    " | Started on: ", self._workflows[wid]["start"],
-                    " | Status: ", self._workflows[wid]["status"], sep='')
+            self._print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
+                " | Started on: ", self._workflows[wid]["start"],
+                " | Status: ", self._workflows[wid]["status"], sep='')
             # Get the path of the returned files on VIP
             vip_outputs = self._workflows[wid]["outputs"]
             # If there is no output file, go to the next execution
             if not vip_outputs: 
-                if verbose: print("\tNothing to download.")
+                self._print("\tNothing to download.")
                 continue
             # Browse the output files
             nFile = 0 # File count
@@ -540,48 +527,46 @@ class VipSession(VipLauncher):
                 missing_file = True
                 # Make the parent directory (if needed)
                 local_dir = local_file.parent
-                if self._mkdirs(local_dir, location= "local") and verbose: print("\tNew directory:", local_dir)
+                if self._mkdirs(local_dir, location= "local"): self._print("\tNew directory:", local_dir)
                 # Get the file size in Megabytes
                 try: 
                     size = f"{output['size']/(1<<20):,.1f}MB"
                 except:
                     size = "size unknown"
                 # Display the process
-                if verbose: print(f"\t[{nFile}/{len(vip_outputs)}] Downloading file ({size}):", 
+                self._print(f"\t[{nFile}/{len(vip_outputs)}] Downloading file ({size}):", 
                                 local_file.name, end=" ... ")
                 # Download the file from VIP servers
                 if self._download_file(vip_path=vip_file, local_path=local_file):
                     # Display success
-                    if verbose: print("Done.")
+                    self._print("Done.")
                     # If the output is a tarball, extract the files and delete the tarball
                     if unzip and output["mimeType"]=="application/gzip" and tarfile.is_tarfile(local_file):
-                        if verbose: print("\t\tExtracting archive content ...", end=" ")
+                        self._print("\t\tExtracting archive content ...", end=" ")
                         if self._extract_tarball(local_file):
-                            if verbose: print("Done.") # Display success
-                        elif verbose: 
-                            print("Extraction failed.") # Display failure
+                            self._print("Done.") # Display success
+                        else:
+                            self._print("Extraction failed.") # Display failure
                 else: # failure while downloading the output file
                     # Update display
-                    if verbose: print(f"\n(!)\tSomething went wrong in the process. Please retry later.")
+                    self._print(f"\n(!)\tSomething went wrong in the process. Please retry later.")
                     # Update missing files
                     failures.append(str(vip_file))
             # End of file loop
-            if verbose:
-                if not missing_file: # All files were already there
-                    print("\tAlready in:", local_file.parent) 
-                else:  # Some missing files were succesfully downloaded
-                    print("\tDone for all files.")
+            if not missing_file: # All files were already there
+                self._print("\tAlready in:", local_file.parent) 
+            else:  # Some missing files were succesfully downloaded
+                self._print("\tDone for all files.")
         # End of worflow loop    
-        if verbose:
-            print("--------------------------------")
-            if not failures :
-                print("Done for all executions.")
-            else:
-                print("End of the procedure.") 
-                print("The following files could not be downloaded from VIP: \n\t", end="")
-                print("\n\t".join(failures))
-            print()
-        # Return for method cascading
+        self._print("--------------------------------")
+        if not failures :
+            self._print("Done for all executions.")
+        else:
+            self._print("End of the procedure.") 
+            self._print("The following files could not be downloaded from VIP: \n\t", end="")
+            self._print("\n\t".join(failures))
+        self._print()
+        # Return
         return self
     # ------------------------------------------------
 
@@ -641,13 +626,13 @@ class VipSession(VipLauncher):
             and self._exists(self._vip_input_dir, location="vip") 
             and verbose
             ):
-            print(f"(!) The input data are still on VIP:\n\t{self.vip_input_dir}")
-            print( "    They belong to another session.")
-            print( "    Please run finish() from the original session or remove them manually on the VIP portal:")
-            print(f"\t{self._VIP_PORTAL}")
+            self._print(f"(!) The input data are still on VIP:\n\t{self.vip_input_dir}")
+            self._print( "    They belong to another session.")
+            self._print( "    Please run finish() from the original session or remove them manually on the VIP portal:")
+            self._print(f"\t{self._VIP_PORTAL}")
         # Save the session
         self._save()    
-        # Return for method cascading
+        # Return
         return self
     # ------------------------------------------------
 
@@ -694,8 +679,7 @@ class VipSession(VipLauncher):
         # End the procedure if both sessions already share the same inputs
         if self._vip_input_dir == session._vip_input_dir:
             # Display
-            if verbose: 
-                print(f"\nSessions <{self._session_name}> and <{session._session_name}> share the same inputs on VIP.")
+            self._print(f"\nSessions <{self._session_name}> and <{session._session_name}> share the same inputs on VIP.")
             # Return for method cascading
             return self
         # Check if current session do not have data on VIP
@@ -718,9 +702,8 @@ class VipSession(VipLauncher):
         if get_settings:
             self._set(input_settings=session.input_settings)
         # Display success
-        if verbose : 
-            print(f"\n<< Session <{self._session_name}> now shares its inputs "\
-                + f"with session <{session._session_name}>" )
+        self._print(f"\n<< Session <{self._session_name}> now shares its inputs "\
+            + f"with session <{session._session_name}>" )
         # Save new properties
         self._save()
         # Return for method cascading
@@ -791,13 +774,13 @@ class VipSession(VipLauncher):
     def _upload_dir(self, local_path: Path, vip_path: PurePosixPath) -> list:
         """
         Uploads all files in `local_path` to `vip_path` (if needed).
-        Displays what it does if self._verbose is True.
+        Displays what it does if `self._verbose` is True.
         Returns a list of files which failed to be uploaded on VIP.
         """
         # Scan the local directory
         assert self._exists(local_path), f"{local_path} does not exist."
         # First display
-        if self._verbose: print(f"Cloning: {local_path} ", end="... ")
+        self._print(f"Cloning: {local_path} ", end="... ")
         # Look for subdirectories
         subdirs = [
             elem for elem in local_path.iterdir() 
@@ -811,10 +794,9 @@ class VipSession(VipLauncher):
                 elem for elem in local_path.iterdir()
                 if elem.is_file()
             ]
-            if self._verbose:
-                print("(Created on VIP)")
-                if files_to_upload:
-                    print(f"\t{len(files_to_upload)} files to upload.")
+            self._print("(Created on VIP)")
+            if files_to_upload:
+                self._print(f"\t{len(files_to_upload)} files to upload.")
         else: # The distant directory already exists
             # Scan it to check if there are more files to upload
             vip_filenames = {
@@ -827,28 +809,28 @@ class VipSession(VipLauncher):
                 if elem.is_file() and (elem.name not in vip_filenames)
             ]
             # Update the display
-            if self._verbose:
-                if files_to_upload: 
-                    print(f"\n\tVIP clone already exists and will be updated with {len(files_to_upload)} files.")
-                else:
-                    print("Already on VIP.")
+            if files_to_upload: 
+                self._print(f"\n\tVIP clone already exists and will be updated with {len(files_to_upload)} files.")
+            else:
+                self._print("Already on VIP.")
         # Upload the files
         nFile = 0
         failures = []
         for local_file in files_to_upload :
             nFile+=1
+            # Get the file size (if possible)
+            try: size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
+            except: size = "unknown size"
             # Display the current file
-            if self._verbose:
-                size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
-                print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
+            self._print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
             # Upload the file on VIP
             vip_file = vip_path/local_file.name # file path on VIP
             if self._upload_file(local_path=local_file, vip_path=vip_file):
                 # Upload was successful
-                if self._verbose: print("Done.")
+                self._print("Done.")
             else:
                 # Update display
-                if self._verbose: print(f"\n(!) Something went wrong during the upload.")
+                self._print(f"\n(!) Something went wrong during the upload.")
                 # Update missing files
                 failures.append(str(local_file))
         # Recurse this function over sub-directories
@@ -942,9 +924,8 @@ class VipSession(VipLauncher):
         with file.open("w") as outfile:
             json.dump(session_data, outfile, indent=4)
         # Display
-        if self._verbose:
-            if is_new: print(f"\n>> Session was saved in: {file}\n")
-            else: print(f"\n>> Session saved\n")
+        if is_new: self._print(f"\n>> Session was saved in: {file}\n")
+        else: self._print(f"\n>> Session saved\n")
         return True
     # ------------------------------------------------
 
@@ -972,8 +953,8 @@ class VipSession(VipLauncher):
         # Update the local output directory
         session_data["local_output_dir"] = self.local_output_dir
         # Display success & return
-        if display and self._verbose:
-            print("\n<< Session restored from its output directory\n")
+        if display:
+            self._print("\n<< Session restored from its output directory\n")
         return session_data
     # ------------------------------------------------
 
