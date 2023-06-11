@@ -40,28 +40,28 @@ class TestSessionUnits(unittest.TestCase):
 if __name__=="__main__":
     # unittest.main()
     # LCModel
-    my_input_dir = Path("examples/data/lcmodel_sample")
+    my_input_dir = Path("tests/data/lcmodel_sample")
     my_settings = {
-        "zipped_folder" : "examples/data/lcmodel_sample/basis.zip",
+        "zipped_folder" : "tests/data/lcmodel_sample/basis.zip",
         "basis_file" : my_input_dir / "Basis_117T.basis",
-        "signal_file" : [ file for file in (my_input_dir / "signals").iterdir() ],
+        "signal_file" : list((my_input_dir / "signals").iterdir()),
         "control_file" : PurePath("parameters/fit_117T_A.control"),
     }
     VipSession.init("VIP_API_KEY")
     sess = VipSession(
-        session_name="test-lcmodel",
-        input_settings=my_settings
+        session_name="tests-VipSession",
+        pipeline_id="LCModel/0.1"
     )
 
     sess.upload_inputs(input_dir=my_input_dir,)
-    sess.launch_pipeline(pipeline_id="LCModel/0.1")
+    sess.launch_pipeline(input_settings=my_settings)
     sess.download_outputs(get_status=["Finished", "Running"])
-    VipSession("test-lcmodel").display()
-    VipSession("test-lcmodel").monitor_workflows(refresh_time=2)
+    VipSession("test-VipSession").display()
+    VipSession("test-VipSession").monitor_workflows(refresh_time=2)
     sess.download_outputs()
 
     VipSession(
-        session_name="test-lcmodel-2", 
+        session_name="test-VipSession-2", 
         pipeline_id="LCModel/0.1", 
         input_settings=my_settings
     ).get_inputs(sess).display().run_session(update_files=False).finish()

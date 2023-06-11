@@ -16,11 +16,16 @@ if __name__=="__main__":
     }
 
     # Init
-    VipCI.init(vip_key = "VIP_API_KEY", girder_key="GIRDER_API_KEY")
+    VipCI.init(
+        session_name="test",
+        pipeline_id="CQUEST/0.1.1", 
+        input_settings=my_settings, 
+        output_dir="/collection/ReproVIPSpectro/results/new-folder"
+    )
     VipCI.show_pipeline("quest")
 
     # Session
-    VipCI(
+    VipCI.init(vip_key = "VIP_API_KEY", girder_key="GIRDER_API_KEY",
         pipeline_id="CQUEST/0.1.1", 
         input_settings=my_settings, 
         output_dir="/collection/ReproVIPSpectro/results/new-folder"

@@ -4,9 +4,9 @@ from pathlib import *
 
 if __name__=="__main__":
 
-    VipSession.init("VIP_API_KEY", session_name="tests-VipLauncher").upload_inputs("examples/data/lcmodel_sample")
+    VipSession.init("VIP_API_KEY", session_name="tests-VipLauncher").upload_inputs("examples/data/lcmodel_sample", update_files=False)
 
-    my_dir = PurePosixPath("/vip/Home/API/test-lcmodel/INPUTS")
+    my_dir = PurePosixPath("/vip/Home/API/tests-VipLauncher/INPUTS")
     my_settings = {
         "zipped_folder": my_dir / "basis.zip",
         "basis_file": my_dir / "Basis_117T.basis",
@@ -18,14 +18,13 @@ if __name__=="__main__":
     # Full Run
     VipLauncher(
         session_name="tests-VipLauncher", 
-        output_dir="/vip/Home/tests_VipLauncher",
         pipeline_id="LCModel/0.1", 
         input_settings=my_settings
-    ).launch_pipeline().monitor_workflows(refresh_time=2)
+    ).launch_pipeline(output_dir="/vip/Home/tests-VipLauncher").monitor_workflows(refresh_time=2)
     
     # Resume
     VipLauncher(
-        output_dir="/vip/Home/tests_VipLauncher",
+        output_dir="/vip/Home/tests-VipLauncher",
     ).display().finish(timeout=100).display()
 
-    VipSession("test-lcmodel").finish()
+    VipSession("tests-VipLauncher").finish()

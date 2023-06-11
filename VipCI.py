@@ -63,31 +63,36 @@ class VipCI(VipLauncher):
     ################ Constructor ##################
                     #############
     def __init__(
-        self, output_dir="", pipeline_id="", 
-        input_settings:dict={}, session_name="",
-        verbose=True
+        self, output_dir=None, pipeline_id: str=None, input_settings: dict=None, 
+        session_name: str=None, verbose: bool=None
     ) -> None:
         """
-        Create a VipCI instance from keyword arguments. 
-        Displays informations if `verbose` is True.
+        Creates a VipCI instance and sets its properties from keyword arguments.
 
-        Available keywords:
-        - `output_dir` (str) Path to a Girder folder where execution results will be stored.
-            Usually in format : "/collection/[collection_name]/[path_to_folder]"
+        ## Parameters
+        - `output_dir` (str | os.PathLike) Path to a Girder folder where execution results will be stored.
+            - Does not need to exist
+            - Usually in format : "/collection/[collection_name]/[path_to_folder]"
+            - User must have read/write permissions on the Girder collection/folder.
 
         - `pipeline_id` (str) Name of your pipeline in VIP. 
-            Usually in format : "[application_name]/[version]".
+            - Usually in format : *application_name*/*version*.
+            - Run VipLauncher.show_pipeline() to display available pipelines.
 
         - `input_settings` (dict) All parameters needed to run the pipeline.
             - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
             - The dictionary can contain any object that can be converted to strings, or lists of such objects.
             - Lists of parameters launch parallel workflows on VIP.
 
-        - `session_name` (str) A name to identify this session.
-            Default value: 'VipCI_[date]-[time]'
+        - `session_name` [Optional/Recommended] (str) A name to identify this session.
+            - Default value: 'VipCI-[date]-[time]-[id]'
+        
+        - `verbose` [Optional] (bool) Verbose mode for this instance.
+            - If True, instance methods will display logs;
+            - If False, instance methods will run silently.
 
-        If `output_dir` leads to data from a previous session, 
-        all properties will be loaded from the folder metadata on Girder.
+        `session_name` is only set at instantiation; other properties can be set later in function calls.
+        If `output_dir` leads to data from a previous session, properties will be loaded from the metadata on Girder.
         """
         # Initialize with the name, pipeline and input settings
         super().__init__(
@@ -95,7 +100,7 @@ class VipCI(VipLauncher):
             session_name = session_name, 
             pipeline_id = pipeline_id, 
             input_settings = input_settings,
-            # verbose=verbose
+            verbose=verbose
         )
         # End display
         if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
@@ -112,40 +117,41 @@ class VipCI(VipLauncher):
 
     # Login to VIP and Girder
     @classmethod
-    def init(cls, vip_key: str, girder_key: str, verbose=True, **kwargs) -> VipCI:
+    def init(cls, vip_key="VIP_API_KEY", girder_key="GIRDER_API_KEY", verbose=True, **kwargs) -> VipCI:
         """
-        Handshakes with VIP and Girder using your own API keys. 
-        Prints a list of pipelines available with the API key, unless `verbose` is False.
-        Returns a VipCI instance which properties can be provided as keyword arguments (`kwargs`).
+        Handshakes with VIP using your own API key. 
+        Returns a class instance which properties can be provided as keyword arguments.
+        
+        ## Parameters
+        - `vip_key` (str): VIP API key. This can be either:
+            A. [unsafe] A **string litteral** containing your API key,
+            B. [safer] A **path to some local file** containing your API key,
+            C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
+        In cases B or C, the API key will be loaded from the local file or the environment variable. 
 
-        Inputs `vip_key` and `girder_key` can be either:
-        A. (unsafe) a string litteral containing your API key, or
-        B. (safer) a path to some local file containing your API key, or
-        C. (safer) the name of some environment variable containing your API key.
+        - `girder_key` (str): Girder API key. Can take the same values as `vip_key`.
+        
+        - `verbose` (bool): default verbose mode for all instances.
+            - If True, all instances will display logs by default;
+            - If False, all instance methods will run silently by default.
 
-        In cases B or C, the API key will be loaded from the local file or the environment variable.        
+        - `kwargs` [Optional] (dict): keyword arguments or dictionnary setting properties of the returned instance.     
         """
         # Initiate a Vip Session
         super().init(api_key=vip_key)
         # Instantiate a Girder client
         cls._girder_client = girder_client.GirderClient(apiUrl=cls._GIRDER_PORTAL)
         # Check if `girder_key` is in a local file or environment variable
-        if os.path.exists(girder_key): # local file
-            with open(girder_key, "r") as kfile:
-                true_key = kfile.read().strip()
-        elif girder_key in os.environ: # environment variable
-            true_key = os.environ[girder_key]
-        else: # string litteral
-            true_key = girder_key
-        # Authenticate with Girdre API key
+        true_key = cls._get_api_key(girder_key)
+        # Authenticate with Girder API key
         cls._girder_client.authenticate(apiKey=true_key)
         # Return a VipCI instance for method cascading
-        return VipCI(verbose=(verbose and kwargs), **kwargs)
+        return cls(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
 
     def launch_pipeline(
-            self, pipeline_id="", input_settings:dict={}, output_dir="", nb_runs=1, 
-            verbose=True
+            self, pipeline_id: str=None, input_settings: dict=None, output_dir=None, nb_runs=1, 
+            verbose: bool=None
         ) -> VipCI:
         """
         Launches pipeline executions on VIP.
@@ -159,7 +165,6 @@ class VipCI(VipLauncher):
             - Lists of parameters launch parallel workflows on VIP.
         - `output_dir` (str) Path to the VIP folder where execution results will be stored.
         - `nb_runs` (int) Number of parallel workflows to launch with the same settings.
-        - Set `verbose` to False to launch silently.
         
         Default behaviour:
         - Raises AssertionError in case of wrong inputs 
@@ -171,24 +176,21 @@ class VipCI(VipLauncher):
             input_settings = input_settings, # default
             output_dir = output_dir, # default
             nb_runs = nb_runs, # default
-            verbose = verbose # default
         )
     # ------------------------------------------------
 
     # ($A.4) Monitor worflow executions on VIP 
-    def monitor_workflows(self, refresh_time=30, verbose=True) -> VipCI:
+    def monitor_workflows(self, refresh_time=30) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
         - If an execution is still runnig, updates status every `refresh_time` (seconds) until all runs are done.
-        - If `verbose`is True, displays a full report when all executions are done.
+        - Displays a full report when all executions are done.
         """
-        return super().monitor_workflows(refresh_time=refresh_time, verbose=verbose)
+        return super().monitor_workflows(refresh_time=refresh_time)
     # ------------------------------------------------
 
     # ($A.2->A.5) Run a full VIP session 
-    def run_session(
-            self, nb_runs=1, refresh_time=30, verbose=True
-        ) -> VipCI:
+    def run_session(self, nb_runs=1, refresh_time=30) -> VipCI:
         """
         Runs a full session from Girder data:
         1. Launches pipeline executions on VIP;
@@ -198,10 +200,9 @@ class VipCI(VipLauncher):
         /!\ This function assumes that all session properties are already set.
         Optional arguments can be provided:
         - Increase `nb_runs` to run more than 1 execution at once;
-        - Set `refresh_time` to modify the default refresh time;
-        - Set `verbose` to False to run silently.
+        - Set `refresh_time` to modify the default refresh time.
         """
-        return super().run_session(nb_runs=nb_runs, refresh_time=refresh_time, verbose=verbose)
+        return super().run_session(nb_runs=nb_runs, refresh_time=refresh_time)
     # ------------------------------------------------
 
     # ($B.1) Display session properties in their current state
@@ -219,13 +220,13 @@ class VipCI(VipLauncher):
     # ------------------------------------------------
 
     # Mock function for finish()
-    def finish(self, verbose=True) -> None:
+    def finish(self, verbose: bool=None) -> None:
         """
         This function does not work in VipCI.
         """
         # Update the verbose state and display
         self._verbose = verbose
-        self._print("\n<<< FINISH >>>\n")
+        self._print("\n<<< FINISH >>>\n", max_space=2)
         # Raise error message
         raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
@@ -395,21 +396,21 @@ class VipCI(VipLauncher):
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
+        self._print()
         if is_new:
-            self._print("\n>> Session was backed up as Girder metadata in:")
+            self._print(">> Session was backed up as Girder metadata in:")
             self._print(f"\t{self._vip_output_dir} (Girder ID: {folderId})\n")
         else:
-            self._print("\n>> Session backed up\n")
+            self._print(">> Session backed up\n")
         # Return
         return True
     # ------------------------------------------------
 
-    def _load_session(self, location="girder", display=True) -> dict:
+    def _load_session(self, location="girder") -> dict:
         """
         Loads backup data from the metadata stored in the output directory on Girder.
         If the metadata could not be found, returns None.
-        Otherwise, returns session properties as a dictionary. 
-        Displays success unless `display` is False.
+        Otherwise, returns session properties as a dictionary.
         """
         # Thow error if location is not "girder"
         if location != "girder":
@@ -418,15 +419,15 @@ class VipCI(VipLauncher):
         if self.vip_output_dir is None: 
             return None
         # Load the metadata on Girder
-        try:
-            girder_id, _ = self._girder_path_to_id(self.vip_output_dir)
-            folder = self._girder_client.getFolder(folderId=girder_id)
-        except girder_client.HttpError as e:
-            if e.status == 400: # Folder was not found
-                return None
+        with self._silent_class():
+            try:
+                girder_id, _ = self._girder_path_to_id(self.vip_output_dir)
+                folder = self._girder_client.getFolder(folderId=girder_id)
+            except girder_client.HttpError as e:
+                if e.status == 400: # Folder was not found
+                    return None
         # Display success if the folder was found
-        if display:
-            self._print("\n<< Session restored from its output directory\n")
+        self._print("<< Session restored from its output directory\n")
         # Return session metadata 
         return folder["meta"]
     # ------------------------------------------------
@@ -444,21 +445,21 @@ class VipCI(VipLauncher):
         `path` can be a string or PathLib object.
 
         Raises `girder_client.HttpError` if the resource was not found. 
-        Adds intepretation message unless `cls.VERBOSE` is False.
+        Adds intepretation message unless `cls._VERBOSE` is False.
         """
         try :
             resource = cls._girder_client.resourceLookup(str(path))
         except girder_client.HttpError as e:
-            if cls.VERBOSE and e.status == 400:
-                print("(!) The following path is invalid or refers to a resource that does not exist:")
-                print(f"    \t{path}")
-                print("    Original error from Girder API:")
+            if e.status == 400:
+                cls._printc("(!) The following path is invalid or refers to a resource that does not exist:")
+                cls._printc(f"    \t{path}")
+                cls._printc("    Original error from Girder API:")
             raise e
         # Return the resource ID and type
         try:
             return resource['_id'], resource['_modelType']
         except KeyError as ke:
-            if cls.VERBOSE: print(f"Unhandled type of resource: \n\t{resource}\n")
+            cls._printc(f"Unhandled type of resource: \n\t{resource}\n")
             raise ke
     # ------------------------------------------------
     
@@ -474,9 +475,9 @@ class VipCI(VipLauncher):
         try :
             return PurePosixPath(cls._girder_client.get(f"/resource/{id}/path", {"type": type}))
         except girder_client.HttpError as e:
-            if cls.VERBOSE and e.status == 400:
-                print("(!) Invalid Girder ID or resource type.")
-                print("    Original error from Girder API:")
+            if e.status == 400:
+                cls._printc(f"(!) Invalid Girder ID: {id} with resource type:{type}")
+                cls._printc("    Original error from Girder API:")
             raise e
     # ------------------------------------------------
     

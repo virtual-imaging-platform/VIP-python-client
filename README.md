@@ -401,6 +401,9 @@ If you encounter any issues, please contact us:
 
 ---
 NOUVEAUTES
-- Gestion des attributs des sessions
-- Support os.PathLike
-- show_pipeline()
+- Session properties (`session_name`, `pipeline_id`, *etc.*) can be safely accessed and modified;
+- Verbose state is now common to all instance methods and can be modified online through `self.verbose`;
+- Any file path can be provided as *os.PathLike* object (including `pathlib`);
+- A list of available pipelines, and detailed informations about a specific pipeline, can be displayed through class method `show_pipeline()`;
+- `VipSession`: Outputs from unfinished worflows can be downloaded by modifying `get_status`;
+
