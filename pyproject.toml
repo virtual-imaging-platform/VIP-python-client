@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling", "pathspec"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vip-api"
+version = "0.0.1"
+description = "Python client to use VIP through its CARMIN API."
+readme = "README.md"
+requires-python = ">=3"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+dependencies = ["requests"]
+
+[tool.hatch.build]
+only-packages = true
+
+[tool.hatch.build.sources]
+"src" = "vipapi"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/virtual-imaging-platform/VIP-python-client/issues"
