@@ -5,9 +5,8 @@ import tarfile
 import re
 from pathlib import *
 
-from VipLauncher import VipLauncher
-
-import vip
+import src.vip as vip
+from src.VipLauncher import VipLauncher
 
 """
 Main Features (leading to public methods)
@@ -268,18 +267,20 @@ class VipSession(VipLauncher):
         `session_name` and `output_dir` are only set at instantiation; other properties can be set later in function calls.
         If `session_name` or `output_dir` refer to a saved session, properties will be loaded from the backup file.
         """
-        # Default values for the session name and output directory
+        # Default values for the session name output directory and verbose state
         if not session_name:
             session_name = self._new_session_name()
         if not output_dir:
             output_dir = self._LOCAL_DEFAULT_PATH / session_name
+        if verbose is None:
+            verbose = self._VERBOSE
         # Initiate parameters from the parent class
         super().__init__(
             output_dir = output_dir,
             session_name = session_name,
             pipeline_id = pipeline_id,
             input_settings = input_settings,
-            verbose = bool(verbose) and any([output_dir, session_name, pipeline_id, input_settings])
+            verbose = verbose and any([output_dir, session_name, pipeline_id, input_settings])
         )
         # Reset the verbose state
         self.verbose = verbose
@@ -333,12 +334,13 @@ class VipSession(VipLauncher):
     # ($A.2) Upload a dataset on VIP servers
     def upload_inputs(self, input_dir=None, update_files=True) -> VipSession:
         """
-        Uploads to VIP servers a dataset contained in the local directory `input_dir` (if needed).
-        - If `input_dir` is not provided, `self.input_dir` will be used.
-        - If `update_files` is True, the input directory on VIP will be checked in depth for missing files.
+        Uploads a local dataset to VIP servers.
+        - `input_dir` (str | os.PathLike): local directory containing the dataset. 
+            If not provided, `self.input_dir` is be used.
+        - If `update_files` (bool) is True, the input directory on VIP will be checked in depth for missing files.
 
         Error profile:
-        - Raises TypeError is `input_dir` is missing;
+        - Raises TypeError is `input_dir` is missing and was not declared at instanciation;
         - Raises ValueError if `input_dir` conflicts with session properties;
         - Raises FilenotFoundError if `input_dir` could not be found on this machine;
         - Raises RuntimeError if the client fails to communicate with VIP;

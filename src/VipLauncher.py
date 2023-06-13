@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
 
-import vip
+import src.vip as vip
 
 class VipLauncher():
     """
@@ -146,7 +146,7 @@ class VipLauncher():
         if not isinstance(input_settings, dict):
             raise TypeError("`input_settings` should be a dictionary")
         # Check if each input can be converted to a string with valid characters
-        for param, value in input_settings:
+        for param, value in input_settings.items():
             invalid = self._invalid_chars(value)
             if invalid:
                 raise ValueError(
@@ -483,7 +483,7 @@ class VipLauncher():
         if input_settings:
             self.input_settings = input_settings
         # Start parameter checks
-        self._print("Parameter checks")
+        self._print("Parameter checks", min_space=1)
         self._print("----------------")
         # Check the pipeline identifier
         self._print("Pipeline identifier: ", end="", flush=True)
