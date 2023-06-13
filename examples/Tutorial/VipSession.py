@@ -2,7 +2,6 @@ from __future__ import annotations
 import os
 import json
 import tarfile
-import re
 from pathlib import *
 
 from VipLauncher import VipLauncher
@@ -36,7 +35,7 @@ class VipSession(VipLauncher):
     """
     Python class to run VIP pipelines on local datasets.
 
-    A single instance allows to run 1 pipeline on 1 dataset with 1 parameter set (any number of runs).
+    1 "session" allows to run 1 pipeline on 1 dataset with 1 parameter set (any number of runs).
     Pipeline runs need at least three inputs:
     - `input_dir` (str | os.PathLike) Path to the local dataset.
     - `pipeline_id` (str) Name of the pipeline. 
@@ -279,10 +278,8 @@ class VipSession(VipLauncher):
             session_name = session_name,
             pipeline_id = pipeline_id,
             input_settings = input_settings,
-            verbose = bool(verbose) and any([output_dir, session_name, pipeline_id, input_settings])
+            verbose = verbose
         )
-        # Reset the verbose state
-        self.verbose = verbose
         # Set the VIP input directory to default if still unset
         if not self.vip_input_dir:
             self.vip_input_dir = self._vip_dir / "INPUTS"
@@ -298,7 +295,6 @@ class VipSession(VipLauncher):
         if any([session_name, output_dir]) and (self.__name__ == "VipSession"): 
             self._print()
     # ------------------------------------------------
-
                     ################
     ################ Public Methods ##################
                     ################
@@ -368,7 +364,7 @@ class VipSession(VipLauncher):
             raise FileNotFoundError(f"Session '{self._session_name}': Input directory does not exist.")
         # Check the local values of `input_settings` before uploading
         if self._is_defined("_input_settings"):
-            self._print("Checking references to the dataset within Input Settings ... ", min_space=1, end="", flush=True)
+            self._print("Checking references to the dataset within Input Settings ... ", min_space=1, end="")
             try: 
                 self._check_input_settings(location="local")
                 self._print("OK.")
@@ -469,7 +465,7 @@ class VipSession(VipLauncher):
             self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update the worflow inventory
-        self._print("Updating workflow status ... ", end="", flush=True)
+        self._print("Updating workflow status ... ", end="")
         self._update_workflows()
         self._print("Done.\n")
         # Initial display
@@ -588,7 +584,7 @@ class VipSession(VipLauncher):
             self._print("Done for all executions.")
         else:
             self._print("End of the procedure.") 
-            self._print("The following files could not be downloaded from VIP", end="\n\t")
+            self._print("The following files could not be downloaded from VIP: \n\t", end="")
             self._print("\n\t".join(failures))
         self._print()
         # Return
@@ -1093,9 +1089,10 @@ class VipSession(VipLauncher):
         new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
         # Replace forbidden characters by '-' if current OS is windows
         if isinstance(new, PureWindowsPath):
-            new = Path(re.sub(r'[<>:"?* ]', '-', str(new)))
+            for char in '<>:"?* ': 
+                new = str(new).replace(char, '-')
         # Return
-        return new
+        return Path(new)
     # ------------------------------------------------
 
 #######################################################

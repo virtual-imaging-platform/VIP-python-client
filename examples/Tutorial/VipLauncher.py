@@ -12,7 +12,7 @@ class VipLauncher():
     """
     Python class to run VIP pipelines on datasets located on VIP servers.
 
-    A single instance allows to run 1 pipeline with 1 parameter set (any number of runs).
+    1 "session" allows to run 1 pipeline with 1 parameter set (any number of runs).
     Pipeline runs need at least three inputs:
     - `pipeline_id` (str) Name of the pipeline. 
     - `input_settings` (dict) All parameters needed to run the pipeline.
@@ -49,10 +49,6 @@ class VipLauncher():
     _SAVE_FILE = "session_data.json"
     # Vip portal
     _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
-    # Mail address for support
-    _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
-    # Regular expression for invalid characters
-    _INVALID_CHARS = re.compile(r"[^0-9\.,A-Za-z\-+@/_(): \[\]?&=]")
     # List of pipelines available to the user
     _AVAILABLE_PIPELINES = []
 
@@ -76,9 +72,8 @@ class VipLauncher():
         # Check type
         if not isinstance(name, str):
             raise TypeError("`session_name` should be a string")
-        # Check the name for invalid characters
-        if re.search(r"[^0-9A-Za-z\-_]+", name):
-            raise ValueError("Session name must contain only alphanumeric characters and hyphens '-', '_'")
+        # Check the name
+        self._check_session_name(name)
         # Check conflict with private attribute
         if self._is_defined("_session_name"):
             self._check_value("_session_name", name)
@@ -102,7 +97,7 @@ class VipLauncher():
     @pipeline_id.setter
     def pipeline_id(self, pId: str) -> None:
         # Display
-        self._print("Pipeline ID: '%s'" %pId, end="", flush=True)
+        self._print("Pipeline ID: '%s'" %pId, end="")
         # Call deleter if agument is None
         if pId is None: 
             del self.pipeline_id
@@ -141,18 +136,11 @@ class VipLauncher():
             del self.input_settings
             return
         # Display
-        self._print("Input Settings --> ", end="", flush=True)
+        self._print("Input Settings --> ", end="")
         # Check type
         if not isinstance(input_settings, dict):
             raise TypeError("`input_settings` should be a dictionary")
-        # Check if each input can be converted to a string with valid characters
-        for param, value in input_settings:
-            invalid = self._invalid_chars(value)
-            if invalid:
-                raise ValueError(
-                    f"Parameter {param} contains some invalid character(s): {', '.join(invalid)}"
-                )
-        # Parse the input settings
+        # Parse input settings (old and new)
         new_settings = self._parse_input_settings(input_settings)
         self._print("parsed")
         # Check conflicts with private attribute
@@ -183,12 +171,6 @@ class VipLauncher():
         # Check type
         if not isinstance(new_dir, (str, os.PathLike)):
             raise TypeError("`vip_output_dir` should be a string or os.PathLike object")
-        # Check if the path contains only valid characters
-        invalid = self._invalid_chars(new_dir)
-        if invalid:
-            raise ValueError(
-                f"VIP output directory contains some invalid character(s): {', '.join(invalid)}"
-            )
         # Path-ify
         new_path = PurePosixPath(new_dir)
         # Check conflict with private attribute
@@ -356,8 +338,8 @@ class VipLauncher():
         self.verbose = verbose if verbose is not None else self._VERBOSE
         # Default value for session name
         self.session_name = session_name if session_name else self._new_session_name()
-        # Display the session name only if arguments are given
-        if any([session_name, output_dir, pipeline_id, input_settings]):
+        # Display the session name
+        if any([session_name, output_dir]):
             self._print(f"\n<<< SESSION '{self._session_name}' >>>\n", max_space=2)
         # Set the output directory (/!\ this will load the corresponding backup data if any /!\)
         if output_dir :
@@ -374,7 +356,7 @@ class VipLauncher():
         if not self.workflows:
             self.workflows = {}
         # End display if we're in this class
-        if any([session_name, output_dir, pipeline_id, input_settings]) and self.__name__ == "VipLauncher": 
+        if any([session_name, output_dir]) and self.__name__ == "VipLauncher": 
             self._print()
     # ------------------------------------------------
 
@@ -486,21 +468,21 @@ class VipLauncher():
         self._print("Parameter checks")
         self._print("----------------")
         # Check the pipeline identifier
-        self._print("Pipeline identifier: ", end="", flush=True)
+        self._print("Pipeline identifier: ", end="")
         if not self._check_pipeline_id():
             raise TypeError(f"(!) Pipeline identifier could not be checked. Please call {self.__name__}.init()")
         self._print("OK")
         # Check the result directory
         if not self._is_defined("_vip_output_dir"):
             raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
-        else: self._print("Output directory: ", end="", flush=True)
+        else: self._print("Output directory: ", end="")
             # Ensure the directory exists
         if self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME):
             self._print(f"Created on {self._SERVER_NAME.upper()}")
         else:
             self._print("OK")
         # Check the input parameters
-        self._print("Input settings: ", end="", flush=True)
+        self._print("Input settings: ", end="")
             # Check existence
         if not self._is_defined("_input_settings"):
             raise TypeError("Please provide input parameters for Session: %s" %self._session_name)  
@@ -564,7 +546,7 @@ class VipLauncher():
             self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update existing workflows
-        self._print("Updating worflow inventory ... ", end="", flush=True)
+        self._print("Updating worflow inventory ... ", end="")
         self._update_workflows()
         self._print("Done.")
         # Check if workflows are still running
@@ -638,7 +620,7 @@ class VipLauncher():
         # Check if workflows are still running (without call to VIP)
         if self._still_running():
             # Update the workflow inventory
-            self._print("Updating worflow inventory ... ", end="", flush=True)
+            self._print("Updating worflow inventory ... ", end="")
             self._update_workflows()
             self._print("Done.")
             # Return is workflows are still running
@@ -653,7 +635,7 @@ class VipLauncher():
         success = True
         for path, location in self._path_to_delete().items():
             # Display progression
-            self._print(f"[{location}] {path} ... ", end="", flush=True)
+            self._print(f"[{location}] {path} ... ", end="")
             # Check data existence
             if not self._exists(path, location):
                 # Session may be already over
@@ -681,7 +663,7 @@ class VipLauncher():
         else:
             removed_outputs = True
         for wid in self._workflows:
-            self._print(f"{wid}: ", end="", flush=True)
+            self._print(f"{wid}: ", end="")
             if (
                 # The output list is empty
                 not self._workflows[wid]["outputs"] 
@@ -868,7 +850,7 @@ class VipLauncher():
         try: 
             if not vip.create_dir(str(path)):
                 msg = f"The following directoy could not be created on VIP:\n\t{path}\n"
-                msg += f"Please retry later. Contact VIP support ({cls._VIP_SUPPORT}) if this cannot be fixed."
+                msg += "Please retry later. Contact VIP support (vip-support@creatis.insa-lyon.fr) if this cannot be fixed."
                 raise AssertionError(msg)
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)  
@@ -1289,7 +1271,7 @@ class VipLauncher():
                     and (session_data[prop] != backup_data[prop])) ]
         # If differences are found, print a warning an do not silence the setter methods.
         if diff:
-            self._print(f"(!) The following properties will be overwritten by session backup:\n\t{', '.join(diff)}\n")
+            self._print(f"(!) The following properties will be overwritten according to session backup file:\n\t{', '.join(diff)}\n")
             silent_context = nullcontext
         else: 
             silent_context = self._silent_session
@@ -1423,6 +1405,25 @@ class VipLauncher():
             raise ValueError(f"'{attribute}' is already set for session: <{self.session_name}>.")
     # ------------------------------------------------
 
+    # Check the session name to avoid name errors in VIP
+    def _check_session_name(self, name="") -> None:
+        """
+        Session name characters must be only aphanumeric or hyphens.
+        Raises ValueError otherwise.
+        """
+        # Input
+        if not name:
+            name = self._session_name
+        # Green Flag
+        ok_name = True
+        # Criterion
+        for letter in name:
+            ok_name &= letter.isalnum() or (letter in "_- ")
+        # Error message
+        if not ok_name:
+            raise ValueError("Session name must contain only alphanumeric characters, spaces and hyphens: '-', '_'")
+    # ------------------------------------------------    
+
     # Check the pipeline identifier based on the list of available pipelines
     def _check_pipeline_id(self, pipeline_id: str="") -> bool:
         """
@@ -1493,7 +1494,7 @@ class VipLauncher():
             # Case: multiple inputs
             if isinstance(input, list):
                 return [ parse_value(element) for element in input ]
-            # Case: single input
+            # Case: single input, string or path-like
             if isinstance(input, (str, os.PathLike)):
                 # Case: VIP path
                 if str(input).startswith(self._SERVER_PATH_PREFIX):
@@ -1515,14 +1516,32 @@ class VipLauncher():
         Returns the input settings with their orignal values in string format.
         `location` is destined to subclasses.
         """
+        # Function to get a string for each parameter
+        def get_input(value) -> str:
+            """
+            If `value` is a path, returns the corresponding string.
+            Value can be a single input or a list of inputs.
+            """
+            # Case: multiple inputs
+            if isinstance(value, list):
+                return [ get_input(element) for element in value ]
+            # Case : path to file
+            elif isinstance(value, PurePath): return str(value)
+            # Case: other parameter
+            else: return str(value)
+        # -- End of get_input() --
+        # Raise an error if location cannot be parsed
+        if location != "vip":
+            raise NotImplementedError(location)
+        # Browse input settings
         return {
-            key: [str(v) for v in value] if isinstance(value, list) else str(value)
+            key: get_input(value)
             for key, value in self._input_settings.items()
         }
     # ------------------------------------------------
 
     # Check the input settings based on the pipeline descriptor
-    def _check_input_settings(self, input_settings: dict=None, location: str=None) -> None:
+    def _check_input_settings(self, input_settings: dict=None, location="") -> None:
         """
         Checks `input_settings` with respect to pipeline descriptor. If not provided, checks the instance property.
         Prerequisite: input_settings contains only strings or lists of strings.
@@ -1539,7 +1558,7 @@ class VipLauncher():
             - Raises RuntimeError if communication failed with VIP servers.
         """
         # If location is not provided, default to server
-        if location is None:
+        if not location:
             location = self._SERVER_NAME
         # If input_settings are not provided, get instance attribute instead
         if not input_settings:
@@ -1602,31 +1621,22 @@ class VipLauncher():
                 continue
             # Get input value
             value = input_settings[name]
-            # `request` will send only strings
+            # Request will send only strings
             assert self._isinstance(value, str), \
-                f"Parameter '{name}' should have been converted to strings ({type(value)} instead)"\
-                    +f"\nPlease convert to strings or contact VIP support ({self._VIP_SUPPORT})"
-            # Check invalid characters
-            invalid = self._invalid_chars(value)
-            if invalid:
-                raise ValueError(
-                    f"Parameter '{name}' contains some invalid character(s): {', '.join(invalid)}"
-                )
+                f"Parameter '{name}' should have been converted to strings ({type(value)} instead)"
             # If input is a File, check file(s) existence 
             if param["type"] == "File":
                 # Ensure every file exists at `location`
                 missing_file = self._first_missing_file(value, location)
                 if missing_file:
-                    raise FileNotFoundError(
-                        f"Parameter '{name}': The following file is missing in the {location.upper()} file system:\n\t{missing_file}"
-                    )
+                    raise FileNotFoundError(f"(!) The following file is missing in the {location.upper()} file system:\n\t{missing_file}")
             # Check other input formats ?
             else: pass # TODO
     # ------------------------------------------------
         
     # Function to assert the input contains a certain type
-    @classmethod
-    def _isinstance(cls, value, type: type) -> bool: 
+    @staticmethod
+    def _isinstance(value, type: type) -> bool: 
         """
         Returns True if `value` is instance of `type` or a list of `type`.
         """
@@ -1635,22 +1645,10 @@ class VipLauncher():
         else:
             return isinstance(value, type)
     # ------------------------------------------------
-
-    # Function to check invalid characters in some input string
-    @classmethod
-    def _invalid_chars(cls, value) -> list: 
-        """
-        Returns a list of invalid characters in `value`.
-        """
-        if isinstance(value, list):
-            return sorted(list({v for val in value for v in cls._INVALID_CHARS.findall(str(val))}))
-        else:
-            return sorted(cls._INVALID_CHARS.findall(str(value)))
-    # ------------------------------------------------
     
     # Function to assert file existence in the input settings
     @classmethod
-    def _first_missing_file(cls, value, location: str) -> str: 
+    def _first_missing_file(cls, value: str, location: str) -> str: 
         """
         Returns the path the first non-existent file in `value` (None by default).
         - `value` can contain a single file path or a list of paths.
@@ -1681,19 +1679,18 @@ class VipLauncher():
     ########################################
 
     # Main interface for printing session logs
-    def _print(self, *args, min_space=-1, max_space=1, **kwargs) -> None:
+    def _print(self, *args, min_space=0, max_space=1, **kwargs) -> None:
         """
         Prints session logs.
         Behaves as Python built-in `print()` function with two additional conditions:
-        1. Does not print anything if `self.verbose` is False,
-        2. The number of blank lines before and after the log is framed between `min_space` and `max_space`
-            (`min_space`=-1 means the log may end without newline).
+        1. Does not print anything if `self._verbose is False`
+        2. Does not print more than `max_space` blank lines between several prints.
         """
         # Return if verbose mode is False
-        if not self.verbose:
+        if not self._verbose:
             return
         # Ensure min_space and max_space are correctly ordered
-        assert -1 <= min_space <= max_space, f"Wrong min_space ({min_space}) or max_space ({max_space})"
+        assert 0 <= min_space <= max_space, f"Wrong min_space ({min_space}) or max_space ({max_space})"
         # Get the message from arguments
         sep = kwargs.pop("sep") if "sep" in kwargs else ' '
         end = kwargs.pop("end") if "end" in kwargs else '\n'
@@ -1732,7 +1729,7 @@ class VipLauncher():
             # Return the framed value
             return n_end if (lower <= n_end <= upper) else upper if (n_end > upper) else lower
         # Reset the blank line count
-        self._blank_lines = nb_nl_end() - 1 
+        self._blank_lines = nb_nl_end() 
         # Trim the newlines a the end of the message
         message = message.rstrip("\n") + "\n" * nb_nl_end()
         # Print the message with the rest of keywords arguments
@@ -1763,7 +1760,7 @@ class VipLauncher():
             # "Bad credentials"  / "Full authentication required" / "Authentication error"
             interpret = (
                 "Unable to communicate with VIP."
-                + f"\nRun {cls.__name__}.init() with a valid API key to handshake with VIP servers"
+                + f"\nRun {cls.__name__}.init() with a valid API key to handshake with VIP servers."
                 + f"\n({message})"
             )
         elif message.startswith("Error 8000"):
@@ -1771,21 +1768,21 @@ class VipLauncher():
             interpret = (
                 f"\n\t'{message}'"
                 + "\nPlease carefully check that session_name / pipeline_id / input_parameters "
-                + "are valid and do not contain any forbidden character"
-                + "\nIf this cannot be fixed, contact VIP support ()"
+                + "are valid and do not contain any forbidden character."
+                + "\nIf this cannot be fixed, contact VIP support (vip-support@creatis.insa-lyon.fr)."
             )
         elif message.startswith("Error 2000") or message.startswith("Error 2001"):
             #  Maximum number of executions
             interpret = (
                 f"\n\t'{message}'"
                 + "\nPlease wait until current executions are over, "
-                + f"or contact VIP support ({cls._VIP_SUPPORT}) to increase this limit"
+                + "or contact VIP support (vip-support@creatis.insa-lyon.fr) to increase this limit."
             )
         else:
             # Unhandled runtime error
             interpret=(
                 f"\n\t{message}"
-                + f"\nIf this cannot be fixed, contact VIP support ({cls._VIP_SUPPORT})"
+                + "\nIf this cannot be fixed, contact VIP support (vip-support@creatis.insa-lyon.fr)."
             )
         # Display the error message
         raise RuntimeError(interpret) from None
