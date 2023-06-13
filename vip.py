@@ -175,7 +175,8 @@ def upload(path, where_to_save)->bool:
                 'apikey': __apikey,
                 'Content-Type': 'application/octet-stream',
               }
-    data = open(path, 'rb').read()
+    with open(path, 'rb') as fid:
+        data = fid.read()
     rq = requests.put(url, headers=headers, data=data, verify=__certif)
     try:
         manage_errors(rq)
@@ -218,7 +219,7 @@ def count_executions()->int:
     return int(rq.text)
 
 # -----------------------------------------------------------------------------
-def init_exec(pipeline, name="default", inputValues={}) -> str:
+def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Home") -> str:
     url = __PREFIX + 'executions'
     headers = {
                 'apikey': __apikey,
@@ -227,7 +228,8 @@ def init_exec(pipeline, name="default", inputValues={}) -> str:
     data_ = {
             "name": name, 
             'pipelineIdentifier': pipeline,
-            "inputValues": inputValues
+            "inputValues": inputValues,
+            "resultsLocation": resultsLocation
            }
     rq = requests.post(url, headers=headers, json=data_, verify=__certif)
     manage_errors(rq)

@@ -11,7 +11,7 @@ class VipCI(VipLauncher):
     """
     Python class to run VIP pipelines on datasets located on Girder.
 
-    A single instance allows to run 1 pipeline with 1 parameter set (any number of runs).
+    1 "session" allows to run 1 pipeline with 1 parameter set (any number of runs).
     Pipeline runs need at least three inputs:
     - `pipeline_id` (str) Name of the pipeline. 
     - `input_settings` (dict) All parameters needed to run the pipeline.
@@ -100,7 +100,7 @@ class VipCI(VipLauncher):
             session_name = session_name, 
             pipeline_id = pipeline_id, 
             input_settings = input_settings,
-            verbose = verbose
+            verbose=verbose
         )
         # End display
         if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
@@ -226,7 +226,7 @@ class VipCI(VipLauncher):
         """
         # Update the verbose state and display
         self._verbose = verbose
-        self._print("\n=== FINISH ===\n", max_space=2)
+        self._print("\n<<< FINISH >>>\n", max_space=2)
         # Raise error message
         raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
