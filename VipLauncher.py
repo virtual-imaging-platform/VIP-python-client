@@ -358,7 +358,7 @@ class VipLauncher():
         self.session_name = session_name if session_name else self._new_session_name()
         # Display the session name only if arguments are given
         if any([session_name, output_dir, pipeline_id, input_settings]):
-            self._print(f"\n<<< SESSION '{self._session_name}' >>>\n", max_space=2)
+            self._print(f"\n=== SESSION '{self._session_name}' ===\n", max_space=2)
         # Set the output directory (/!\ this will load the corresponding backup data if any /!\)
         if output_dir :
             self.output_dir = output_dir
@@ -474,7 +474,7 @@ class VipLauncher():
         - Raises RuntimeError in case of failure from the VIP API.
         """
         # First display
-        self._print("\n<<< LAUNCH PIPELINE >>>\n", max_space=2)
+        self._print("\n=== LAUNCH PIPELINE ===\n", max_space=2)
         # Update the parameters
         if pipeline_id:
             self.pipeline_id = pipeline_id
@@ -557,7 +557,7 @@ class VipLauncher():
         Error profile:
         - Raises RuntimeError if the client fails to communicate with VIP.
         """
-        self._print("\n<<< MONITOR WORKFLOW >>>\n", max_space=2)
+        self._print("\n=== MONITOR WORKFLOW ===\n", max_space=2)
         # Check if current session has existing workflows
         if not self._workflows:
             self._print("This session has not launched any execution.")
@@ -633,7 +633,7 @@ class VipLauncher():
         - Workflows status are set to "Removed" when the corresponding outputs have been removed.
         """
         # Initial display
-        self._print("\n<<< FINISH >>>\n", max_space=2)
+        self._print("\n=== FINISH ===\n", max_space=2)
         self._print("Ending Session:", self._session_name)
         # Check if workflows are still running (without call to VIP)
         if self._still_running():

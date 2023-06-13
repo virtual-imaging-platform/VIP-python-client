@@ -346,7 +346,7 @@ class VipSession(VipLauncher):
         Session is backed up at the end of the procedure.
         """
         # First Display
-        self._print("\n<<< UPLOAD INPUTS >>>\n", max_space=2)
+        self._print("\n=== UPLOAD INPUTS ===\n", max_space=2)
         # Check the distant (VIP) input directory        
         try: 
             # Check connection with VIP 
@@ -462,7 +462,7 @@ class VipSession(VipLauncher):
         - Outputs from unfinished worflows can be downloaded by modifying `get_status`
         """
         # First display
-        self._print("\n<<< DOWNLOAD OUTPUTS >>>\n", max_space=2)
+        self._print("\n=== DOWNLOAD OUTPUTS ===\n", max_space=2)
         # Check if current session has existing workflows
         if not self._workflows:
             self._print("This session has not yet launched any execution.")

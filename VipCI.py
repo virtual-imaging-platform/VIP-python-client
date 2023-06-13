@@ -226,7 +226,7 @@ class VipCI(VipLauncher):
         """
         # Update the verbose state and display
         self._verbose = verbose
-        self._print("\n<<< FINISH >>>\n", max_space=2)
+        self._print("\n=== FINISH ===\n", max_space=2)
         # Raise error message
         raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
     # ------------------------------------------------
