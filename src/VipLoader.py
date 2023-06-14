@@ -3,13 +3,17 @@ import json
 import os
 import re
 import tarfile
-import time
 from contextlib import contextmanager
 from pathlib import *
 
-import src.vip as vip
+try: 
+    import src.vip as vip
+    from src.VipClient import VipClient
+except:
+    import vip
+    from VipClient import VipClient
 
-class VipLoader():
+class VipLoader(VipClient):
     """
     Python class to run VIP pipelines on datasets located on VIP servers.
 
@@ -52,7 +56,7 @@ class VipLoader():
 
     # ($A.1) Login to VIP
     @classmethod
-    def init(cls, api_key="VIP_API_KEY", verbose=True, **kwargs) -> VipLoader:
+    def init(cls, api_key="VIP_API_KEY", verbose=True) -> VipLoader:
         """
         Handshakes with VIP using your own API key. 
         Returns a class instance which properties can be provided as keyword arguments.
@@ -87,25 +91,12 @@ class VipLoader():
             # setApiKey() may throw JSONDecodeError in special cases
             cls._printc(f"(!) Unable to set the VIP API key: {true_key}.\n    Original error message:")
             raise json_error
-        # Update the list of available pipelines
-        try:
-            cls._get_available_pipelines() # RunTimeError is handled downstream
-        except(json.decoder.JSONDecodeError) as json_error:
-            # The user still cannot communicate with VIP
-            cls._printc(f"(!) Unable to communicate with VIP.")
-            cls._printc(f"    Original error messsage:")
-            raise json_error
+        # Display success
         cls._printc()
         cls._printc("----------------------------------")
         cls._printc("| You are communicating with VIP |")
         cls._printc("----------------------------------")
         cls._printc()
-        # Double check user can access pipelines
-        if not cls._AVAILABLE_PIPELINES: 
-            cls._printc("(!) Your API key does not allow you to execute pipelines on VIP.")
-            cls._printc(f"    Please join some research group(s) on the Web portal: {cls._VIP_PORTAL}")  
-        # Return a VipLoader instance for method cascading
-        return cls(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
 
                     #################
@@ -167,7 +158,7 @@ class VipLoader():
         # Scan the local directory
         assert cls._exists(local_path, location='local'), f"{local_path} does not exist."
         # First display
-        cls._print(f"Cloning: {local_path} ", end="... ")
+        cls._printc(f"Cloning: {local_path} ", end="... ")
         # Scan the distant directory and look for files to upload
         if cls._mkdirs(vip_path, location="vip"):
             # The distant directory did not exist before call
@@ -176,9 +167,9 @@ class VipLoader():
                 elem for elem in local_path.iterdir()
                 if elem.is_file()
             ]
-            cls._print("(Created on VIP)")
+            cls._printc("(Created on VIP)")
             if files_to_upload:
-                cls._print(f"\t{len(files_to_upload)} files to upload.")
+                cls._printc(f"\t{len(files_to_upload)} file(s) to upload.")
         else: # The distant directory already exists
             # Scan it to check if there are more files to upload
             vip_filenames = {
@@ -192,9 +183,9 @@ class VipLoader():
             ]
             # Update the display
             if files_to_upload: 
-                cls._print(f"\n\tVIP clone already exists and will be updated with {len(files_to_upload)} files.")
+                cls._printc(f"\n\tVIP clone already exists and will be updated with {len(files_to_upload)} file(s).")
             else:
-                cls._print("Already on VIP.")
+                cls._printc("Already on VIP.")
         # Upload the files
         nFile = 0
         failures = []
@@ -204,15 +195,15 @@ class VipLoader():
             try: size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
             except: size = "unknown size"
             # Display the current file
-            cls._print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
+            cls._printc(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
             # Upload the file on VIP
             vip_file = vip_path/local_file.name # file path on VIP
             if cls._upload_file(local_path=local_file, vip_path=vip_file):
                 # Upload was successful
-                cls._print("Done.")
+                cls._printc("Done.")
             else:
                 # Update display
-                cls._print(f"\n(!) Something went wrong during the upload.")
+                cls._printc(f"\n(!) Something went wrong during the upload.")
                 # Update missing files
                 failures.append(str(local_file))
         # Look for sub-directories
@@ -250,70 +241,86 @@ class VipLoader():
 
     # Function to upload all files from a local directory
     @classmethod
-    def _download_dir(cls, vip_path: PurePosixPath, local_path: Path) -> list:
+    def _download_dir(cls, vip_path: PurePosixPath, local_path: Path, unzip=True) -> list:
         """
         Download all files from `vip_path` to `local_path` (if needed).
         Displays what it does if `cls._VERBOSE` is True.
         Returns a list of files which failed to be downloaded from VIP.
         """
+        # First display
+        cls._printc(f"Folder: {vip_path} ", end="... ")
         # Scan the VIP directory
         assert cls._exists(vip_path, location='vip'), f"{vip_path} does not exist."
-        # First display
-        cls._print(f"Cloning: {local_path} ", end="... ")
+        all_content = vip.list_content(str(vip_path))
+        # Look for files
+        all_files = [ 
+            element for element in all_content 
+            if not element["isDirectory"] and element["exists"]
+        ]
         # Scan the distant directory and look for files to upload
         if cls._mkdirs(local_path, location="local"):
             # The local directory did not exist before call
             # -> download all the data (no scan to save time)
-            files_to_download = vip.list_elements(str(vip_path))
-            cls._print("(Created on VIP)")
+            files_to_download = all_files
+            cls._printc("(Created locally)")
             if files_to_download:
-                cls._print(f"\t{len(files_to_download)} files to upload.")
-        else: # The distant directory already exists
-            # Scan it to check if there are more files to upload
-            vip_filenames = {
-                PurePosixPath(element["path"]).name
-                for element in vip.list_elements(str(vip_path))
+                cls._printc(f"\t{len(files_to_download)} file(s) to download.")
+        else: # The local directory already exists
+            # Scan it to check if there are more files to download
+            local_filenames = {
+                elem.name for elem in local_path.iterdir() if elem.is_file()
             }
-            # Get the files to upload
-            files_to_download = [
-                elem for elem in local_path.iterdir()
-                if elem.is_file() and (elem.name not in vip_filenames)
+            # Get the files to download
+            files_to_download = [ 
+                element for element in all_files 
+                if PurePosixPath(element["path"]).name not in local_filenames
             ]
             # Update the display
             if files_to_download: 
-                cls._print(f"\n\tVIP clone already exists and will be updated with {len(files_to_download)} files.")
+                cls._printc(f"\n\tDirectory already exists and will be updated with {len(files_to_download)} file(s).")
             else:
-                cls._print("Already on VIP.")
+                cls._printc("Already there.")
         # Upload the files
         nFile = 0
         failures = []
-        for local_file in files_to_download :
+        for vip_file in files_to_download :
             nFile+=1
             # Get the file size (if possible)
-            try: size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
-            except: size = "unknown size"
+            if "size" in vip_file: 
+                size = f"{vip_file['size']/(1<<20):,.1f}MB"
+            else:
+                size = "size unknown"
+            # Get the path
+            vip_file_path = PurePosixPath(vip_file["path"])
             # Display the current file
-            cls._print(f"\t[{nFile}/{len(files_to_download)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
-            # Upload the file on VIP
-            vip_file = vip_path/local_file.name # file path on VIP
-            if cls._upload_file(local_path=local_file, vip_path=vip_file):
+            cls._printc(f"\t[{nFile}/{len(files_to_download)}] Downloading file: {vip_file_path.name} ({size}) ...", end=" ")
+            # Download the file from VIP
+            local_file = local_path / vip_file_path.name # Local file path
+            if cls._download_file(vip_path=vip_file_path, local_path=local_file):
                 # Upload was successful
-                cls._print("Done.")
+                cls._printc("Done.")
+                # If the output is a tarball, extract the files and delete the tarball
+                if unzip and ("mimeType" in vip_file) and (vip_file["mimeType"]=="application/gzip") and tarfile.is_tarfile(local_file):
+                    cls._printc("\t\tExtracting archive content ...", end=" ")
+                    if cls._extract_tarball(local_file):
+                        cls._printc("Done.") # Display success
+                    else:
+                        cls._printc("Extraction failed.") # Display failure
             else:
                 # Update display
-                cls._print(f"\n(!) Something went wrong during the upload.")
+                cls._printc(f"\n(!) Something went wrong during the download.")
                 # Update missing files
-                failures.append(str(local_file))
+                failures.append(str(vip_file_path))
         # Look for sub-directories
-        subdirs = [
-            elem for elem in local_path.iterdir() 
-            if elem.is_dir()
+        subdirs = [ 
+            PurePosixPath(element["path"]) for element in all_content 
+            if element["isDirectory"] and element["exists"]
         ]
         # Recurse this function over sub-directories
         for subdir in subdirs:
-            failures += cls._upload_dir(
-                local_path=subdir,
-                vip_path=vip_path/subdir.name
+            failures += cls._download_dir(
+                vip_path = subdir,
+                local_path = local_path / subdir.name
             )
         # Return the list of failures
         return failures
@@ -364,155 +371,11 @@ class VipLoader():
         return success
     # ------------------------------------------------
 
-    ##################################################
-    # Context managers
-    ##################################################
-
-    # Simple context manager to silence logs from class methods while executing code
-    @classmethod
-    @contextmanager
-    def _silent_class(cls) -> None:
-        """
-        Under this context, the session will not print anything.
-        """
-        verbose = cls._VERBOSE # save verbose mode
-        cls._VERBOSE = False # silence instance logs
-        yield
-        cls._VERBOSE = verbose # restore verbose mode
-    # ------------------------------------------------
-
-    # init
-    #################################################
-    @classmethod
-    def _get_api_key(cls, api_key: str) -> str:
-        """
-        - `api_key` (str): VIP API key. This can be either:
-            A. [unsafe] A **string litteral** containing your API key,
-            B. [safer] A **path to some local file** containing your API key,
-            C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
-        In cases B or C, the API key will be loaded from the local file or the environment variable. 
-        """
-        # Check if `api_key` is in a local file or environment variable
-        if os.path.isfile(api_key): # local file
-            with open(api_key, "r") as kfile:
-                true_key = kfile.read().strip()
-        elif api_key in os.environ: # environment variable
-            true_key = os.environ[api_key]
-        else: # string litteral
-            true_key = api_key
-        # Return
-        return true_key
-    # ------------------------------------------------
-   
-    # Function to assert the input contains a certain type
-    @classmethod
-    def _isinstance(cls, value, type: type) -> bool: 
-        """
-        Returns True if `value` is instance of `type` or a list of `type`.
-        """
-        if isinstance(value, list):
-            return all([isinstance(v, type) for v in value])
-        else:
-            return isinstance(value, type)
-    # ------------------------------------------------
-
-    # Function to check invalid characters in some input string
-    @classmethod
-    def _invalid_chars(cls, value) -> list: 
-        """
-        Returns a list of invalid characters in `value`.
-        """
-        if isinstance(value, list):
-            return sorted(list({v for val in value for v in cls._INVALID_CHARS.findall(str(val))}))
-        else:
-            return sorted(cls._INVALID_CHARS.findall(str(value)))
-    # ------------------------------------------------
-    
-    # Function to assert file existence in the input settings
-    @classmethod
-    def _first_missing_file(cls, value, location: str) -> str: 
-        """
-        Returns the path the first non-existent file in `value` (None by default).
-        - `value` can contain a single file path or a list of paths.
-        - `location` refers to the storage infrastructure (e.g., "vip") to feed in cls._exists().
-        """
-        # Case : list of files
-        if isinstance(value, list):
-            for file in value : 
-                if cls._first_missing_file(value=file, location=location) is not None:
-                    return file
-            return None
-        # Case: single file
-        else:
-            return value if not cls._exists(path=value, location=location) else None 
-    # ------------------------------------------------
-
-    # Function to clean HTML text when loaded from VIP portal
-    @staticmethod
-    def _clean_html(text: str) -> str:
-        """Returns `text` without html tags and newline characters."""
-        return re.sub(r'<[^>]+>|\n', '', text)
-
-    # ($D.3) Interpret common API exceptions
-    ########################################
-
-    ########################################
-    # SESSION LOGS & USER VIEW
-    ########################################
-
-    @classmethod
-    # Interface to print logs from class methods
-    def _printc(cls, *args, **kwargs) -> None:
-        """
-        Print logs from class methods only when cls._VERBOSE is True.
-        """
-        if cls._VERBOSE:
-            print(*args, **kwargs)
-    # ------------------------------------------------
-
-    # Function to handle VIP runtime errors and provide interpretation to the user
-    @classmethod
-    def _handle_vip_error(cls, vip_error: RuntimeError) -> None:
-        """
-        Rethrows a RuntimeError `vip_error` which occured in the VIP API,
-        with interpretation depending on the error code.
-        """
-        # Enumerate error cases
-        message = vip_error.args[0]
-        if message.startswith("Error 8002") or message.startswith("Error 8003") \
-            or message.startswith("Error 8004"):
-            # "Bad credentials"  / "Full authentication required" / "Authentication error"
-            interpret = (
-                "Unable to communicate with VIP."
-                + f"\nRun {cls.__name__}.init() with a valid API key to handshake with VIP servers"
-                + f"\n({message})"
-            )
-        elif message.startswith("Error 8000"):
-            #  Probably wrong values were fed in `vip.init_exec()`
-            interpret = (
-                f"\n\t'{message}'"
-                + "\nPlease carefully check that session_name / pipeline_id / input_parameters "
-                + "are valid and do not contain any forbidden character"
-                + "\nIf this cannot be fixed, contact VIP support ()"
-            )
-        elif message.startswith("Error 2000") or message.startswith("Error 2001"):
-            #  Maximum number of executions
-            interpret = (
-                f"\n\t'{message}'"
-                + "\nPlease wait until current executions are over, "
-                + f"or contact VIP support ({cls._VIP_SUPPORT}) to increase this limit"
-            )
-        else:
-            # Unhandled runtime error
-            interpret=(
-                f"\n\t{message}"
-                + f"\nIf this cannot be fixed, contact VIP support ({cls._VIP_SUPPORT})"
-            )
-        # Display the error message
-        raise RuntimeError(interpret) from None
-    # ------------------------------------------------
 
 #######################################################
 
 if __name__=="__main__":
-    pass
+    from VipLoader import VipLoader
+    from pathlib import *
+    VipLoader.init()
+    VipLoader._download_dir(vip_path=PurePosixPath("/vip/Home/test-VipLauncher"), local_path=Path("Here."))
