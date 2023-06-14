@@ -739,6 +739,13 @@ class VipSession(VipLauncher):
     # new location: "local"
     ###################################################################
 
+        # Path to delete during session finish
+    def _path_to_delete(self) -> dict:
+        """Returns the folders to delete during session finish, with appropriate location."""
+        return {
+            self._vip_dir: "vip"
+        }
+
     # Method to check existence of a distant or local resource.
     @classmethod
     def _exists(cls, path: PurePath, location="local") -> bool:
@@ -776,13 +783,6 @@ class VipSession(VipLauncher):
             return super()._create_dir(path=path, location=location, **kwargs)
     # ------------------------------------------------
 
-    # Path to delete during session finish
-    def _path_to_delete(self) -> dict:
-        """Returns the folders to delete during session finish, with appropriate location."""
-        return {
-            self._vip_dir: "vip"
-        }
-    
     #################################################
     # ($A) Manage a session from start to finish
     #################################################
