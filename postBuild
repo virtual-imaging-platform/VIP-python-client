@@ -7,5 +7,5 @@ set -e
 # apt-get install --yes --no-install-recommends tree
 
 # For ipywidgets
-jupyter contrib nbextension install --user
+# jupyter contrib nbextension install --user
 jupyter nbextension enable --py widgetsnbextension
