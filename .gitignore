@@ -5,7 +5,9 @@ pyproject.toml
 examples/old
 examples/Repro-*
 examples/VipCI
-examples/vip-cli.py
+# examples/vip-cli.py
+examples/repro-brats/data/tutorial
+examples/repro-brats/old
 
 perso/
 tests/

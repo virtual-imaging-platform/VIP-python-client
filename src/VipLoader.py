@@ -1,9 +1,6 @@
 from __future__ import annotations
-import json
 import os
-import re
 import tarfile
-from contextlib import contextmanager
 from pathlib import *
 
 try: 
@@ -35,69 +32,29 @@ class VipLoader(VipClient):
     __name__ = "VipLoader"
     # Default verbose state
     _VERBOSE = True
-    # Default location for VIP inputs/outputs (can be different for subclasses)
-    _SERVER_NAME = "vip"
-    # Prefix that defines a path from VIP
-    _SERVER_PATH_PREFIX = "/vip"
-    # Vip portal
-    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
-    # Mail address for support
-    _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
-    # Regular expression for invalid characters
-    _INVALID_CHARS = re.compile(r"[^0-9\.,A-Za-z\-+@/_(): \[\]?&=]")
 
                     ################
     ################ Public Methods ##################
                     ################
 
-    #################################################
-    # ($A) Manage a session from start to finish
-    #################################################
-
-    # ($A.1) Login to VIP
     @classmethod
-    def init(cls, api_key="VIP_API_KEY", verbose=True) -> VipLoader:
-        """
-        Handshakes with VIP using your own API key. 
-        Returns a class instance which properties can be provided as keyword arguments.
-        
-        ## Parameters
-        - `api_key` (str): VIP API key. This can be either:
-            A. [unsafe] A **string litteral** containing your API key,
-            B. [safer] A **path to some local file** containing your API key,
-            C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
-        In cases B or C, the API key will be loaded from the local file or the environment variable. 
-        
-        - `verbose` (bool): default verbose mode for all instances.
-            - If True, all instances will display logs by default;
-            - If False, all instance methods will run silently by default.
+    def upload_dir():
+        pass
 
-        - `kwargs` [Optional] (dict): keyword arguments or dictionnary setting properties of the returned instance.     
-        """
-        # Set the default verbose mode for all sessions
-        cls._VERBOSE = verbose
-        # Check if `api_key` is in a local file or environment variable
-        true_key = cls._get_api_key(api_key)
-        # Set User API key
-        try:
-            # setApiKey() may return False
-            assert vip.setApiKey(true_key), \
-                f"(!) Unable to set the VIP API key: {true_key}.\nPlease check the key or retry later."
-        except RuntimeError as vip_error:
-            # setApiKey() may throw RuntimeError in case of bad key
-            cls._printc(f"(!) Unable to set the VIP API key: {true_key}.\n    Original error message:")
-            raise vip_error
-        except(json.decoder.JSONDecodeError) as json_error:
-            # setApiKey() may throw JSONDecodeError in special cases
-            cls._printc(f"(!) Unable to set the VIP API key: {true_key}.\n    Original error message:")
-            raise json_error
-        # Display success
-        cls._printc()
-        cls._printc("----------------------------------")
-        cls._printc("| You are communicating with VIP |")
-        cls._printc("----------------------------------")
-        cls._printc()
-    # ------------------------------------------------
+    @staticmethod
+    def _list_files(vip_path: PurePosixPath) -> PurePosixPath:
+        return [
+            PurePosixPath(element["path"])
+            for element in vip.list_elements(str(vip_path))
+        ]
+    
+    @staticmethod
+    def _list_dir(vip_path: PurePosixPath) -> PurePosixPath:
+        return [
+            PurePosixPath(element["path"])
+            for element in vip.list_directory(str(vip_path))
+        ]
+
 
                     #################
     ################ Private Methods ################
@@ -232,11 +189,9 @@ class VipLoader(VipClient):
         assert local_path.exists(), f"{local_path} does not exist."
         # Upload
         try:
-            done = vip.upload(str(local_path), str(vip_path))
+            return vip.upload(str(local_path), str(vip_path))
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
-        # Return
-        return done
     # ------------------------------------------------   
 
     # Function to upload all files from a local directory
@@ -248,7 +203,7 @@ class VipLoader(VipClient):
         Returns a list of files which failed to be downloaded from VIP.
         """
         # First display
-        cls._printc(f"Folder: {vip_path} ", end="... ")
+        cls._printc(f"Folder: {local_path} ", end="... ")
         # Scan the VIP directory
         assert cls._exists(vip_path, location='vip'), f"{vip_path} does not exist."
         all_content = vip.list_content(str(vip_path))
@@ -268,7 +223,7 @@ class VipLoader(VipClient):
         else: # The local directory already exists
             # Scan it to check if there are more files to download
             local_filenames = {
-                elem.name for elem in local_path.iterdir() if elem.is_file()
+                elem.name for elem in local_path.iterdir() if elem.exists()
             }
             # Get the files to download
             files_to_download = [ 
@@ -333,7 +288,7 @@ class VipLoader(VipClient):
         Downloads a single file in `vip_path` to `local_path`.
         Returns a success flag.
         """
-        # Download (file existence is not checked to save time)
+        # Download (file existence on VIP is not checked to save time)
         try:
             return vip.download(str(vip_path), str(local_path))
         except RuntimeError as vip_error:
@@ -361,11 +316,9 @@ class VipLoader(VipClient):
         except:
             success = False
         # Deal with the temporary archive
-        if success:
-            # Remove the archive
+        if success: # Remove the archive
             os.remove(archive)
-        else:
-            # Rename the archive
+        else: # Rename the archive
             os.rename(archive, local_file)
         # Return the flag
         return success

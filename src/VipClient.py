@@ -2,7 +2,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import tarfile
 import time
 from contextlib import contextmanager
 from pathlib import *
@@ -34,10 +33,6 @@ class VipClient():
     __name__ = "VipClient"
     # Default verbose state
     _VERBOSE = True
-    # Default location for VIP inputs/outputs (can be different for subclasses)
-    _SERVER_NAME = "vip"
-    # Prefix that defines a path from VIP
-    _SERVER_PATH_PREFIX = "/vip"
     # Vip portal
     _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
     # Mail address for support
@@ -49,13 +44,9 @@ class VipClient():
     ################ Public Methods ##################
                     ################
 
-    #################################################
-    # ($A) Manage a session from start to finish
-    #################################################
-
-    # ($A.1) Login to VIP
+    # Login to VIP
     @classmethod
-    def init(cls, api_key="VIP_API_KEY", verbose=True, **kwargs) -> VipClient:
+    def init(cls, api_key="VIP_API_KEY", verbose=True) -> VipClient:
         """
         Handshakes with VIP using your own API key. 
         Returns a class instance which properties can be provided as keyword arguments.
@@ -90,25 +81,12 @@ class VipClient():
             # setApiKey() may throw JSONDecodeError in special cases
             cls._printc(f"(!) Unable to set the VIP API key: {true_key}.\n    Original error message:")
             raise json_error
-        # Update the list of available pipelines
-        try:
-            cls._get_available_pipelines() # RunTimeError is handled downstream
-        except(json.decoder.JSONDecodeError) as json_error:
-            # The user still cannot communicate with VIP
-            cls._printc(f"(!) Unable to communicate with VIP.")
-            cls._printc(f"    Original error messsage:")
-            raise json_error
+        # Display success
         cls._printc()
         cls._printc("----------------------------------")
         cls._printc("| You are communicating with VIP |")
         cls._printc("----------------------------------")
         cls._printc()
-        # Double check user can access pipelines
-        if not cls._AVAILABLE_PIPELINES: 
-            cls._printc("(!) Your API key does not allow you to execute pipelines on VIP.")
-            cls._printc(f"    Please join some research group(s) on the Web portal: {cls._VIP_PORTAL}")  
-        # Return a VipClient instance for method cascading
-        return cls(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
 
                     #################
@@ -203,7 +181,6 @@ class VipClient():
         return (t < timeout)
     # ------------------------------------------------
     
-    
     ##########################################################
     # Generic private methods than should work in any subclass
     ##########################################################
@@ -278,48 +255,18 @@ class VipClient():
         # Return
         return true_key
     # ------------------------------------------------
-   
-    # Function to assert the input contains a certain type
-    @classmethod
-    def _isinstance(cls, value, type: type) -> bool: 
-        """
-        Returns True if `value` is instance of `type` or a list of `type`.
-        """
-        if isinstance(value, list):
-            return all([isinstance(v, type) for v in value])
-        else:
-            return isinstance(value, type)
-    # ------------------------------------------------
 
     # Function to check invalid characters in some input string
     @classmethod
     def _invalid_chars(cls, value) -> list: 
         """
         Returns a list of invalid characters in `value`.
+        Value can be a list or any object convertible to string.
         """
         if isinstance(value, list):
             return sorted(list({v for val in value for v in cls._INVALID_CHARS.findall(str(val))}))
         else:
             return sorted(cls._INVALID_CHARS.findall(str(value)))
-    # ------------------------------------------------
-    
-    # Function to assert file existence in the input settings
-    @classmethod
-    def _first_missing_file(cls, value, location: str) -> str: 
-        """
-        Returns the path the first non-existent file in `value` (None by default).
-        - `value` can contain a single file path or a list of paths.
-        - `location` refers to the storage infrastructure (e.g., "vip") to feed in cls._exists().
-        """
-        # Case : list of files
-        if isinstance(value, list):
-            for file in value : 
-                if cls._first_missing_file(value=file, location=location) is not None:
-                    return file
-            return None
-        # Case: single file
-        else:
-            return value if not cls._exists(path=value, location=location) else None 
     # ------------------------------------------------
 
     # Function to clean HTML text when loaded from VIP portal
@@ -327,9 +274,6 @@ class VipClient():
     def _clean_html(text: str) -> str:
         """Returns `text` without html tags and newline characters."""
         return re.sub(r'<[^>]+>|\n', '', text)
-
-    # ($D.3) Interpret common API exceptions
-    ########################################
 
     ########################################
     # SESSION LOGS & USER VIEW

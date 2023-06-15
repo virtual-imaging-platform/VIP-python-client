@@ -40,7 +40,7 @@ class VipLauncher():
     _VERBOSE = True
     # Default backup location 
     # (set to None to avoid saving and loading backup files)
-    _BACKUP_LOCATION = "vip"
+    _BACKUP_LOCATION = None
     # Default location for VIP inputs/outputs (can be different for subclasses)
     _SERVER_NAME = "vip"
     # Prefix that defines a path from VIP
