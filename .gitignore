@@ -6,7 +6,7 @@ examples/old
 examples/Repro-*
 examples/VipCI
 # examples/vip-cli.py
-examples/repro-brats/data/tutorial
+examples/repro-brats/data
 examples/repro-brats/old
 
 perso/
