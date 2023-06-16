@@ -1,0 +1,14 @@
+__pycache__/
+.vscode/
+pyproject.toml
+
+examples/old
+examples/Repro-*
+examples/VipCI
+# examples/vip-cli.py
+examples/repro-brats/data
+examples/repro-brats/old
+
+perso/
+tests/
+vip_outputs/

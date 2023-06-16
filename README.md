@@ -1,13 +1,11 @@
+# EGI 2023 Tutorial
+
+Please launch our Binder instance: [![Binder](https://replay.notebooks.egi.eu/badge_logo.svg)](https://replay.notebooks.egi.eu/v2/gh/gaelvila/VIP-python-client/HEAD?labpath=examples%2Frepro-brats%2F1-launch-application.ipynb)
+
+---
+
 # Table of Contents
-
-[VIP Python Client](#vip-python-client)
-
-[VipSession](#vipsession)
-- [Table of Contents](#table-of-contents)
-- [VIP-python-client](#vip-python-client)
-  - [How to use it](#how-to-use-it)
-  - [Raised errors](#raised-errors)
-  - [Improvement](#improvement)
+- Introduction
 - [VipSession](#vipsession)
   - [Introduction](#introduction)
     - [Main Goal](#main-goal)
@@ -30,64 +28,20 @@
     - [Run Multiple Sessions on the Same Dataset](#run-multiple-sessions-on-the-same-dataset)
   - [Improvements](#improvements)
 - [VipCI](#vipci)
+- [vip.py](#vip.py)
+  - [How to use it](#how-to-use-it)
+  - [Raised errors](#raised-errors)
+  - [Improvement](#improvement)
+
 - [Get a VIP API key](#get-a-vip-api-key)
 
-[Get a VIP API key](#get-a-vip-api-key)
-
 ---
 
-# VIP-python-client
-
-This module is used to communicate with the VIP API using the Python
-language.
-This is a synchronous implementation.
-
-## How to use it
-
-This module works like a state machine: first, set the `apikey` with
-`setApiKey(str)`. All the functions will refer to this `apikey` later.
-
-You can also set the certificate for VIP with `setCertifPath(str)`. By default,
-the script will look at its location for a `'[...]/certif.crt'` file.
-You should already have a certificate when cloning this project from git. If
-it's not the case you can get it with your browser [on VIP](http://vip.creatis.insa-lyon.fr/).
-Get the chained one.
-
-You can now use all of the functions :blush:
-
-## Raised errors
-
-If there are any VIP issues, functions will raise *RuntimeError* errors. See
-`detect\_errors` and `manage\_errors` functions if you want to change this.
-
-## Improvement
-
-- an asynchronous version
-- missing a few optional parameters for some functions (not important)
-
----
-
-# VipSession
+# Introduction
 
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
 
 *Python client for the VIP API.*
-
-## Introduction
-
-### Main Goal
-
-This Python class launches pipeline executions on the Virtual Imaging Platform (VIP) from one's personal computer. It should work on both Windows and Unix-based systems.
-
-Running a pipeline on VIP implies the following process:
-
-*Upload one's Dataset on VIP servers* **>>** *Run the Pipeline* **>>** *Download the Pipeline Results from VIP servers*.
-
-This is summarized in the diagram below.
-
-<img src="imgs/Upload_Run_Download.png" alt="Procedure" height="250" title="The Upload-Run-Download Procedure"/>
-
-A VipSession instance (hereafter named: *Session*) performs this procedure in a few simple steps.
 
 ### Prerequisites
 
@@ -98,6 +52,24 @@ pip install requests
 
 - Communication with VIP requires a valid API key.
 See [below](#get-a-vip-api-key) how to get your own key in a few steps.
+
+---
+
+# VipSession
+
+## Main Goal
+
+This Python class launches pipeline executions on the Virtual Imaging Platform (VIP) from one's personal computer. It should work on both Windows and Unix-based systems.
+
+Running a pipeline on VIP implies the following process:
+
+*Upload one's Dataset on VIP servers* **>>** *Run the Pipeline* **>>** *Download the Pipeline Results from VIP servers*.
+
+This is summarized in the diagram below.
+
+<img src="../imgs/Upload_Run_Download.png" alt="Procedure" height="250" title="The Upload-Run-Download Procedure"/>
+
+A VipSession instance (hereafter named: *Session*) performs this procedure in a few simple steps.
 
 ## Get Started
 
@@ -115,8 +87,8 @@ Therefore, a Session is defined with at least three inputs:
 
 When a Session is created, two optional inputs can be provided to improve the user experience:
 
-4. `session_name` (*str*, **optional**) A name to identify this session and the corresponding results.
-    - *Default value: 'session_[date]_[time]'*
+4. `session_name` (*str*, **recommended**) A name to identify this session and the corresponding results. 
+    - *Default value: 'VipSession_[date]_[time]'*
 5. `output_dir` (*str*, **optional**) Local path to the directory where pipeline outputs will be downloaded from VIP servers.
     - *Default value: './vip_outputs/`session_name`'*
 
@@ -143,7 +115,7 @@ Once a connection with VIP is established (*stage 0*), the Upload-Run-Download p
 
 Each step has a dedicated method.
 ```python
-from utils.VipSession import VipSession
+from VipSession import VipSession
 
 # 0. Connect with VIP
 VipSession.init(api_key=...)
@@ -358,7 +330,7 @@ session_b = VipSession(input_dir=my_dataset, pipeline_id=..., input_settings=set
 
 By default, **each dataset uploaded on VIP is bound to a single Session**. In the above example, `my_dataset` is thus **uploaded twice** on VIP servers (and removed twice at the end), as depicted in the diagram below.
 
-<img src="imgs/VipSession_without_get_inputs.png" alt="without_get_inputs" height="250" title="Two VIP Sessions without get_inputs()"/>
+<img src="../imgs/VipSession_without_get_inputs.png" alt="without_get_inputs" height="250" title="Two VIP Sessions without get_inputs()"/>
 
 Unlike the previous example, **using `get_inputs()` allows a Session to reuse the inputs of another**:
 ```python
@@ -382,7 +354,7 @@ session_a.finish()
 
 By default, running `finish()` on Session B will not remove its inputs (i.e., `my_dataset`) from VIP servers, because they belong to Session A (see the diagram below). This behavior can be modified by setting `force_remove`=True.
 
-<img src="imgs/VipSession_with_get_inputs.png" alt="with_get_inputs" height="220" title="Two VIP Sessions with get_inputs()"/>
+<img src="../imgs/VipSession_with_get_inputs.png" alt="with_get_inputs" height="220" title="Two VIP Sessions with get_inputs()"/>
 
 Besides saving memory on VIP servers, **clever use of input data can save a lot of time**, since there is no easy way to parallelize the upload and download steps between multiple sessions.
 
@@ -402,11 +374,43 @@ To improve user experience
 
 [Description to come]
 
+
+# vip.py
+
+This module is used to communicate with the VIP API using the Python
+language.
+This is a synchronous implementation.
+
+## How to use it
+
+This module works like a state machine: first, set the `apikey` with
+`setApiKey(str)`. All the functions will refer to this `apikey` later.
+
+You can also set the certificate for VIP with `setCertifPath(str)`. By default,
+the script will look at its location for a `'[...]/certif.crt'` file.
+You should already have a certificate when cloning this project from git. If
+it's not the case you can get it with your browser [on VIP](http://vip.creatis.insa-lyon.fr/).
+Get the chained one.
+
+You can now use all of the functions :blush:
+
+## Raised errors
+
+If there are any VIP issues, functions will raise *RuntimeError* errors. See
+`detect\_errors` and `manage\_errors` functions if you want to change this.
+
+## Improvement
+
+- an asynchronous version
+- missing a few optional parameters for some functions (not important)
+
+---
+
 # Get a VIP API key
 
 One can easily create a VIP account to generate one's API key: the procedure is summarized in the image below.
 
-![Vip key](imgs/VIP_key.png "How to get a VIP API key")
+![Vip key](../imgs/VIP_key.png "How to get a VIP API key")
 
 *Useful tips*:
 - In **Step 3**, the user is asked to select an *Account Type*. This can be modified later: select only the entries relevant to your research area.
@@ -414,3 +418,13 @@ One can easily create a VIP account to generate one's API key: the procedure is 
 
 If you encounter any issues, please contact us at:
 <vip-support@creatis.insa-lyon.fr>
+
+
+---
+NOUVEAUTES
+- Session properties (`session_name`, `pipeline_id`, *etc.*) can be safely accessed and modified;
+- Verbose state is now common to all instance methods and can be modified online through `self.verbose`;
+- Any file path can be provided as *os.PathLike* object (including `pathlib`);
+- A list of available pipelines, and detailed informations about a specific pipeline, can be displayed through class method `show_pipeline()`;
+- `VipSession`: Outputs from unfinished worflows can be downloaded by modifying `get_status`;
+

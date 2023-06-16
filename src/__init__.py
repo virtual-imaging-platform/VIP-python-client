@@ -7,4 +7,4 @@ Contact Sorina Camarasu-Pop and Axel Bonnet for more informations.
 
 # info
 __version__ = "1.0"
-__author__ = "Timothée Chabat"
+__author__ = "Timothée Chabat / Gaël Vila"
