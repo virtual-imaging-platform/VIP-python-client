@@ -1,5 +1,8 @@
 # EGI 2023 Tutorial
-Please launch [![Binder](https://replay.notebooks.egi.eu/badge_logo.svg)](https://replay.notebooks.egi.eu/v2/gh/gaelvila/VIP-python-client/HEAD?labpath=examples%2Frepro-brats%2F1-launch-application.ipynb)
+
+Please launch our Binder instance: [![Binder](https://replay.notebooks.egi.eu/badge_logo.svg)](https://replay.notebooks.egi.eu/v2/gh/gaelvila/VIP-python-client/HEAD?labpath=examples%2Frepro-brats%2F1-launch-application.ipynb)
+
+---
 
 # Table of Contents
 - Introduction
