@@ -1,15 +1,7 @@
-# EGI 2023 Tutorial
-
-Please launch our Binder instance: [![Binder](https://replay.notebooks.egi.eu/badge_logo.svg)](https://replay.notebooks.egi.eu/v2/gh/gaelvila/VIP-python-client/HEAD?labpath=examples%2Frepro-brats%2F1-launch-application.ipynb)
-
----
 
 # Table of Contents
-- Introduction
+- [Introduction](#introduction)
 - [VipSession](#vipsession)
-  - [Introduction](#introduction)
-    - [Main Goal](#main-goal)
-    - [Prerequisites](#prerequisites)
   - [Get Started](#get-started)
     - [Session Inputs](#session-inputs)
     - [Basic Steps](#basic-steps)
@@ -33,10 +25,16 @@ Please launch our Binder instance: [![Binder](https://replay.notebooks.egi.eu/ba
   - [Raised errors](#raised-errors)
   - [Improvement](#improvement)
 
+- [vip.py](#vip.py)
+  - [How to use it](#how-to-use-it)
+  - [Raised errors](#raised-errors)
+  - [Improvement](#improvement)
+
 - [Get a VIP API key](#get-a-vip-api-key)
 
 ---
 
+# Introduction
 # Introduction
 
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
@@ -56,8 +54,6 @@ See [below](#get-a-vip-api-key) how to get your own key in a few steps.
 ---
 
 # VipSession
-
-## Main Goal
 
 This Python class launches pipeline executions on the Virtual Imaging Platform (VIP) from one's personal computer. It should work on both Windows and Unix-based systems.
 
