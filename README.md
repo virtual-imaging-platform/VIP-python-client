@@ -2,7 +2,6 @@
 # Table of Contents
 - [Introduction](#introduction)
 - [VipSession](#vipsession)
-  - [Main Goal](#main-goal)
   - [Get Started](#get-started)
     - [Session Inputs](#session-inputs)
     - [Basic Steps](#basic-steps)
@@ -26,10 +25,16 @@
   - [Raised errors](#raised-errors)
   - [Improvement](#improvement)
 
+- [vip.py](#vip.py)
+  - [How to use it](#how-to-use-it)
+  - [Raised errors](#raised-errors)
+  - [Improvement](#improvement)
+
 - [Get a VIP API key](#get-a-vip-api-key)
 
 ---
 
+# Introduction
 # Introduction
 
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
