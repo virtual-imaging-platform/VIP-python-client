@@ -13,8 +13,10 @@
     - [`VipSession` Outputs](#session-outputs)
   - [Best Practices](#best-practices)
     - [Use `VipSession` Shortcuts][shortcuts]
-    - [Use `VipSession` Backup][backup]
+    - [Use `show_pipeline()` to Set `VipSession` Inputs][show_pipeline]
     - [Parallelize your Executions][parallelize]
+    - [Use `VipSession` Backup][backup]
+    - [Manipulate VipSession Properties][manipulate-properties]
     - [Run Multiple `VipSession`s on the Same Dataset][multiple-vipsessions]
 -  [Other Resources](#other-resources)
   - [Source Code](#source-code)
@@ -24,7 +26,11 @@
   - [Examples](#examples)
 - [Manage your VIP Account](#manage-your-vip-account)
   - [Create a VIP account](#create-a-vip-account)
+    - [Procedure](#procedure)
+    - [Join a New Group](#join-a-new-group)
   - [Get a VIP API key](#get-a-vip-api-key)
+    - [Find your API key](#find-your-api-key)
+    - [Hide your API key](#hide-your-api-key)
 - [Release Notes](#release-notes)
 
 ---
@@ -159,7 +165,7 @@ Inputs 1 to 6 are `VipSession`'s main **properties**: they fully define its beha
 
 ### VipSession Outputs
 
-When running a VipSession instance for the first time, its output directory (`output_dir`) is made to store the [pipeline outputs](#pipeline-outputs) and the *session* [backup file](#session-backup).
+When running a VipSession instance for the first time, its output directory (`output_dir`) is made to store the *session* [backup file](#session-backup) and later the [pipeline outputs](#pipeline-outputs).
 
 #### Session Backup
 
@@ -238,7 +244,7 @@ FreeSurfer-Recon-all/v7.3.1
 FreeSurfer-Recon-all-fuzzy/v7.3.1
 -------------------
 ```
-*__N.B.__: If the output is "`(!) No pipeline found for pattern 'freesurfer'`", you may need to register with the pipeline's **group** on [VIP Portal][vip-portal]. Please find the procedure [below](#register-to-your-application-group).*
+*__N.B.__: If the output is "`(!) No pipeline found for pattern 'freesurfer'`", you may need to register with the pipeline's **group** on [VIP Portal][vip-portal]. The procedure is written [below](#join-a-new-group).*
 
 #### Write the `input_settings`
 
@@ -412,8 +418,7 @@ VipSession("my_session").run_session().finish()
 In that case, the new pipeline outputs will be downloaded next to the previous ones.
 This feature can be used to run repeatability experiments.
 
-
-### Manipulate VipSession Properties
+### Manipulate `VipSession` Properties
 [manipulate-properties]: #manipulate-vipsession-properties "Manipulate VipSession Properties"
 
 #### Use Dot Notation
@@ -570,8 +575,10 @@ If there are any VIP issues, functions will raise *RuntimeError* errors. See
 
 # Manage your VIP Account
 
-If you encounter any issues, please contact us at:
-<vip-support@creatis.insa-lyon.fr>
+This section is dedicated to VIP beginners. It explains [how to create a VIP account](#create-a-vip-account) 
+and [how to get a VIP API key](#get-a-vip-api-key).
+
+*If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
 
 ## Create a VIP account
 
@@ -582,13 +589,17 @@ It is summarized in the diagram below.
 
 <img src="imgs/Vip_Registration.png" alt="New Vip Account" height="180" title="Procedure for New Vip Account"/>
 
-During **Step 2**, the user is asked to select one or several applications they intend to use. This ensures they will be registered in a VIP group* when using VIP for the first time. Application groups can be joined and left any time from the VIP portal: the procedure is explained below.
+During **Step 2**, the user is asked to select one or several applications they intend to use. This ensures they are registered in an application *group* when using VIP for the first time. 
 
-### Register to your Application Group
+### Join a New Group
 
-<img src="imgs/Vip_Groups.png" alt="VIP Groups" height="250" title="Register to New Groups"/>
+Accessing a given `pipeline_id` from the Python client requires joining the corresponding application group. You can join and leave a group at any time from the [VIP portal][vip-portal], using the following steps.
+
+<img src="imgs/Vip_Groups.png" alt="VIP Groups" height="300" title="Register to New Groups"/>
 
 ## Get a VIP API key
+
+A valid API key is required to run the VIP Python client.
 
 ### Find your API key
 
@@ -604,7 +615,7 @@ The VIP API key must be provided every time the Python interpreter restarts or c
 ```python
 VipSession.init(api_key)
 ```
-In the previous command, `api_key` can be replaced either by:
+In this command, `api_key` can be replaced either by:
 1. Your API key as a raw string;
 2. A path to a text file containing your API key;
 3. The name of an environment variable containing your API key.
