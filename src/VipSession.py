@@ -8,29 +8,6 @@ from pathlib import *
 import src.vip as vip
 from src.VipLauncher import VipLauncher
 
-"""
-Main Features (leading to public methods)
-A. Manage a Session from start to finish, *i.e.*:
-    A.1. Login to VIP
-    A.2. Upload the input data on VIP
-    A.3. Launch executions on VIP
-    A.4. Monitor executions on VIP
-    A.5. Download the results from VIP
-    A.6. Clean up the inputs/outputs on VIP.
-B. Additional features for avanced use:
-    B.1 Display session properties to the user
-    B.2 Clone a session to avoid uploading the same dataset twice
-
-Background Specifications:
-C. A VIP session should persist in time:
-    C.1 Session attributes are backed up at each session step
-    C.2 A backup can be resumed at instanciation
-D. A VIP session should be user-friendly:
-    D.1 Hide VIP paths to the user and allow multi-OS use (Unix, Windows)
-    D.2 Prevent common mistakes in session / pipeline settings
-    D.3 Interpret common API exceptions ("Error 8000", etc.)
-"""
-
 class VipSession(VipLauncher):
     """
     Python class to run VIP pipelines on local datasets.
@@ -311,7 +288,7 @@ class VipSession(VipLauncher):
                     ################
 
     #################################################
-    # ($A) Manage a session from start to finish
+    # Manage a session from start to finish
     #################################################
 
     # Overwrite VipLauncher.init() to be compatible with new kwargs
@@ -337,7 +314,7 @@ class VipSession(VipLauncher):
         return super().init(api_key=api_key, verbose=verbose, **kwargs)
     # ------------------------------------------------
    
-    # ($A.2) Upload a dataset on VIP servers
+    # Upload a dataset on VIP servers
     def upload_inputs(self, input_dir=None, update_files=True) -> VipSession:
         """
         Uploads a local dataset to VIP servers.
@@ -414,7 +391,7 @@ class VipSession(VipLauncher):
         return self
     # ------------------------------------------------
 
-    # ($A.3) Launch executions on VIP 
+    # Launch executions on VIP 
     def launch_pipeline(
             self, pipeline_id: str=None, input_settings: dict=None, nb_runs=1
         ) -> VipSession:
@@ -451,7 +428,7 @@ class VipSession(VipLauncher):
         )
     # ------------------------------------------------
 
-    # ($A.4) Monitor worflow executions on VIP 
+    # Monitor worflow executions on VIP 
     def monitor_workflows(self, refresh_time=30) -> VipSession:
         """
         Updates and displays the status for each execution launched in the current session.
@@ -463,7 +440,7 @@ class VipSession(VipLauncher):
         return super().monitor_workflows(refresh_time=refresh_time)
     # ------------------------------------------------
 
-    # ($A.5) Download execution outputs from VIP servers 
+    # Download execution outputs from VIP servers 
     def download_outputs(self, unzip=True, get_status=["Finished"]) -> VipSession:
         """
         Downloads all session outputs from VIP servers.
@@ -604,7 +581,7 @@ class VipSession(VipLauncher):
         return self
     # ------------------------------------------------
 
-    # ($A.2->A.5) Run a full VIP session 
+    # Run a full VIP session 
     def run_session(
             self, update_files=True, nb_runs=1, refresh_time=30, 
             unzip=True, get_status=["Finished"]
@@ -636,7 +613,7 @@ class VipSession(VipLauncher):
             .download_outputs(get_status=get_status, unzip=unzip)
         )
 
-    # ($A.6) Clean session data on VIP
+    # Clean session data on VIP
     def finish(self, timeout=300) -> VipSession:
         """
         Removes session's data from VIP servers (INPUTS and OUTPUTS). 
@@ -663,10 +640,10 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     ###########################################
-    # ($B) Additional Features for Advanced Use
+    # Additional Features
     ###########################################
 
-    # ($B.1) Display session properties in their current state
+    # Display session properties in their current state
     def display(self) -> VipSession:
         """
         Displays useful properties in JSON format.
@@ -683,7 +660,7 @@ class VipSession(VipLauncher):
         return super().display()
     # ------------------------------------------------
 
-    # ($B.2) Get inputs from another session to avoid double uploads
+    # Get inputs from another session to avoid multiple uploads
     def get_inputs(self, session: VipSession, get_pipeline=False, get_settings=False) -> VipSession:
         """
         Binds the current session to the inputs of another (`session`), to avoid re-uploading the same dataset on VIP servers.
@@ -746,7 +723,7 @@ class VipSession(VipLauncher):
     # new location: "local"
     ###################################################################
 
-        # Path to delete during session finish
+    # Path to delete during session finish()
     def _path_to_delete(self) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
         return {
@@ -791,11 +768,8 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     #################################################
-    # ($A) Manage a session from start to finish
+    # Upload (/download) data on (/from) VIP Servers
     #################################################
-
-    # ($A.2/A.5) Upload (/download) data on (/from) VIP Servers
-    ###########################################################
 
     # Function to upload all files from a local directory
     def _upload_dir(self, local_path: Path, vip_path: PurePosixPath) -> list:
@@ -928,10 +902,10 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
     
     ###################################
-    # ($C) Backup / Resume Session Data 
+    # Backup / Resume Session Data 
     ###################################
 
-    # ($C.1) Save session properties in a JSON file
+    # Save session properties TO a JSON file
     def _save_session(self, session_data: dict, location="local") -> bool:
         """
         Saves dictionary `session_data` to a JSON file in the LOCAL output directory.
@@ -957,7 +931,7 @@ class VipSession(VipLauncher):
         return True
     # ------------------------------------------------
 
-    # ($C.2) Load session properties from a JSON file
+    # Load session properties from a JSON file
     def _load_session(self, location="local") -> dict:
         """
         Loads backup data from the LOCAL output directory.
@@ -984,11 +958,8 @@ class VipSession(VipLauncher):
         return session_data
     # ------------------------------------------------
 
-    ######################################
-    # ($D) Make VipSession user-friendly
-    ######################################
-    
-    # ($D.1) Hide VIP paths to the user and allow multi-OS use (Unix, Windows)
+    ###########################################################################
+    # Hide VIP paths to the user and allow multi-OS use (Unix, Windows)
     ###########################################################################
 
     # Write the VIP and local paths relatively to the input directories.

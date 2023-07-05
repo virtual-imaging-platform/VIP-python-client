@@ -309,11 +309,6 @@ class VipLauncher():
     ################ Constructor ##################
                     #############
 
-    # RAF: 
-    # Gestion de conflits entre paramètres et fichier session -> A tester
-    # Verbose state -> a tester
-    # Tests sur Linux et Windows 
-
     def __init__(
             self, output_dir=None, pipeline_id: str=None,  
             input_settings: dict=None, session_name: str=None, verbose: bool=None
@@ -540,7 +535,7 @@ class VipLauncher():
         return self
     # ------------------------------------------------
 
-    # ($A.4) Monitor worflow executions on VIP 
+    # Monitor worflow executions on VIP 
     def monitor_workflows(self, refresh_time=30) -> VipLauncher:
         """
         Updates and displays status for each execution launched in the current session.
@@ -596,6 +591,7 @@ class VipLauncher():
         return self
     # ------------------------------------------------
 
+    # Run a full VipLauncher session
     def run_session( self, nb_runs=1, refresh_time=30) -> VipLauncher:
         """
         Runs a full session from data on VIP servers:
@@ -616,7 +612,7 @@ class VipLauncher():
         )
     # ------------------------------------------------
 
-    # ($A.6) Clean session data on VIP
+    # Clean session data on VIP
     def finish(self, timeout=300) -> VipLauncher:
         """
         Removes session's output data from VIP servers. 
@@ -705,7 +701,7 @@ class VipLauncher():
     # ------------------------------------------------
 
     ###########################################
-    # ($B) Additional Features for Advanced Use
+    # Additional Features
     ###########################################
 
     @classmethod
@@ -803,6 +799,7 @@ class VipLauncher():
             cls._printc()
     # ------------------------------------------------
 
+    # Display current session state
     def display(self) -> VipLauncher:
         """
         Displays useful properties in JSON format.
@@ -1220,11 +1217,13 @@ class VipLauncher():
     # Save / load Session Metadata
     ##################################################
 
+    # Data to save
     def _data_to_save(self) -> dict:
         """Returns the data to save as a dictionnary"""
         return self._get(*self._PROPERTIES)
     # ------------------------------------------------
 
+    # Generic method to save (should work on child classes)
     def _save(self) -> bool:
         """
         Generic method to save session properties.
@@ -1260,7 +1259,7 @@ class VipLauncher():
         return self._save_session(session_data, location=self._BACKUP_LOCATION)
     # ------------------------------------------------
 
-    # Load session properties from metadata
+    # Generic method to load (should work on child classes)
     def _load(self) -> bool:
         """
         Loads backup data as defined in load_session() and compares both session and backup data.
@@ -1317,7 +1316,7 @@ class VipLauncher():
         return True
     # ------------------------------------------------
 
-    # ($C.1) Save session properties in a JSON file
+    # Save session properties to a JSON file on VIP
     def _save_session(self, session_data: dict, location="vip") -> bool:
         """
         Saves dictionary `session_data` to a JSON file, in the output directory at `location`.
@@ -1353,6 +1352,7 @@ class VipLauncher():
         return done
     # ------------------------------------------------
 
+    # Load session properties from a JSON file on VIP
     def _load_session(self, location="vip") -> dict:
         """
         Loads backup data from the output directory.
@@ -1417,7 +1417,8 @@ class VipLauncher():
             return False
     # ------------------------------------------------   
 
-    # ($D.2) Prevent common mistakes in session / pipeline settings 
+    ###############################################################
+    # Prevent common mistakes in session / pipeline settings 
     ###############################################################
 
     # Check if an attribute has been correctly defined
@@ -1498,8 +1499,8 @@ class VipLauncher():
             cls._handle_vip_error(vip_error)
     # ------------------------------------------------
 
-    # Store the VIP paths as PathLib objects.
-    # This is mainly useful for subclasses
+    # Store the VIP paths as PathLib objects
+    # (This is mainly useful for subclasses)
     def _parse_input_settings(self, input_settings) -> dict:
         """
         Parses the input settings, i.e.:
@@ -1782,7 +1783,8 @@ class VipLauncher():
         print(message, end='', **kwargs)
     # ------------------------------------------------
 
-    # ($D.3) Interpret common API exceptions
+    ########################################
+    # Interpret common API exceptions
     ########################################
 
     # Function to handle VIP runtime errors and provide interpretation to the user
