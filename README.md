@@ -1,66 +1,77 @@
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
 
+*Python client for the [Virtual Imaging Platform][vip-portal] (VIP). If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
+
 # Table of Contents
-[TODO]
 - [Introduction](#introduction)
-- [VipSession](#vipsession)
+  - [Content](#content)
+  - [Prerequisites](#prerequisites)
+- [`VipSession`](#vipsession)
   - [Get Started](#get-started)
     - [Basic Steps][steps]
-    - [VipSession Properties](#vipsession-properties)
-    - [VipSession Outputs](#session-outputs)
+    - [`VipSession` Inputs](#vipsession-inputs)
+    - [`VipSession` Outputs](#session-outputs)
   - [Best Practices](#best-practices)
-    - [Use VipSession Shortcuts][shortcuts]
-    - [Use the Session Backup][backup]
+    - [Use `VipSession` Shortcuts][shortcuts]
+    - [Use `VipSession` Backup][backup]
     - [Parallelize your Executions][parallelize]
-    - [Run Multiple `VipSession`s on the Same Dataset][multiple_vipsessions]
-- [VipCI](#vipci)
-- [vip.py](#vip.py)
-  - [How to use it](#how-to-use-it)
-  - [Raised errors](#raised-errors)
-  - [Improvement](#improvement)
-- [Get a VIP API key](#get-a-vip-api-key)
+    - [Run Multiple `VipSession`s on the Same Dataset][multiple-vipsessions]
+-  [Other Resources](#other-resources)
+  - [Source Code](#source-code)
+    - [VipLauncher](#viplauncher)
+    - [VipCI](#vipci)
+    - [vip.py](#vip.py)
+  - [Examples](#examples)
+- [Manage your VIP Account](#manage-your-vip-account)
+  - [Create a VIP account](#create-a-vip-account)
+  - [Get a VIP API key](#get-a-vip-api-key)
+- [Release Notes](#release-notes)
 
 ---
 
 # Introduction
 
-*Python client for the [Virtual Imaging Platform](vip-portal) (VIP).*
+## Content
+[vipsession-tutorial]: #examples/tutorials/demo-vipsession.ipynb "VipSession Tutorial"
 
-Ready-to-use Python classes are contained in the `src` directory. Most useful methods are implemented in class `VipSession` (see [below](#vipsession)). Classes `VipLauncher` and `VipCI` are mostly used by the VIP team for current projecs' requirements.
+Ready-to-use Python classes are contained in the `src` directory. 
+- Most useful methods are implemented in the `VipSession` class (see [below](#vipsession)). 
+- Classes `VipLauncher` and `VipCI` are mostly used by the VIP team for current projects.
 
-*If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
+The `VipSession` class comes with a tutorial [Notebook] that can be used in a Binder instance:
 
-**/!\\ Prerequisites /!\\**
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/virtual-imaging-platform/VIP-python-client/HEAD?labpath=examples%2Ftutorials%2Fdemo-vipsession.ipynb)
 
- 1. This Python client uses the [VIP API](./vip.py) by making calls to the [`requests`](https://pypi.org/project/requests/) Python library. This may require installing this library on your machine:
-  ```
-  pip install requests
-  ```
+## Prerequisites
 
-2. Communication with VIP requires a **valid API key**.
-  It can easily be obtained in two steps: 
-  - [Create free account](#create-a-vip-account) on the [VIP portal](vip-portal);
-  - [Get your API key](#get-a-vip-api-key) from your account settings.
+This client has been made compatible with **Python 3.7+** and should work on both Posix (**Linux**, **Mac**) and **Windows** OS. It requires minimal preparation from the user :
+
+1. A VIP account with a valid **API key**. This takes a few minutes by following the [procedure](#manage-your-vip-account) written at the end of this document.
+
+2. The [`requests`](https://pypi.org/project/requests/) Python library. You may need to install it using a terminal:
+```
+pip install requests
+```
 
 ---
 
 # VipSession
 
-This Python class launches executions on [VIP](vip-portal) from any machine where the input data are stored (*e.g.*, one's server or PC). 
-It works both on Windows and Posix OS (Linux, Mac).
-
+This Python class launches executions on [VIP][vip-portal] from any machine where the dataset is stored (*e.g.*, one's server or PC). 
 Running an application ("pipeline") on VIP implies the following process:
 
-*Upload one's Dataset on VIP servers* **>>** *Run the Pipeline* **>>** *Download the Pipeline Results from VIP servers*.
+*__Upload__ one's dataset on VIP servers* **>>** *__Run__ the pipeline* **>>** *__Download__ the results from VIP servers*,
+
+illustrated in the diagram below.
 
 <img src="imgs/Upload_Run_Download.png" alt="Procedure" height="200" title="The Upload-Run-Download Procedure"/>
 
-`VipSession` implements this procedure in a few methods. 
+`VipSession` implements this procedure in a few simple steps. 
 
 ## Get Started
 [get-started]: #get-started "Get Started"
 
-This section presents the main [methods][steps], [inputs](#vipsession-properties) and [outputs](#vipsession-outputs) of the VipSession class.
+This section presents the main [methods][steps], [inputs](#vipsession-inputs) and [outputs](#vipsession-outputs) of the `VipSession` class.
 
 ### Basic Steps
 [steps]: #basic-steps "Basic Steps"
@@ -70,14 +81,14 @@ From the root of this repository, the VipSession class must be imported from the
 from src.VipSession import VipSession
 ```
 
-Any session with the Python client starts by initiating a connection with VIP through the `init()` class method.
+Any session with the Python client starts by initiating a connection with VIP.
 ```python
-# Step 0. Connect with VIP
-VipSession.init(api_key="VIP_API_KEY")
-# One call applies to multiple VipSession instances (until connection is lost).
+# Step 0. Connect with VIP (1 call applies to multiple VipSession instances)
+VipSession.init(api_key="VIP_API_KEY") # << paste your API key here
 ```
+In this command, `"VIP_API_KEY"` is replaced by user's own **API key**. There are several ways to [avoid hardcoding your key](#hide-your-api-key).
 
-Once connection with VIP is established, the *upload-run-download* procedure is achieved through six elementary steps:
+Once connection with VIP is established, the *upload-run-download* procedure is achieved through six elementary steps.
 
 1. **Create** a `VipSession` instance
 ```python
@@ -110,21 +121,20 @@ session.download_outputs()
 session.finish()
 ```
 
-In this example, `VipSession` [properties](#vipsession-properties "VipSession Properties") (*e.g.* `session_name`, `input_dir`) are progressively passed as inputs during steps 1, 2 & 3. They can also be defined when instanciating `VipSession` (*i.e.* during `step 1` or `step 0`, see [below](#use-session-shortcuts "Session Shortcuts")). Additionnally, VipSession methods accept specific arguments (*e.g.* `nb_runs`, `refresh_time`) to fine-tune their behavior. See each method's doc-string for detailed information.
+In this example, `VipSession` [properties](#vipsession-inputs "VipSession Inputs") (*e.g.* `session_name`, `input_dir`) are progressively passed as inputs during steps 1, 2 & 3. They can also be defined when instanciating `VipSession` (*i.e.* during `step 1` or `step 0`, see [below](#use-session-shortcuts "Session Shortcuts")). Additionnally, VipSession methods accept specific arguments (*e.g.* `nb_runs`, `refresh_time`) to fine-tune their behavior. See each method's doc-string for detailed information.
 
-### VipSession Properties
+### VipSession Inputs
 
 As stated [above](#introduction), communication with VIP requires a valid [API key](#get-a-vip-api-key).
-This requirement is not bound to a given Session.
+This requirement is not bound to a given `VipSession` instance.
 
 0. `api_key` (*str*, **required**): your VIP API key.
-    - *The API key can be provided in secure ways. See `VipSession.init()` docstring for detailed information.*
+    - See `VipSession.init()` docstring for more information.
 
-Once created, a VipSession instance allows you to run __(1) one pipeline__ on __(2) one dataset__ with __(3) one parameter set__. Therefore, it requires at least 3 arguments:
+Once created, a VipSession instance allows you to run __(1) one pipeline__ on __(2) one dataset__ with __(3) one parameter set__. Therefore, it requires at least 3 inputs:
 
 1. `pipeline_id` (*str*, **required**): The name of your pipeline on VIP.
-    - Run `VipSession.show_pipeline(my_app)`
-    to [show the pipeline identifiers](show_pipeline) relative to `my_app`.
+    - Run `VipSession.show_pipeline("my_app")` to [show the pipeline identifiers][show_pipeline] relative to `"my_app"`.
     - Usually in the format: *application_name*/*version*.
 2. `input_dir` (*str | os.PathLike*, **required**): The local path to your dataset.
     - This directory will be uploaded on VIP before launching the pipeline.
@@ -133,7 +143,7 @@ Once created, a VipSession instance allows you to run __(1) one pipeline__ on __
     - The dictionary can contain any object that can be converted to strings, or lists of such objects.
     - Parameters with a *list of values* launch [*parallel jobs*][parallelize] on VIP.
 
-3 optional arguments can be provided to personalize the user experience:
+3 optional inputs can be provided depending on user needs:
 
 4. `session_name` (*str*, **recommended**) A name to identify this session and the corresponding outputs. 
     - *Default value: 'VipSession-[date]-[time]-[id]'*
@@ -145,19 +155,22 @@ Once created, a VipSession instance allows you to run __(1) one pipeline__ on __
 6. `verbose` (bool, **optional**) Verbose state of the *session*.
     - The *session* will display logs when True (default value).
 
-Arguments 1 to 6 are `VipSession`'s **properties**: they fully define its behavior throughout the *upload-run-download* procedure. They can be accessed, set and deleted with classical dot notation: `session.property` (see [below][manipulate-properties]). 
+Inputs 1 to 6 are `VipSession`'s main **properties**: they fully define its behavior throughout the *upload-run-download* procedure. They can be accessed, set and deleted with classical dot notation: `session.property` (see [below][manipulate-properties] for detailed infromation). 
 
 ### VipSession Outputs
 
-When running a VipSession instance for the first time, a directory (`output_dir`) is made to store the pipeline results and the *session* backup file.
-By default, this `output_dir` is `./vip_outputs/session_name`.
+When running a VipSession instance for the first time, its output directory (`output_dir`) is made to store the [pipeline outputs](#pipeline-outputs) and the *session* [backup file](#session-backup).
+
+#### Session Backup
+
+At the end of steps 2, 3, 4, 5 & 6, session properties (*e.g.*, `session_name`, `pipeline_id`) are automatically saved in a backup file (*session_data.json*).
+This backup can be used to [resume a finished or running *session*][backup].
 
 #### Pipeline Outputs
 
-The `download_outputs()` procedure stores the pipeline results on your machine. If the VIP implementation of the pipeline yields a tarball (`*\*.tar.gz*`), its content is extracted (by default) and the archive is removed from your machine.
+Pipeline results are stored in `output_dir` mirroring their structure on VIP servers. By default, when the VIP implementation of the pipeline produces a tarball (`*.tar.gz`), its contents are extracted to a folder named after that archive. 
 
-When a single job *(\*)* is submitted to VIP, the pipeline results are stored in `output_dir` mirroring their structure on VIP servers:
-
+A typical output directory will have the following structure: 
 ```
 my-session
 ├── 02-02-2023_09:21:23
@@ -167,23 +180,17 @@ my-session
 └── session_data.json
 ```
 
-In this file tree:
-- Pipeline results correspond to `file_x` & `file_y`.
-- `job_results.tgz` contains results from the same job.
-  - It may be a tarball or a folder depending on the downloading options.
-- `02-02-2023_09:21:23` is named after the starting time of the workflow.
+Where:
+- `file_x` & `file_y` are the pipeline outputs;
+- `job_results.tgz` contains results from the same *job*;
+- `02-02-2023_09:21:23` is named after the starting time of the *workflow*;
 - `session_data.json` is the session backup file.
 
-See [below](#jobs-and-workflows "Jobs and Workflows") for detailed information about jobs and workflows.
-
-#### Session Backup
-
-At the end of steps 2, 3, 4, 5 & 6, session properties (*e.g.*, `session_name`, `pipeline_id`) are automatically saved in a JSON file (*session_data.json*).
-This backup can be used to [resume a finished or running Session][backup].
+See [below](#jobs-and-workflows "Jobs and Workflows") for detailed information about *jobs* and *workflows*.
 
 ## Best Practices
 
-In this section you will learn how to [use VipSession shortcuts][shortcuts], get your [`pipeline_id` and `input_settings`][show_pipeline], [parallelize your executions][parallelize], [use the *session* backup][backup], [manipulate the VipSession properties][manipulate-properties] and [run multiple VipSessions on the same dataset][multiple_vipsessions]
+In this section you will learn how to [use VipSession shortcuts][shortcuts], [write `VipSession` inputs][show_pipeline], [parallelize your executions][parallelize], [use `VipSession` backup][backup], [manipulate `VipSession` properties][manipulate-properties] and [run multiple VipSessions on the same dataset][multiple-vipsessions].
 
 ### Use VipSession Shortcuts
 [shortcuts]: #use-vipsession-shortcuts "Use VipSession Shortcuts"
@@ -192,33 +199,28 @@ VipSession properties (*e.g.*, `input_dir`, `pipeline_id`, `input_settings`) can
 ```python
 session = VipSession(session_name=..., input_dir=..., pipeline_id=..., input_settings=..., ouput_dir=...)
 ```
-
-*Setting all session properties at instantiation allows earlier detection of common mistakes (*e.g.*, missing parameters or input files).*
+*Setting all session properties at instantiation allows earlier detection of common mistakes, like missing parameters or input files.*
 
 This can also be done while handshaking with VIP ([steps 0-1][steps]) through `VipSession.init()`:
 ```python
 session = VipSession.init(api_key=..., session_name=..., input_dir=..., pipeline_id=..., input_settings=..., ouput_dir=...)
 ```
 
-When all properties are set, the full **upload-run-download** process ([steps 2-5][steps]) can be performed with `run_session()`:
+When all properties are set, the full *upload-run-download* process ([steps 2-5][steps]) can be performed with `run_session()`:
 ```python
 session.run_session()
 ```
+*Do not forget to remove your temporary data from VIP after downloading the outputs (`session.finish()`).*
 
-Do not forget to remove your temporary data from VIP once the download is complete:
+All `VipSession` methods can be run in cascade, so everything holds in a single command:
 ```python
-session.finish()
+VipSession.init(api_key=..., session_name=..., input_dir=..., [...]).run_session().finish()
 ```
 
-All methods can be run in cascade, so everything holds in a single command:
-```python
-VipSession.init(api_key="VIP_API_KEY", input_dir="path/to/data", [...]).run_session().finish()
-```
+### Use `show_pipeline()` to Set `VipSession` Inputs
+[show_pipeline]: #use-show_pipeline-to-set-vipsession-inputs "Use show_pipeline() to Set VipSession Inputs"
 
-### Use `show_pipeline()` to Set the Inputs
-[show_pipeline]: #use-show_pipeline-to-set-the-inputs "Use show_pipeline() to Set the Inputs"
-
-The class method `show_pipeline()` can help you getting the `pipeline_id` you need and writing your `input_settings`. 
+The class method `show_pipeline()` can help you getting a `pipeline_id` and writing your `input_settings`. 
 
 #### Get the `pipeline_id`
 
@@ -236,7 +238,7 @@ FreeSurfer-Recon-all/v7.3.1
 FreeSurfer-Recon-all-fuzzy/v7.3.1
 -------------------
 ```
-*__N.B.__: If the output is "`(!) No pipeline found for pattern 'freesurfer'`", you may need to register with the pipeline's **group** on [VIP Portal](vip-portal). Please find the procedure [below](#register-to-your-application-group).*
+*__N.B.__: If the output is "`(!) No pipeline found for pattern 'freesurfer'`", you may need to register with the pipeline's **group** on [VIP Portal][vip-portal]. Please find the procedure [below](#register-to-your-application-group).*
 
 #### Write the `input_settings`
 
@@ -262,13 +264,11 @@ REQUIRED..............................................................
 - license
     [FILE] Valid license file needed to run FreeSurfer.
 - nifti
-    [FILE] Single NIFTI file from series.
-[...]
+    [FILE] Single NIFTI file from series. [...]
 OPTIONAL..............................................................
 - 3T_flag
     [STRING] The -3T flag enables two specific options in recon-all 
     for images acquired with a 3T scanner:  [...]
-[...]
 ======================================================================
 ```
 The list of inputs below "*INPUT_SETTINGS*" can be used to build the `input_settings` dictionary. This must include at least the *REQUIRED* inputs.
@@ -301,7 +301,7 @@ input_settings = {
     "path/to/my/input/file_2.nii.gz", # Input file 2
     # [...]
     "path/to/my/input/file_n.nii.gz", # Input file N
-  ]
+  ] # End of list
   # [...]
 }
 ```
@@ -311,7 +311,12 @@ With the above `input_settings`, the VipSession instance will submit N *jobs* to
 
 A **job** is a single task run by the pipeline on VIP, *e.g.*, with 1 input file and 1 parameter set. When *lists* of files or parameters are provided in the `input_settings`, the corresponding jobs run in parallel (the pipeline runs on all files and parameters at the same time).
 
-A **workflow** is a collection of jobs submitted at the same time. A single `VipSession` instance can launch multiple workflows on the same `pipeline_id` with the same `input_settings` (see footnote *(\*)* [below](#in-practice)).
+A **workflow** is a collection of jobs submitted at the same time. A single `VipSession` instance can launch multiple workflows on the same `pipeline_id` with the same `input_settings` (see [below](#caveats--comments)).
+
+In practice, VIP pipelines can be run on all types of datasets by following these three rules:
+1. A **single job** is submitted on VIP when `input_settings` are filled with a **single value** for each parameter;
+2. A **single workflow** is used to run **multiple jobs** in parallel, when providing a **list of values** in the `input_settings`;
+3. A **single VipSession instance** can be used to run **multiple workflows** on the same `pipeline_id` with the same `input_settings` ;
 
 #### Output files
 
@@ -332,21 +337,21 @@ In the `VipSession` output directory (`output_dir`), the file tree displayed [ab
 └── session_data.json
 ```
 
-#### In Practice
+#### Caveats & Comments
 
-VIP pipelines can be run on large datasets by submitting jobs in parallel.
-1. A **single job** is submitted on VIP when `input_settings` are filled with a **single value** for each parameter;
-2. A **single workflow** is used to run **multiple jobs** in parallel, when providing a **list of values** in the `input_settings`;
-3. A **single VipSession instance** can be used to run **multiple workflows** on the same `pipeline_id` with the same `input_settings`) *(\*, \*\*)*;
+* For large datasets, it is recommended to launch **separate workflows of a few hundred jobs** to limit the risk of errors.
 
-__N.B.__: For large datasets, it is recommended to run the pipeline with workflows of 100 or 200 jobs.
+* One `VipSession` instance can launch multiple workflows: 
+  - by calling `launch_pipeline()` several times, 
+  - by increasing argument `nb_runs`, 
+  - or by [re-starting the session](#relaunch-a-finished-session) after it was "finished". 
 
-*(\*)* *One `VipSession` instance can launch multiple workflows: by calling `launch_pipeline()` several times, by increasing argument `nb_runs`, or by [re-starting the session](#relaunch-a-finished-session) after it was "finished". In the first two cases, the workflows will run in parallel on VIP. To run parallel workflows, please contact <vip-support@creatis.insa-lyon.fr> to increase your execution capacity (1 by default).*
+* In the two first options, the workflows will run in parallel on VIP. To run *parallel workflows* on VIP, please [contact VIP support](<vip-support@creatis.insa-lyon.fr>) to **increase your execution capacity** (1 by default).
 
-*(\*\*)* *Multiple Vipsession instances can extend these rules to multiple `pipeline_id` and multiple `input_settings`: see [below][multiple_vipsessions]*.
+* Multiple Vipsession instances can be smartly used to run multiple `pipeline_id` and multiple `input_settings` on the same dataset. See [below][multiple-vipsessions] for a detailed procedure.
 
-### Use the *Session* Backup
-[backup]: #use-the-session-backup "Use the Session Backup"
+### Use `VipSession` Backup
+[backup]: #use-vipsession-backup "Use VipSession Backup"
 
 A *session* is backed up after every step.
 To restore a previous *session*, instantiate it with `ouput_dir`:
@@ -362,13 +367,11 @@ This will load the session data stored in the backup file (*session_data.json*).
 - [Run a *session* intermittently][progress] without a dedicated variable ;
 - [Relaunch a *session*][finished] after it has been "finished".
 
-[progress]: #run-a-session-intermittently "Run a Session Intermittently"
-[finished]: #relaunch-a-finished-session "Relaunch a Finished Session"
-
 #### Run a *Session* Intermittently
+[progress]: #run-a-session-intermittently "Run a Session Intermittently"
 
 Some pipeline runs can take hours or days.
-These runs should be monitored on the [VIP portal](vip-portal) while turning off your Python interpreter.
+These runs should be monitored on the [VIP portal][vip-portal] while turning off your Python interpreter.
 Using an identifiable `session_name`, the procedure can be left at any time and resumed with an identical VipSession object.
 ```python
 # Connect with VIP
@@ -385,9 +388,12 @@ VipSession.init(api_key="VIP_API_KEY", session_name="my_session").download_ouput
 # When the download is over, remove your data from VIP servers
 VipSession("my_session").finish()
 ```
-Unlike our [first examples][get-started], here the `VipSession` instance is run without a dedicated variable. If for some reason a personalized `output_dir` has been set, it must be used instead of `session_name` to resume the *session* (like [above][backup]).
+In this example, the `VipSession` instance is run without a dedicated variable. 
+
+*If for some reason a personalized `output_dir` has been set, it must be used instead of `session_name` to resume the `VipSession` instance (like [above][backup]).*
 
 #### Relaunch a Finished *Session*
+[finished]: #relaunch-a-finished-session "Relaunch a Finished Session"
 
 A `VipSession` instance can also be resumed after running `finish()`.
 For example, to display a short report about previous pipeline runs:
@@ -422,28 +428,43 @@ del my_session.input_dir # Delete the input directory
 
 #### Edit an Incorrect Property
 
-To avoid accidental loss of metadata, a session property cannot be modified directly. For instance:
+To avoid accidental loss of metadata, a session property cannot be directly modified. For instance:
 ```python
 my_session = VipSession(input_dir="/path/to/may/data") 
-# Ooops, there is some typo in "may/data". Let's try to fix it :
+# Oops, there is some typo in "may/data". Let's try to fix it :
 my_session.input_dir = "/path/to/my/data" # this will throw an error
 ```
 throws the following error: 
 ```
 ValueError: 'local_input_dir' is already set
 ```
-This can be addressed by *deleting* the property *before* editing its value:
+This must be addressed by *deleting* the property *before* editing its value:
 ```python
 my_session = VipSession(input_dir="/path/to/may/data") # Value with typo
 del my_session.input_dir # Delete the wrong value
 my_session.input_dir = "/path/to/my/data" # Set the correct value
 ```
 
-#### Properties and their Default Values
-[TODO]
+#### Additional Properties
+
+Beyond the six [`VipSession` inputs](#vipsession-inputs) introduced above, additional properties are accessible and editable with dot (`.`) notation.
+
+Property | Description | Default Value
+---: | :--- | :---
+`local_input_dir` | Dataset location (`input_dir` is an alias) | *None* (str)
+`local_output_dir` | Results location (`output_dir` is an alias) | *"vip_outputs/`session_name`"*
+`vip_input_dir` | Dataset location on VIP (temporary data) | *"/vip/Home/API/`session_name`/INPUTS"*
+`vip_output_dir` | Results location on VIP (temporary data) | *"/vip/Home/API/`session_name`/OUTPUTS"*
+`workflows` | Workflows inventory with metadata | *{}* (dict)
+
+Setting personnalized `vip_input_dir` and `vip_output_dir` can fine-tune `VipSession` behaviour and answer specific user needs.
+This is not without risk for user metadata. 
+
+An example of user-specific need is sharing the same dataset between several *sessions* **after** it has been uploaded on VIP. This can be done safely with method `get_inputs()`, as explained below. 
 
 ### Run Multiple `VipSession`s on the Same Dataset
-[multiple_vipsessions]: #run-multiple-vipsessions-on-the-same-dataset "Run Multiple VipSessions on the Same Dataset"
+
+[multiple-vipsessions]: #run-multiple-vipsessions-on-the-same-dataset "Run Multiple VipSessions on the Same Dataset"
 
 As stated [above][get-started], **a single _session_** allows to run **a single `pipeline_id`** on **a single `input_dir`** with **a single `input_settings`**. To run a pipeline with *multiple `input_settings`*, or *multiple `pipeline_id`*, one has to use multiple `VipSession` instances.
 
@@ -465,12 +486,12 @@ VipSession.init(api_key="VIP_API_KEY")
 
 To run `pipeline_id` with `settings_A` *and* `settings_B`, one has to run two different sessions:
 ```python
-# Run Session A with settings A and finish
-session_a = VipSession(input_dir=my_dataset, [...], input_settings=settings_A
-  ).run_session().finish()
-# Run Session B with settings B and finish
-session_b = VipSession(input_dir=my_dataset, [...], input_settings=settings_B
-  ).run_session().finish()
+# Run & Finish Session A with settings A
+session_a = VipSession(input_dir=my_dataset, [...], input_settings=settings_A)
+session_a.run_session().finish()
+# Run & Finish Session B with settings B
+session_b = VipSession(input_dir=my_dataset, [...], input_settings=settings_B)
+session_b.run_session().finish()
 ```
 
 By default, each dataset uploaded on VIP is bound to a single _session_. In the above example, `my_dataset` is thus **uploaded twice** on VIP servers (and removed twice at the end), as depicted in the diagram below.
@@ -487,14 +508,13 @@ session_b.get_inputs(session_a)
 `get_inputs()` is meant to **replace** `upload_inputs()` during [Step 2][steps] of the *upload-run-download* procedure.
 
 ```python
-# Create & Run Session A
-session_a = VipSession(input_dir=my_dataset, [...], input_settings=settings_A
-  ).run_session() # Do not run `finish()` until the entire process is over.
-# Create, Run & Finish Session B with `get_inputs`
-session_b = VipSession([...], input_settings=settings_B
-  ).get_inputs(session_a # Access the inputs of Session A
-  ).run_session(update_files=False # Run the session by skipping the "upload" step
-  ).finish() # Run & Finish Session B
+# Run Session A
+session_a = VipSession(input_dir=my_dataset, [...], input_settings=settings_A)
+session_a.run_session() # Do not run `finish()` until the entire process is over.
+# Run & Finish Session B with `get_inputs()`
+session_b = VipSession([...], input_settings=settings_B)
+session_b.get_inputs(session_a) # Access the inputs of Session A
+session_b.run_session(update_files=False).finish() # (skips the "upload" step)
 # Finish Session A
 session_a.finish()
 ```
@@ -511,76 +531,89 @@ Besides saving memory on VIP servers, **smart management of the input dataset ca
 
 ---
 
-# VipLauncher
+# Other Resources
 
-[Description to come]
+## Source Code
 
----
+### VipLauncher
 
-# VipCI
+`VipLauncher` is the parent class of `VipSession` that implements everything needed to launch VIP applications on remote data sets. More information will follow.
 
-[Description to come]
+### VipCI
 
----
+`VipCI` is a prototype of `VipLauncher` implementation to launch VIP executions on [Girder](https://girder.readthedocs.io/en/latest/) datasets. It is currently used for continuous integration (CI) tests on the VIP platform.
 
-# vip.py
+### vip.py
 
-This module is used to communicate with the VIP API using the Python
-language.
+This Python package is used to communicate with the VIP API: it provides 
 This is a synchronous implementation.
 
-## How to use it
+#### How to use it
 
 This module works like a state machine: first, set the `apikey` with
 `setApiKey(str)`. All the functions will refer to this `apikey` later.
 
-## Raised errors
+#### Raised errors
 
 If there are any VIP issues, functions will raise *RuntimeError* errors. See
 `detect_errors` and `manage_errors` functions if you want to change this.
 
-## Improvement
+#### Improvement
 
 - an asynchronous version
-- missing a few optional parameters for some functions (not important)
+
+## Examples
+
+[Application examples](examples) can be found in this repository, including the `VipSession` [tutorial][vipsession-tutorial].
 
 ---
 
 # Manage your VIP Account
 
+If you encounter any issues, please contact us at:
+<vip-support@creatis.insa-lyon.fr>
+
 ## Create a VIP account
 
-### Fill the Registration Form
+### Procedure
 
-[TODO]
+The registration procedure takes a couple of minutes on the VIP Portal: https://vip.creatis.insa-lyon.fr/.
+It is summarized in the diagram below.
+
+<img src="imgs/Vip_Registration.png" alt="New Vip Account" height="180" title="Procedure for New Vip Account"/>
+
+During **Step 2**, the user is asked to select one or several applications they intend to use. This ensures they will be registered in a VIP group* when using VIP for the first time. Application groups can be joined and left any time from the VIP portal: the procedure is explained below.
 
 ### Register to your Application Group
 
-[TODO]
+<img src="imgs/Vip_Groups.png" alt="VIP Groups" height="250" title="Register to New Groups"/>
 
 ## Get a VIP API key
 
 ### Find your API key
 
-One can easily create a VIP account to generate one's API key: the procedure is summarized in the image below.
+Once a VIP account [has been created](#create-a-vip-account), the API key can be generated in two steps. The procedure is summarized in the image below.
 
-<img src="imgs/VIP_key.png" alt="VIP API key" height="250" title="How to get a VIP API key"/>
+<img src="imgs/VIP_key.png" alt="VIP API key" height="150" title="How to get a VIP API key"/>
 
-*Useful tips*:
-- In **Step 3**, the user is asked to select an *Account Type*. This can be modified later: select only the entries relevant to your research area.
-- In **Step 6**, scroll down to the bottom of the page.
-
-If you encounter any issues, please contact us at:
-<vip-support@creatis.insa-lyon.fr>
+Your VIP API key **must be kept private**. Please reset it as soon as it may have been compromised.
 
 ### Hide your API key
 
-[TODO]
+The VIP API key must be provided every time the Python interpreter restarts or connection with VIP is lost:
+```python
+VipSession.init(api_key)
+```
+In the previous command, `api_key` can be replaced either by:
+1. Your API key as a raw string;
+2. A path to a text file containing your API key;
+3. The name of an environment variable containing your API key.
 
-In the following cell, `VIP_API_KEY` key can be replaced by:
-- Your API key (as a string)
-- A path to a text file containing your API key
-- The name of an environment variable containing your API key.
+Options 2 & 3 **avoid hardcoding your API key**, in case you generate a new one or share your script with others.
+The default value for `api_key` is `"VIP_API_KEY"`. In most Linux systems, one can set this envrionement variable by adding the following command in their configuration file `$HOME/.bashrc`:
+```bash
+export VIP_API_KEY=#Your_API_key
+```
 
 ---
 
@@ -624,3 +657,4 @@ In the following cell, `VIP_API_KEY` key can be replaced by:
 ### Sept. 2018
 - Initial release of package [`vip.py`](#vippy): generic methods to interact with the VIP REST API.
 
+---

@@ -9,6 +9,7 @@ examples/old
 examples/Repro-*
 examples/VipCI
 # examples/vip-cli.py
+examples/repro-brats
 examples/repro-brats/data
 examples/repro-brats/old
 
