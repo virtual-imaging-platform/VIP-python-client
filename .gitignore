@@ -2,6 +2,9 @@ __pycache__/
 .vscode/
 pyproject.toml
 
+src/VipLoader.py
+src/VipClient.py
+
 examples/old
 examples/Repro-*
 examples/VipCI

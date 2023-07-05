@@ -2,7 +2,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import textwrap
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
@@ -52,9 +51,9 @@ class VipLauncher():
     _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
     # Mail address for support
     _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
-    # Regular expression for invalid characters (i.e. all except valid characters)
-    _INVALID_CHARS_FOR_VIP = re.compile(r"[^0-9\.,A-Za-z\-+@/_(): \[\]?&=]")
-    # List of pipelines available to the user (will evolve after init())
+    # Regular expression for invalid characters
+    _INVALID_CHARS = re.compile(r"[^0-9\.,A-Za-z\-+@/_(): \[\]?&=]")
+    # List of pipelines available to the user
     _AVAILABLE_PIPELINES = []
 
                     #####################
@@ -146,13 +145,12 @@ class VipLauncher():
         # Check type
         if not isinstance(input_settings, dict):
             raise TypeError("`input_settings` should be a dictionary")
-        # Check if each input can be converted to a string with valid characters for VIP
+        # Check if each input can be converted to a string with valid characters
         for param, value in input_settings.items():
-            invalid = self._invalid_chars_for_vip(value)
-            # if not (set(invalid) <= {'\\'}): # '\\' is OK for Windows paths #EDIT: Corrected in _invalid_chars_for_vip
+            invalid = self._invalid_chars(value)
             if invalid:
                 raise ValueError(
-                    f"Parameter '{param}' contains some invalid character(s): {', '.join(invalid)}"
+                    f"Parameter {param} contains some invalid character(s): {', '.join(invalid)}"
                 )
         # Parse the input settings
         new_settings = self._parse_input_settings(input_settings)
@@ -185,14 +183,14 @@ class VipLauncher():
         # Check type
         if not isinstance(new_dir, (str, os.PathLike)):
             raise TypeError("`vip_output_dir` should be a string or os.PathLike object")
-        # Path-ify
-        new_path = PurePosixPath(new_dir)
-        # Check if the path contains invalid characters for VIP
-        invalid = self._invalid_chars_for_vip(new_path)
+        # Check if the path contains only valid characters
+        invalid = self._invalid_chars(new_dir)
         if invalid:
             raise ValueError(
                 f"VIP output directory contains some invalid character(s): {', '.join(invalid)}"
             )
+        # Path-ify
+        new_path = PurePosixPath(new_dir)
         # Check conflict with private attribute
         self._check_value("_vip_output_dir", new_path)
         # Assign
@@ -310,9 +308,19 @@ class VipLauncher():
                     #############
 
     # RAF: 
+    # Contrôle des effets de bord
+        # backup_loc -> done
+        # Verbose class-wise & instance-wise -> Done
+        # Context managers to silence executions -> Done
     # Gestion de conflits entre paramètres et fichier session -> A tester
-    # Verbose state -> a tester
-    # Tests sur Linux et Windows 
+        # Variable pour verrouiller les propriétés -> Done 
+    # Verbose intégrée à self.print() comme backup intégrée à self.load() -> Done
+        # Context manager for silencing better that decorator -> Done
+    # Arguments prennent None en valeur par défaut -> Done
+    # Test pour les 3 classes
+        # Vérifier verbose / backup
+        # Linux / Windows
+    # Méthode publique pour tuer les exécutions ?
 
     def __init__(
             self, output_dir=None, pipeline_id: str=None,  
@@ -466,7 +474,7 @@ class VipLauncher():
         - Raises RuntimeError in case of failure from the VIP API.
         """
         # First display
-        self._print("\n=== LAUNCH PIPELINE ===\n")
+        self._print("\n=== LAUNCH PIPELINE ===\n", max_space=2)
         # Update the parameters
         if pipeline_id:
             self.pipeline_id = pipeline_id
@@ -475,8 +483,7 @@ class VipLauncher():
         if input_settings:
             self.input_settings = input_settings
         # Start parameter checks
-        self._print(min_space=1, max_space=1)
-        self._print("Parameter checks")
+        self._print("Parameter checks", min_space=1)
         self._print("----------------")
         # Check the pipeline identifier
         self._print("Pipeline identifier: ", end="", flush=True)
@@ -550,7 +557,7 @@ class VipLauncher():
         Error profile:
         - Raises RuntimeError if the client fails to communicate with VIP.
         """
-        self._print("\n=== MONITOR WORKFLOWS ===\n")
+        self._print("\n=== MONITOR WORKFLOW ===\n", max_space=2)
         # Check if current session has existing workflows
         if not self._workflows:
             self._print("This session has not launched any execution.")
@@ -585,7 +592,7 @@ class VipLauncher():
                     self._save()
                     # Raise the error
                     raise e
-            # End of monitoring step
+            # End of monitoring time
             # Display the end of executions
             self._print("All executions are over.")
         # Last execution report
@@ -626,7 +633,7 @@ class VipLauncher():
         - Workflows status are set to "Removed" when the corresponding outputs have been removed.
         """
         # Initial display
-        self._print("\n=== FINISH ===\n")
+        self._print("\n=== FINISH ===\n", max_space=2)
         self._print("Ending Session:", self._session_name)
         # Check if workflows are still running (without call to VIP)
         if self._still_running():
@@ -726,7 +733,7 @@ class VipLauncher():
         # Check init() was called first
         if not cls._AVAILABLE_PIPELINES:
             raise TypeError(
-                f"No pipeline found. Run {cls.__name__}.init() to access pipeline descriptions."
+                f"No pipeline found. Run {cls.__name__}.init() with a valid API key to access pipeline definitions."
             )
         # Find all case-insensitive partial matches between `pipeline_id` and cls._AVAILABLE_PIPELINES
         if pipeline_id:            
@@ -739,7 +746,6 @@ class VipLauncher():
         # Display depending on the number of pipelines found
         if not pipelines: # Case no match
             cls._printc(f"(!) No pipeline found for pattern '{pipeline_id}'.")
-            cls._printc(f"    You may need to register with the correct group.")
         elif len(pipelines) > 1: # Case multiple matches
             # Print the list of matching pipelines
             cls._printc()
@@ -748,58 +754,34 @@ class VipLauncher():
             cls._printc("\n".join(pipelines))
             cls._printc("-------------------")
         else: # Case single match
-            pipeline_id = pipelines[0]
-            # Display pipeline ID
-            cls._printc('='*len(pipeline_id))
-            cls._printc(pipeline_id)
-            cls._printc('='*len(pipeline_id), end="")
             # Get pipeline_definition
-            pipeline_def = cls._get_pipeline_def(pipeline_id)
-            # Get header
-            pipe_header = f"NAME: {pipeline_def['name']} | VERSION: {pipeline_def['version']}"
-            # Define text width & wrapper
-            text_width = max(70, len(pipe_header))
-            wrapper = textwrap.TextWrapper(
-                width = text_width,
-                initial_indent = '    ',
-                subsequent_indent = '    ',
-                max_lines = 10,
-                drop_whitespace=False,
-                replace_whitespace = False,
-                break_on_hyphens = False,
-                break_long_words = False
-            )
-            # Display header
-            cls._printc('='*(text_width-len(pipeline_id)))
-            cls._printc(pipe_header)
-            cls._printc('-'*text_width)
-            # Display pipeline description
-            pipe_description = cls._clean_html(pipeline_def['description'])
-            cls._printc(f"DESCRIPTION:")
-            cls._printc(pipe_description, wrapper=wrapper)
-            cls._printc('-'*text_width)
-            # Print a description for each pipeline parameter
-            cls._printc("INPUT_SETTINGS:")
-                # Function to display one paramter
-            def display_parameter(param: dict) -> None:
-                """Prints name, type & description"""
-                cls._printc(f"- {param['name']}")
-                cls._printc(f"[{param['type'].upper()}]", cls._clean_html(param['description']), 
-                            wrapper=wrapper)
-                # Non-Optional parameters sorted by name
-            cls._printc("REQUIRED" + "." * (text_width-len("REQUIRED")))
-            for param in sorted( 
-                    [param for param in pipeline_def['parameters'] if not param["isOptional"]],
-                    key = lambda param: param["name"]
-                ): display_parameter(param)
-                # Optional parameters sorted by name
-            cls._printc("OPTIONAL" + "." * (text_width-len("OPTIONAL")))
-            for param in sorted(
-                [param for param in pipeline_def['parameters'] if param["isOptional"]],
-                key = lambda param: param["name"]
-                ): display_parameter(param)
+            pipeline_def = cls._get_pipeline_def(pipelines[0])
+            # Display name and version
+            pipe_str = f"name: {pipeline_def['name']} | version: {pipeline_def['version']}"
+            cls._printc('-'*len(pipe_str))
+            cls._printc(pipe_str)
+            cls._printc('-'*len(pipe_str))
+            # Display ID
+            cls._printc(f"pipeline_id: {pipelines[0]}")
+            cls._printc('-'*len(pipe_str))
+            # Print a description for each "input_setting"
+            cls._printc("input_settings:")
+            for param in pipeline_def["parameters"]:
+                # Name
+                name = param["name"]
+                # Begin description
+                description = ""
+                # isOptional
+                if param["isOptional"]:
+                    description += "[Optional]"
+                # Type
+                description += f"[{param['type']}]"
+                # End description
+                description += " " + cls._clean_html(param['description'])
+                # Print
+                cls._printc(f" - '{name}': {description}")
             # End the display
-            cls._printc('='*text_width)
+            cls._printc('-'*len(pipe_str))
             cls._printc()
     # ------------------------------------------------
 
@@ -1438,7 +1420,7 @@ class VipLauncher():
         # Check conflict with the new value
         if getattr(self, attribute) != new_value:
             self._print()
-            raise ValueError(f"'{attribute.lstrip('_')}' is already set for session: {self.session_name}.")
+            raise ValueError(f"'{attribute}' is already set for session: <{self.session_name}>.")
     # ------------------------------------------------
 
     # Check the pipeline identifier based on the list of available pipelines
@@ -1584,7 +1566,8 @@ class VipLauncher():
         # Check every required field is there 
         missing_fields = (
             # pipeline parameters
-            {param["name"] for param in self._pipeline_def['parameters'] if not param["isOptional"]} 
+            {param["name"] for param in self._pipeline_def['parameters'] 
+                if not param["isOptional"] and (param["defaultValue"] == "$input.getDefaultValue()")} 
             # current parameters
             - set(input_settings.keys()) 
         )
@@ -1623,8 +1606,8 @@ class VipLauncher():
             assert self._isinstance(value, str), \
                 f"Parameter '{name}' should have been converted to strings ({type(value)} instead)"\
                     +f"\nPlease convert to strings or contact VIP support ({self._VIP_SUPPORT})"
-            # Check invalid characters for VIP
-            invalid = self._invalid_chars_for_vip(value)
+            # Check invalid characters
+            invalid = self._invalid_chars(value)
             if invalid:
                 raise ValueError(
                     f"Parameter '{name}' contains some invalid character(s): {', '.join(invalid)}"
@@ -1655,20 +1638,14 @@ class VipLauncher():
 
     # Function to check invalid characters in some input string
     @classmethod
-    def _invalid_chars_for_vip(cls, value) -> list: 
+    def _invalid_chars(cls, value) -> list: 
         """
         Returns a list of invalid characters in `value`.
         """
-        # Get a set of invalid characters
         if isinstance(value, list):
-            characters = {v for val in value for v in cls._INVALID_CHARS_FOR_VIP.findall(str(val))}
+            return sorted(list({v for val in value for v in cls._INVALID_CHARS.findall(str(val))}))
         else:
-            characters = set(cls._INVALID_CHARS_FOR_VIP.findall(str(value)))
-        # Special correction for Windows paths
-        if os.name == "nt":
-            characters -= {"\\"}
-        # Return a sorted list
-        return sorted(list(characters))
+            return sorted(cls._INVALID_CHARS.findall(str(value)))
     # ------------------------------------------------
     
     # Function to assert file existence in the input settings
@@ -1690,22 +1667,25 @@ class VipLauncher():
             return value if not cls._exists(path=value, location=location) else None 
     # ------------------------------------------------
 
-    ########################################
-    # SESSION LOGS & USER VIEW
-    ########################################
-
     # Function to clean HTML text when loaded from VIP portal
     @staticmethod
     def _clean_html(text: str) -> str:
         """Returns `text` without html tags and newline characters."""
         return re.sub(r'<[^>]+>|\n', '', text)
 
-    # Interface for printing logs at instance level
+    # ($D.3) Interpret common API exceptions
+    ########################################
+
+    ########################################
+    # SESSION LOGS & USER VIEW
+    ########################################
+
+    # Main interface for printing session logs
     def _print(self, *args, min_space=-1, max_space=1, **kwargs) -> None:
         """
         Prints session logs.
         Behaves as Python built-in `print()` function with two additional conditions:
-        1. Does not print anything if `self.verbose` or `self._VERBOSE` is False,
+        1. Does not print anything if `self.verbose` is False,
         2. The number of blank lines before and after the log is framed between `min_space` and `max_space`
             (`min_space`=-1 means the log may end without newline).
         """
@@ -1728,7 +1708,7 @@ class VipLauncher():
                 if char == '\n':  n += 1
                 else: break
             return n
-        # Function to get the desired number of newlines at the beginning of the message
+        # Function to get the desired number of desired at the beginning of the message
         def nb_nl_start() -> int:
             # Newlines count
             n_start = nb_nl(message)
@@ -1756,34 +1736,18 @@ class VipLauncher():
         # Trim the newlines a the end of the message
         message = message.rstrip("\n") + "\n" * nb_nl_end()
         # Print the message with the rest of keywords arguments
-        self._printc(message, end='', **kwargs)
-    # ------------------------------------------------
-
-    # Interface for printing logs at class level
-    @classmethod
-    def _printc(cls, *args, wrapper:textwrap.TextWrapper=None, **kwargs) -> None:
-        """
-        Print logs from class methods only when cls._VERBOSE is True.
-        Takes the same arguments a Python built-in function `print()',
-        with one additional argument:
-        - `wrapper` (textwrapper.TextWrapper) : TextWrapper object defining 
-            how to wrap the text with TextWrapper method "fill".
-        """
-        if not cls._VERBOSE:
-            return None
-        # Get the message from arguments
-        sep = kwargs.pop("sep") if "sep" in kwargs else ' '
-        end = kwargs.pop("end") if "end" in kwargs else '\n'
-        message = sep.join(map(str, args)) + end
-        # Wrap the message according to `wrapper`
-        if wrapper is not None:
-            message = wrapper.fill(text=message)
-        # Print the message with the rest of keywords arguments
         print(message, end='', **kwargs)
     # ------------------------------------------------
 
-    # ($D.3) Interpret common API exceptions
-    ########################################
+    @classmethod
+    # Interface to print logs from class methods
+    def _printc(cls, *args, **kwargs) -> None:
+        """
+        Print logs from class methods only when cls._VERBOSE is True.
+        """
+        if cls._VERBOSE:
+            print(*args, **kwargs)
+    # ------------------------------------------------
 
     # Function to handle VIP runtime errors and provide interpretation to the user
     @classmethod

@@ -3,12 +3,8 @@ import os
 import tarfile
 from pathlib import *
 
-try: 
-    import src.vip as vip
-    from src.VipClient import VipClient
-except:
-    import vip
-    from VipClient import VipClient
+import src.vip as vip
+from src.VipClient import VipClient
 
 class VipLoader(VipClient):
     """

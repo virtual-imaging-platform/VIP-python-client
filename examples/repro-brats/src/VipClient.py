@@ -6,10 +6,7 @@ import time
 from contextlib import contextmanager
 from pathlib import *
 
-try:
-    import src.vip as vip
-except:
-    import vip
+import src.vip as vip
 
 class VipClient():
     """

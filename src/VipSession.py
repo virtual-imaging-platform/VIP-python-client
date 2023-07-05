@@ -208,6 +208,12 @@ class VipSession(VipLauncher):
             raise TypeError("Property `vip_input_dir` should be a string or os.PathLike object")
         # Path-ify
         new_path = PurePosixPath(new_dir)
+        # Check if the path contains invalid characters for VIP
+        invalid = self._invalid_chars_for_vip(new_path)
+        if invalid:
+            raise ValueError(
+                f"VIP output directory contains some invalid character(s): {', '.join(invalid)}"
+            )
         # Check conflicts with private attribute
         self._check_value("_vip_input_dir", new_path)
         # Set
@@ -348,7 +354,7 @@ class VipSession(VipLauncher):
         Session is backed up at the end of the procedure.
         """
         # First Display
-        self._print("\n=== UPLOAD INPUTS ===\n", max_space=2)
+        self._print("\n=== UPLOAD INPUTS ===\n")
         # Check the distant (VIP) input directory        
         try: 
             # Check connection with VIP 
@@ -370,7 +376,7 @@ class VipSession(VipLauncher):
             raise FileNotFoundError(f"Session '{self._session_name}': Input directory does not exist.")
         # Check the local values of `input_settings` before uploading
         if self._is_defined("_input_settings"):
-            self._print("Checking references to the dataset within Input Settings ... ", min_space=1, end="", flush=True)
+            self._print("Checking references to the dataset within Input Settings ... ", end="", flush=True)
             try: 
                 self._check_input_settings(location="local")
                 self._print("OK.")
@@ -379,11 +385,12 @@ class VipSession(VipLauncher):
             except AttributeError:
                 self._print("Skipped (missing properties).")
             except(TypeError, ValueError, RuntimeError) as e:
-                self._print("\tThe following exception was raised:\n\t\t", e)
-            self._print()
+                self._print("\n(!) The following exception was raised:\n\t", e)
+                self._print("    This may throw an error later")
         # Initial display
-        self._print("Uploading the dataset on VIP", min_space=1)
-        self._print("-----------------------------")
+        self._print(min_space=1, max_space=1)
+        self._print("Uploading the dataset on VIP")
+        self._print("----------------------------")
         # Upload the input repository
         try:
             failures = self._upload_dir(self._local_input_dir, self._vip_input_dir)
@@ -464,7 +471,7 @@ class VipSession(VipLauncher):
         - Outputs from unfinished worflows can be downloaded by modifying `get_status`
         """
         # First display
-        self._print("\n=== DOWNLOAD OUTPUTS ===\n", max_space=2)
+        self._print("\n=== DOWNLOAD OUTPUTS ===\n")
         # Check if current session has existing workflows
         if not self._workflows:
             self._print("This session has not yet launched any execution.")
@@ -990,10 +997,11 @@ class VipSession(VipLauncher):
         """
         Parses the input settings, i.e.:
         - Converts all input paths (local or VIP) to PathLib objects 
-            and write them relatively to their input directory ;
+            and write them relatively to their input directory. For example:
+            '/vip/Home/API/INPUTS/my_signals/signal001' becomes: 'my_signals/signal001'
         - Leaves the other parameters untouched.
         """
-        # Function to convert local / VIP path to relative paths
+        # Function to convert local / VIP paths to relative paths
         def parse_value(input):
             """
             When possible, writes `input` relatively to the input directories (local or VIP), *if possible*.
@@ -1020,8 +1028,9 @@ class VipSession(VipLauncher):
                     else: # Return input if `_local_input_dir` is unset
                         return input
                 # Return the part of `input_path` that is relative to `input_dir` (if relevant)
-                try: # PurePath.is_relative_to() is unavailable for Python <3.9
-                    return input_path.relative_to(input_dir)
+                try: # No condition since PurePath.is_relative_to() is unavailable for Python <3.9
+                    return PurePosixPath( # Force Posix flavor to avoid conflicts with Windows paths when checking equality
+                        input_path.relative_to(input_dir)) # Relative part of `input_path`
                 except ValueError:
                     # This is the case when no relative part could be found
                     return input
