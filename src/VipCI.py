@@ -112,7 +112,7 @@ class VipCI(VipLauncher):
                     ################
 
     #################################################
-    # ($A) Manage a session from start to finish
+    # Manage a session from start to finish
     #################################################
 
     # Login to VIP and Girder
@@ -149,6 +149,7 @@ class VipCI(VipLauncher):
         return cls(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
 
+    # Launch the pipeline on VIP
     def launch_pipeline(
             self, pipeline_id: str=None, input_settings: dict=None, output_dir=None, nb_runs=1, 
             verbose: bool=None
@@ -179,7 +180,7 @@ class VipCI(VipLauncher):
         )
     # ------------------------------------------------
 
-    # ($A.4) Monitor worflow executions on VIP 
+    # Monitor worflow executions on VIP 
     def monitor_workflows(self, refresh_time=30) -> VipCI:
         """
         Updates and displays the status of each execution launched in the current session.
@@ -189,7 +190,7 @@ class VipCI(VipLauncher):
         return super().monitor_workflows(refresh_time=refresh_time)
     # ------------------------------------------------
 
-    # ($A.2->A.5) Run a full VIP session 
+    # Run a full VipCI session 
     def run_session(self, nb_runs=1, refresh_time=30) -> VipCI:
         """
         Runs a full session from Girder data:
@@ -205,7 +206,7 @@ class VipCI(VipLauncher):
         return super().run_session(nb_runs=nb_runs, refresh_time=refresh_time)
     # ------------------------------------------------
 
-    # ($B.1) Display session properties in their current state
+    # Display session properties in their current state
     def display(self) -> VipCI:
         """
         Displays useful properties in JSON format.
@@ -219,7 +220,7 @@ class VipCI(VipLauncher):
         return super().display()
     # ------------------------------------------------
 
-    # Mock function for finish()
+    # Return error in case of call to finish()
     def finish(self, verbose: bool=None) -> None:
         """
         This function does not work in VipCI.
@@ -297,9 +298,9 @@ class VipCI(VipLauncher):
     def _delete_and_check(cls, path: PurePath, location="vip", timeout=300) -> bool:
         raise NotImplementedError("VipCI cannot delete data.")
     
-    ##################################################
-     # (A.3) Launch pipeline executions on VIP servers
-    ##################################################
+    ####################################################
+    # Launch & Monitor pipeline executions from Girder #
+    ####################################################
 
     def _init_exec(self) -> str:
         """
@@ -328,10 +329,6 @@ class VipCI(VipLauncher):
         self._workflows[workflow_id] = {"output_path": str(res_path)}
         return workflow_id
     # ------------------------------------------------
-    
-    #################################################
-    # Workflow Monitoring
-    #################################################
 
     # Function extract metadata from a single workflow
     def _meta_workflow(self, workflow_id: str) -> dict:
@@ -371,9 +368,9 @@ class VipCI(VipLauncher):
         }
     # ------------------------------------------------
 
-    #################################################
-    # Save / Load Session as / from Girder metadata
-    #################################################
+    ###################################################
+    # Save (/load) Session to (/from) Girder metadata #
+    ###################################################
 
     # Save session properties in a JSON file
     def _save_session(self, session_data: dict, location="girder") -> bool:
@@ -432,9 +429,9 @@ class VipCI(VipLauncher):
         return folder["meta"]
     # ------------------------------------------------
     
-    #################################################
-    # Manipulate Resources on Girder
-    #################################################
+    ##################################
+    # Manipulate Resources on Girder #
+    ##################################
 
     # Function to get a resource ID
     @classmethod
@@ -498,11 +495,15 @@ class VipCI(VipLauncher):
             return ":".join([cls._GIRDER_ID_PREFIX, girder_id])
     # ------------------------------------------------
 
+    ###################################################################
+    # Adapt `input_settings` to the Vip-Girder communication protocol #
+    ###################################################################
+
     # Store the VIP paths as PathLib objects.
     def _parse_input_settings(self, input_settings) -> dict:
         """
         Parses the input settings, i.e.:
-        - Resolves any reference to a Binder collection and turns a folder name 
+        - Resolves any reference to a Girder collection and turns a folder name 
             into a list of files
         - Converts all Girder paths to PathLib objects 
         - Leaves the other parameters untouched.
