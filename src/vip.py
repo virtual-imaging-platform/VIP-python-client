@@ -1,6 +1,9 @@
+# Built-in libraries
+from concurrent.futures import ThreadPoolExecutor
+from os.path import exists
+import threading
+# Third-Party
 import requests
-from os.path import join, dirname, exists
-
 
 ########################### VARIABLES & ERRORS ################################
 # -----------------------------------------------------------------------------
@@ -11,24 +14,103 @@ __PREFIX = "https://vip.creatis.insa-lyon.fr/rest/"
 __apikey = None
 __headers = {'apikey': __apikey}
 
-# Requests session
+# Void `requests` session (inefficient until __api_key is unset)
 session = requests.Session()
 
-# Strategy for retrying
+# Strategy for retrying requests
 retry_strategy = requests.adapters.Retry(
     total = 4, # Retry 3 times at most
     status_forcelist  = [ 
         104,    # ConnectionResetError ?
         500,    # Internal Server Error
-        502,    # Bad Gateway ou Proxy Error
+        502,    # Bad Gateway or Proxy Error
         503,    # Service Unavailable
         504     # Gateway Time-out
     ],
     backoff_factor = 8 # retries after 0s, 16s, 32s, 64s
 )
 
+# Mount a `requests` Session with the API key and retry strategy
+def new_session() -> requests.Session:
+    """Creates a new `requests` Session with headers and retry strategy"""
+    new_session = requests.Session()
+    new_session.mount(__PREFIX, requests.adapters.HTTPAdapter(max_retries=retry_strategy))
+    new_session.headers.update(__headers)
+    return new_session
+
+# Parallel uploads / downloads are implemented with a multithreading 
+# strategy for IO-bound operations. (Multiprocessing would be overkilled
+# and involve multiple CPUs from and unknown local machine)
+
+# Maximum number of threads to parallelize
+MAX_THREADS = 3
+    
+# The `request` Session is not thread-safe: 
+# must be local to each thread when parallelized. 
+
+# Local object to gather thread-safe variables
+thread_local = threading.local()
+
+# Function to create a new Session object when initializing the current thread
+def init_thread()  -> requests.Session:
+    """Creates a new thread-safe version of the `requests` Session"""
+    assert not hasattr(thread_local, "session")
+    thread_local.session = new_session()
+
+def download_thread(file: tuple) -> dict : # instead of download() ?
+    """
+    Downloads a single file from VIP.
+    `file` must be in format: (`vip_filename`, `local_filename`).
+
+    Returns True if done, False otherwise
+    """
+    # Parameters
+    path, where_to_save = file
+    url = __PREFIX + 'path' + path + '?action=content'
+    # 
+    with (
+        thread_local.session.get(url, headers=__headers, stream=True) as rq,
+        open(where_to_save, 'wb') as out_file
+    ):
+        # manage_errors(rq)
+        try: manage_errors(rq)
+        except RuntimeError:
+            return path, False
+        out_file.write(rq.content)
+    return path, True
+
+def download_parallel(files):
+    """
+    `files`: iterable of tuples in format (`vip_file`, `local_file`).
+    """
+    
+    # Threads are run in a context manager to secure their closing
+    with ThreadPoolExecutor(
+        max_workers = MAX_THREADS,
+        thread_name_prefix = "vip_download",
+        initializer = init_thread
+        ) as executor:
+        yield from executor.map(download_thread, files)
+
+# RAF : 
+# - implémenter download_parallel() dans VipSession
+# - implémenter upload_parallel() sur le modèle de download_parallel()
+# - Penser à un V2 pour les arborescences complexes (ex: disc1 de FSL) ?
+# - Enable streaming mode for upload / download (voir le temps que ça prend avec les outputs BraTS) ?
+# - Mettre à jour les headers ?
+# - Pathlib pour la gestion des URL ?
+# - Retirer les fonctions inutiles comme create_dir_smart et commenter un peu plus le doc ?
+
+# Pour accélérer l'upload d'arborescences complexes : paralléliser la création de dossiers
+# - implémenter une fonction _tree(files=False) dans VipSession qui liste les dossiers à créer
+# - Paralléliser vip.mkdir()
+# - Paralléliser VipSession.makedirs() 
+#   -> (/!\ CONLFITS de vip.mkdir() sur "/A" pour "/A/B" et "A/C" en parallèle)
+#   -> Peut être géré intelligemment en poolant seulement quelques sous-dossiers à la fois ?
+# - Réécrire VipSession.upload_dir() en 2 temps: création de la structure et écriture des dossiers
+
 # -----------------------------------------------------------------------------
-def setApiKey(value)->bool:
+def setApiKey(value) -> bool:
     """
     Return True is correct apikey, False otherwise.
     Raise an error if an other problems occured 
@@ -48,13 +130,11 @@ def setApiKey(value)->bool:
             raise RuntimeError("Error {} from VIP : {}".format(res[1], res[2]))
     else:
         # OK
-        global __apikey, session
+        global __apikey, __headers, session
         # Set the API key
         __apikey = value
-        __headers['apikey'] = value
-        # Create a new Requests session
-        session = requests.Session()
-        session.mount(__PREFIX, requests.adapters.HTTPAdapter(max_retries=retry_strategy))
+        __headers['apikey'] = __apikey
+        session = new_session()
         return True
 
 # -----------------------------------------------------------------------------
@@ -173,11 +253,10 @@ def delete_path(path)->bool:
         return True
 
 # -----------------------------------------------------------------------------
-def upload(path, where_to_save)->bool:
+def upload(path, where_to_save) -> bool:
     """
-    Input:
-        - path : on local computer, the file to upload
-        - where_to_save : on VIP, something like "/vip/Home/RandomName.ext"
+    - `path` : on local computer, the file to upload
+    - `where_to_save` : on VIP, something like "/vip/Home/RandomName.ext"
 
     Return True if done, False otherwise
     """
@@ -197,12 +276,13 @@ def upload(path, where_to_save)->bool:
         return True
 
 # -----------------------------------------------------------------------------
-def download(path, where_to_save):
+def download(path, where_to_save) -> bool :
     """
-    Input:
-        - path: on VIP, something like "/vip/Home/RandomName.ext", content to dl
-        - where_to_save : on local computer
+    Downloads a single file from VIP.
+    - `path`: on VIP, something like "/vip/Home/RandomName.ext", content to dl
+    - `where_to_save` : on local computer
     """
+    # Parse arguments
     url = __PREFIX + 'path' + path + '?action=content'
     rq = session.get(url, headers=__headers, stream=True)
     try:
@@ -335,4 +415,88 @@ def get_apikey(username, password)->str:
 
 ###############################################################################
 if __name__=='__main__':
-    pass
+
+    # Essayer :
+    # - En augmentant max_workers
+    # - Avec streaming = True / False
+
+    from time import time
+    from pathlib import *
+    import os
+    setApiKey(os.environ['VIP_API_KEY'])
+    vip_files = [
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_B.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_A.txt.tgz",
+        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    ]
+    local_files = [str(Path("vip_outputs") / PurePosixPath(file).name) for file in vip_files]
+    start = time()
+    files = list(zip(vip_files, local_files))
+    print("Downloading %d files..."% len(files))
+    result = []
+    for file, done in download_parallel(files):
+        print("\t", file, ":", "Done" if done else "ERROR")
+        result.append((file, done))
+    print("Done:", time()-start, "seconds.")
+    assert all([done for (_, done) in result]), "%d failed" % sum([done for (_, done) in result])
+    for file in local_files: 
+        Path(file).unlink()
+
