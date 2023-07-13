@@ -5,7 +5,7 @@ from pathlib import *
 
 import girder_client
 #import src.vip as vip
-from VipLauncher import VipLauncher
+from vip_python_client.VipLauncher import VipLauncher
 
 class VipCI(VipLauncher):
     """
