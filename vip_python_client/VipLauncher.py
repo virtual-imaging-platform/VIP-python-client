@@ -7,8 +7,6 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
 
-import src.vip as vip
-
 class VipLauncher():
     """
     Python class to run VIP pipelines on datasets located on VIP servers.
