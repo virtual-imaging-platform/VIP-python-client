@@ -4,6 +4,7 @@ import time
 from pathlib import *
 
 import girder_client
+import vip
 from vip_python_client.VipLauncher import VipLauncher
 
 class VipCI(VipLauncher):
