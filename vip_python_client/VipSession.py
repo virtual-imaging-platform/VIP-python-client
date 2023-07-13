@@ -5,8 +5,7 @@ import tarfile
 import re
 from pathlib import *
 
-import src.vip as vip
-from src.VipLauncher import VipLauncher
+from vip_python_client.VipLauncher import VipLauncher
 
 class VipSession(VipLauncher):
     """
