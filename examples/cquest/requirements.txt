@@ -1,0 +1,1 @@
+git+https://github.com/cmouton/VIP-python-client.git@CI
