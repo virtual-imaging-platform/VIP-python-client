@@ -42,7 +42,7 @@ my_output_dir = "/collection/ReproVIPSpectro/results/test_%s" \
 
 # Connect with Vip & Girder
 VipCI.init(
-  vip_key=${{ secrets.VIP_API_KEY }}, # My environment variable for the VIP API key (also works with litteral string or file name)
+  vip_key="${{ secrets.VIP_API_KEY }}", # My environment variable for the VIP API key (also works with litteral string or file name)
   girder_key="GIRDER_API_KEY" # My environment variable for the Girder API key (also works with litteral string or file name)
 )
 
