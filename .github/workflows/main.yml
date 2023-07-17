@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  example-cquest-example_VipCI:
+  cquest-example_VipCI:
 
     runs-on: ubuntu-latest
 
