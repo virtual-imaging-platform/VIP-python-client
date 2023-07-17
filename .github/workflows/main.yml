@@ -14,6 +14,7 @@ permissions:
 
 env:
   VIP_API_KEY: ${{ secrets.VIP_API_KEY }}
+  GIRDER_API_KEY: ${{ secrets.GIRDER_API_KEY }}
 
 jobs:
   cquest-example_VipCI:
