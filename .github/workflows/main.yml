@@ -36,4 +36,5 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Run the example
       run: |
+        echo "VIP_API_KEY=${{ secrets.VIP_API_KEY }}" >> $GITHUB_ENV
         python examples/cquest/example_VipCI.py
