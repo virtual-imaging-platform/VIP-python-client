@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  VIP_API_KEY = ${{ secrets.VIP_API_KEY }}
+
 jobs:
   cquest-example_VipCI:
 
