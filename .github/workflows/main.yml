@@ -5,7 +5,7 @@ name: Python application
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ CI ]
   pull_request:
     branches: [ $default-branch ]
 
