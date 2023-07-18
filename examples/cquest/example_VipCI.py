@@ -7,7 +7,7 @@
 # In[1]:
 
 
-from vip-python-client.VipCI import VipCI
+from vip_python_client.VipCI import VipCI
 import time
 
 # Pipeline identifier
