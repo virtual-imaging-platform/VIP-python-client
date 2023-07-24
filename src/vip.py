@@ -43,7 +43,7 @@ def new_session() -> requests.Session:
 # and involve multiple CPUs from and unknown local machine)
 
 # Maximum number of threads to parallelize
-MAX_THREADS = 3
+MAX_THREADS = 10
     
 # The `request` Session is not thread-safe: 
 # must be local to each thread when parallelized. 
@@ -57,12 +57,32 @@ def init_thread()  -> requests.Session:
     assert not hasattr(thread_local, "session")
     thread_local.session = new_session()
 
-def download_thread(file: tuple) -> dict : # instead of download() ?
+from functools import wraps
+
+def make_parallel(func):
     """
-    Downloads a single file from VIP.
+        Decorator to parallelize IO method `func` designed with thread-safe objects.
+    """
+    @wraps(func)
+    def wrapper(args):
+        """
+        """
+        # Threads are run in a context manager to secure their closing
+        with ThreadPoolExecutor(
+            max_workers = min(MAX_THREADS, len(args)), # Number of threads
+            thread_name_prefix = "vip_requests",
+            initializer = init_thread  # Method to create a thread-safe `requests` Session
+            ) as executor:
+            # Transparent connexion between executor.map() and the caller of download_parallel()
+            yield from executor.map(func, args)
+    return wrapper
+
+def download_thread(file: tuple) -> dict :
+    """
+    Downloads a single file from VIP with a thread-safe session.
     `file` must be in format: (`vip_filename`, `local_filename`).
 
-    Returns True if done, False otherwise
+    Returns True if done, False otherwise.
     """
     # Parameters
     path, where_to_save = file
@@ -81,25 +101,32 @@ def download_thread(file: tuple) -> dict : # instead of download() ?
 
 def download_parallel(files):
     """
+    Generator yielding VIP filenames and their success flag as they are downloaded from VIP.
+
     `files`: iterable of tuples in format (`vip_file`, `local_file`).
     """
-    
     # Threads are run in a context manager to secure their closing
     with ThreadPoolExecutor(
-        max_workers = MAX_THREADS,
-        thread_name_prefix = "vip_download",
-        initializer = init_thread
+        max_workers = min(MAX_THREADS, len(files)), # Number of threads
+        thread_name_prefix = "vip_requests",
+        initializer = init_thread  # Method to create a thread-safe `requests` Session
         ) as executor:
+        # Transparent connexion between executor.map() and the caller of download_parallel()
         yield from executor.map(download_thread, files)
 
 # RAF : 
+# - Voir pour paralléliser avec un décorateur ?
+    # Fonction download(files, parallel=False)
+    # `return run_parallel(download(parallel=True))``
 # - implémenter download_parallel() dans VipSession
-# - implémenter upload_parallel() sur le modèle de download_parallel()
-# - Penser à un V2 pour les arborescences complexes (ex: disc1 de FSL) ?
-# - Enable streaming mode for upload / download (voir le temps que ça prend avec les outputs BraTS) ?
+# - Enable streaming mode for upload / download (voir le temps que ça prend avec les outputs BraTS)
+# - Pathlib pour la gestion des URL
 # - Mettre à jour les headers ?
-# - Pathlib pour la gestion des URL ?
 # - Retirer les fonctions inutiles comme create_dir_smart et commenter un peu plus le doc ?
+# - Gestion des erreurs (code d'erreur 200 ?)
+
+# - implémenter upload_parallel() sur le modèle de download_parallel() ?
+#   - Penser à un V2 pour les arborescences complexes (ex: disc1 de FSL) ?
 
 # Pour accélérer l'upload d'arborescences complexes : paralléliser la création de dossiers
 # - implémenter une fonction _tree(files=False) dans VipSession qui liste les dossiers à créer
@@ -108,6 +135,8 @@ def download_parallel(files):
 #   -> (/!\ CONLFITS de vip.mkdir() sur "/A" pour "/A/B" et "A/C" en parallèle)
 #   -> Peut être géré intelligemment en poolant seulement quelques sous-dossiers à la fois ?
 # - Réécrire VipSession.upload_dir() en 2 temps: création de la structure et écriture des dossiers
+# - Voir pour que les threads soient persistants dans vip.py ?
+#    - /!\ Certaines actions (ex: VipSession.makedirs() ontbesoin d'attendre que les précédentes soient terminées)
 
 # -----------------------------------------------------------------------------
 def setApiKey(value) -> bool:
@@ -325,6 +354,24 @@ def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Ho
     rq = session.post(url, headers=headers, json=data_)
     manage_errors(rq)
     return rq.json()["identifier"]
+# -----------------------------------------------------------------------------
+
+
+def init_exec_without_resultsLocation(pipeline, name="default", inputValues={}) -> str:
+    """Initiate executions with "results-directory" in the `inputValues`"""
+    url = __PREFIX + 'executions'
+    headers = {
+                'apikey': __apikey,
+                'Content-Type': 'application/json'
+              }
+    data_ = {
+            "name": name, 
+            'pipelineIdentifier': pipeline,
+            "inputValues": inputValues
+           }
+    rq = requests.post(url, headers=headers, json=data_)
+    manage_errors(rq)
+    return rq.json()["identifier"]
 
 # -----------------------------------------------------------------------------
 def execution_info(id_exec)->dict:
@@ -415,88 +462,93 @@ def get_apikey(username, password)->str:
 
 ###############################################################################
 if __name__=='__main__':
-
+    pass
     # Essayer :
     # - En augmentant max_workers
     # - Avec streaming = True / False
 
-    from time import time
-    from pathlib import *
-    import os
-    setApiKey(os.environ['VIP_API_KEY'])
-    vip_files = [
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_B.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_A.txt.tgz",
-        "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_B.txt.tgz",
-    ]
-    local_files = [str(Path("vip_outputs") / PurePosixPath(file).name) for file in vip_files]
-    start = time()
-    files = list(zip(vip_files, local_files))
-    print("Downloading %d files..."% len(files))
-    result = []
-    for file, done in download_parallel(files):
-        print("\t", file, ":", "Done" if done else "ERROR")
-        result.append((file, done))
-    print("Done:", time()-start, "seconds.")
-    assert all([done for (_, done) in result]), "%d failed" % sum([done for (_, done) in result])
-    for file in local_files: 
-        Path(file).unlink()
+    # from time import time
+    # from pathlib import *
+    # import os
+    # setApiKey(os.environ['VIP_API_KEY'])
+    # vip_files = [
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec005_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec006_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec007_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec008_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec009_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec010_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec011_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec012_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec013_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec014_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec015_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec016_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec017_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec018_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec019_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec020_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox1.mrui--quest_param_117T_B.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_A.txt.tgz",
+    #     "/vip/Home/API/test-download/OUTPUTS/09-07-2023_02:42:44/Rec021_Vox2.mrui--quest_param_117T_B.txt.tgz",
+    # ]
+    # local_files = [str(Path("vip_outputs") / PurePosixPath(file).name) for file in vip_files]
+    # start = time()
+    # files = list(zip(vip_files, local_files))
+    # print("Downloading %d files..."% len(files))
+
+    # result = []
+    # for file, done in download_parallel(files):
+    #     print("\t", file, ":", "Done" if done else "ERROR")
+    #     result.append((file, done))
+    # print("Done:", time()-start, "seconds.")
+
+    # try:
+    #     assert all([done for (_, done) in result]), "%d failed" % sum([(not done) for (_, done) in result])
+    # except: raise
+    # finally: 
+    #     for file in local_files: 
+    #         if Path(file).exists(): Path(file).unlink()
 

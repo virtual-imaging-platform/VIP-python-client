@@ -457,7 +457,7 @@ class VipCI(VipLauncher):
         except girder_client.HttpError as e:
             if e.status == 400:
                 cls._printc("(!) The following path is invalid or refers to a resource that does not exist:")
-                cls._printc(f"    \t{path}")
+                cls._printc("    %s" % path)
                 cls._printc("    Original error from Girder API:")
             raise e
         # Return the resource ID and type

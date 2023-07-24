@@ -1190,7 +1190,10 @@ class VipLauncher():
             # Get execution infos
             infos = vip.execution_info(workflow_id)
             # Secure way to get execution results
-            files = vip.get_exec_results(workflow_id)
+            # files = vip.get_exec_results(workflow_id)
+            files = [
+                {"path": value} for value in infos["returnedFiles"]["output_file"] 
+            ] if (infos["returnedFiles"]) else []
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
         # Return filtered information
@@ -1621,9 +1624,16 @@ class VipLauncher():
             # Get input value
             value = input_settings[name]
             # `request` will send only strings
-            assert self._isinstance(value, str), \
-                f"Parameter '{name}' should have been converted to strings ({type(value)} instead)"\
-                    +f"\nPlease convert to strings or contact VIP support ({self._VIP_SUPPORT})"
+            if not self._isinstance(value, str): # This should not happen
+                raise ValueError( # Parameter could not be parsed correctly
+                    f"Parameter: '{name}' \n\twith value: '{value}' \n\twith type: '{type(value)}')\ncould not be parsed."\
+                        +"Please double check the value; if correct, try converting it to `str` in the `input_settings`."
+                )
+            # Check the input has no empty values
+            if not self._is_input_full(value):
+                raise ValueError(
+                    f"Parameter '{name}' contains an empty value"
+                )
             # Check invalid characters for VIP
             invalid = self._invalid_chars_for_vip(value)
             if invalid:
@@ -1641,8 +1651,22 @@ class VipLauncher():
             # Check other input formats ?
             else: pass # TODO
     # ------------------------------------------------
-        
-    # Function to assert the input contains a certain type
+    
+    # Function to look for empty values
+    @classmethod
+    def _is_input_full(cls, value):
+        """
+        Returns False if `value` contains an empty string or list.
+        """
+        if isinstance(value, list) and cls._isinstance(value, str): # Case: list of strings
+            return all([(len(v) > 0) for v in value])
+        elif isinstance(value, (str, list)): # Case: list or string
+            return (len(value) > 0)
+        else: # Case: other
+            return True
+    # ------------------------------------------------
+
+    # Function to assert the input contains only a certain Python type
     @classmethod
     def _isinstance(cls, value, type: type) -> bool: 
         """

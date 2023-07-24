@@ -526,9 +526,6 @@ class VipSession(VipLauncher):
                 nFile+=1
                 # Get the output path on VIP
                 vip_file = PurePosixPath(output["path"])
-                # TODO: implement the case in which the output is a directory (mirror _upload_dir ?)
-                if output["isDirectory"]:
-                    raise NotImplementedError(f"{vip_file} is a directory: cannot be handled for now.")
                 # Get the local equivalent path
                 local_file = self._get_local_output_path(vip_file)
                 # Check file existence on the local machine
@@ -552,7 +549,7 @@ class VipSession(VipLauncher):
                     # Display success
                     self._print("Done.")
                     # If the output is a tarball, extract the files and delete the tarball
-                    if unzip and output["mimeType"]=="application/gzip" and tarfile.is_tarfile(local_file):
+                    if unzip and tarfile.is_tarfile(local_file):
                         self._print("\t\tExtracting archive content ...", end=" ")
                         if self._extract_tarball(local_file):
                             self._print("Done.") # Display success
