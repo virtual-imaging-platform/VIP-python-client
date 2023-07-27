@@ -3,10 +3,15 @@ import os
 import json
 import tarfile
 import re
+import time
 from pathlib import *
 
-import src.vip as vip
-from src.VipLauncher import VipLauncher
+try:
+    import src.vip as vip
+    from src.VipLauncher import VipLauncher
+except: # for testing
+    import vip
+    from VipLauncher import VipLauncher
 
 class VipSession(VipLauncher):
     """
@@ -441,11 +446,17 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # Download execution outputs from VIP servers 
-    def download_outputs(self, unzip=True, get_status=["Finished"]) -> VipSession:
+    def download_outputs(
+            self, unzip: bool=True, get_status: list=["Finished"], init_timeout: int=None
+            ) -> VipSession:
         """
-        Downloads all session outputs from VIP servers.
+        Downloads all session outputs from the VIP servers.
         - If `unzip` is True, extracts the data if any output is a .tar file.
-        - Outputs from unfinished worflows can be downloaded by modifying `get_status`
+        - Outputs from successful workflows can be downloaded by modifying `get_status`;
+        - `init_timeout` sets the timeout [s] when fetching output metadata.
+
+        The initialization step may take a lot of time for workflows with numerous jobs.
+        If this is an issue, set `init_timeout` to 0 to skip this step.
         """
         # First display
         self._print("\n=== DOWNLOAD OUTPUTS ===\n")
@@ -454,56 +465,83 @@ class VipSession(VipLauncher):
             self._print("This session has not yet launched any execution.")
             self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
-        # Update the worflow inventory
-        self._print("Updating workflow status ... ", end="", flush=True)
-        self._update_workflows()
-        self._print("Done.\n")
+        # Assert "Removed" is not in `get_status`
+        if 'Removed' in get_status: 
+            raise ValueError("'Removed' in `get_status`: cannot download removed data.")
+        # Update the worflow inventory with a timeout
+        if init_timeout != 0:
+            self._print("Getting output metadata ", ("(timeout: %s) " % str(init_timeout)),
+                        "... ", end="", sep="", flush=True
+                )
+            self._update_workflows(get_exec_results=True, timeout=init_timeout)
+            self._print("Done.\n")
         # Initial display
         self._print("Downloading pipeline outputs to:", self._local_output_dir)
         self._print("--------------------------------")
+        # Check if any workflow with the desired status is available
+        report = self._execution_report(display=False)
+        if not any([status in report for status in get_status]):
+            self._print("Nothing to download for the current session.") 
+            self._print("Run monitor_workflows() for more information.") 
+            self._print("--------------------------------")
+            return self
+        # Keep track of the failed downloads
+        failures = {}
+        # Enumerate workflows
+        for workflow in self._select_workflows(get_status):
+            # If there is no output file, go to the next execution
+            if not workflow["outputs"]: 
+                self._print("Nothing to download.")
+                self._print()
+                continue
+            # Scan the output files and search for missing files
+            files_to_download = self._init_download(workflow)
+            # Skip if there are no missing file to download
+            if not files_to_download: # All files are already there
+                self._print("Already there.") 
+                self._print()
+                continue
+            # Download the files from VIP servers
+            failed = self._download_parallel(files_to_download, unzip)
+            # End of file loop
+            if not failed:  # All missing files were succesfully downloaded
+                self._print("All files downloaded.")
+            else: 
+                self._print("%d downloads failed. Waiting for the 2nd try.")
+                failures.update(failed)
+            self._print()
+        # End of workflow loop    
+        self._print("--------------------------------")
+        if not failures :
+            self._print("Done for all executions.\n")
+            return self
+        # Retry in case of failure
+        self._print("End of the first try.") 
+        self._print(len(files_to_download), "could not be downloaded from VIP.")
+        self._print("\nGiving a second try...")
+        self._print("--------------------------------")
+        # Download the files from VIP servers
+        failures = self._download_parallel(failures, unzip)
+        if not failures :
+            self._print("Done for all files.")
+        else:
+            self._print("The following files could not be downloaded from VIP:", end="\n\t")
+            self._print("\n\t".join([str(file) for file, _ in failures]))
+        # Return
+        return self
+    # ------------------------------------------------
+
+    def _select_workflows(self, get_status: list) -> dict:
+        """
+        Generator to enumerate session workflows with status in `get_status`.
+        Prints the workflow status; yields the workflow metadata.
+        """
         # Get execution report
         report = self._execution_report(display=False)
         # Count the number of executions to process
-        nb_exec = len(report['Removed']) if "Removed" in report else 0
-        assert 'Removed' not in get_status, "Cannot download removed data."
-        for status in get_status:
-            nb_exec += len(report[status]) if status in report else 0
-        nExec=0
-        # Browse workflows with removed data and check if files are missing
-        if "Removed" in report :
-            for wid in report["Removed"]:
-                nExec+=1
-                # Display current execution
-                self._print(f"[{nExec}/{nb_exec}] Outputs from:", wid, "-> REMOVED from VIP servers")
-                # Get the path of the returned files on VIP
-                vip_outputs = self._workflows[wid]["outputs"]
-                # If there is no output file, go to the next execution
-                if not vip_outputs: 
-                    self._print("\tNothing to download.")
-                    continue
-                # Browse the output files to check if they have already been downloaded
-                missing_file = False
-                for output in vip_outputs:
-                    # Get the output path on VIP
-                    vip_file = PurePosixPath(output["path"])
-                    # Get the local equivalent path
-                    local_file = self._get_local_output_path(vip_file)
-                    # Check file existence on the local machine
-                    if not local_file.exists(): 
-                        missing_file = True
-                # After checking all files, update the display
-                if not missing_file: 
-                    self._print("\tOutput files are already in:", local_file.parent)
-                else: 
-                    self._print("(!)\tCannot download the missing files.")
-        # Check if any workflow with the desired status is available
-        if not any([status in report for status in get_status]):
-            self._print("--------------------------------")
-            self._print("Nothing to download for the current session.") 
-            self._print("Run monitor_workflows() for more information.") 
-            return self
-        # Download each output file for each execution and keep track of failed downloads
-        failures = []
+        nb_exec = sum([len(report[status]) for status in get_status if status in report])
+        nExec = 0
+        # Enumerate workflows
         for wid in self._workflows:
             # Check if the workflow should be processed
             if self._workflows[wid]["status"] not in get_status:
@@ -513,72 +551,8 @@ class VipSession(VipLauncher):
             self._print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
                 " | Started on: ", self._workflows[wid]["start"],
                 " | Status: ", self._workflows[wid]["status"], sep='')
-            # Get the path of the returned files on VIP
-            vip_outputs = self._workflows[wid]["outputs"]
-            # If there is no output file, go to the next execution
-            if not vip_outputs: 
-                self._print("\tNothing to download.")
-                continue
-            # Browse the output files
-            nFile = 0 # File count
-            missing_file = False # Will be True if local files are missing
-            for output in vip_outputs:
-                nFile+=1
-                # Get the output path on VIP
-                vip_file = PurePosixPath(output["path"])
-                # TODO: implement the case in which the output is a directory (mirror _upload_dir ?)
-                if output["isDirectory"]:
-                    raise NotImplementedError(f"{vip_file} is a directory: cannot be handled for now.")
-                # Get the local equivalent path
-                local_file = self._get_local_output_path(vip_file)
-                # Check file existence on the local machine
-                if self._exists(local_file, "local"): 
-                    continue
-                # If not, update the output data
-                missing_file = True
-                # Make the parent directory (if needed)
-                local_dir = local_file.parent
-                if self._mkdirs(local_dir, location= "local"): self._print("\tNew directory:", local_dir)
-                # Get the file size in Megabytes
-                try: 
-                    size = f"{output['size']/(1<<20):,.1f}MB"
-                except:
-                    size = "size unknown"
-                # Display the process
-                self._print(f"\t[{nFile}/{len(vip_outputs)}] Downloading file ({size}):", 
-                                local_file.name, end=" ... ")
-                # Download the file from VIP servers
-                if self._download_file(vip_path=vip_file, local_path=local_file):
-                    # Display success
-                    self._print("Done.")
-                    # If the output is a tarball, extract the files and delete the tarball
-                    if unzip and output["mimeType"]=="application/gzip" and tarfile.is_tarfile(local_file):
-                        self._print("\t\tExtracting archive content ...", end=" ")
-                        if self._extract_tarball(local_file):
-                            self._print("Done.") # Display success
-                        else:
-                            self._print("Extraction failed.") # Display failure
-                else: # failure while downloading the output file
-                    # Update display
-                    self._print(f"\n(!)\tSomething went wrong in the process. Please retry later.")
-                    # Update missing files
-                    failures.append(str(vip_file))
-            # End of file loop
-            if not missing_file: # All files were already there
-                self._print("\tAlready in:", local_file.parent) 
-            else:  # Some missing files were succesfully downloaded
-                self._print("\tDone for all files.")
-        # End of worflow loop    
-        self._print("--------------------------------")
-        if not failures :
-            self._print("Done for all executions.")
-        else:
-            self._print("End of the procedure.") 
-            self._print("The following files could not be downloaded from VIP", end="\n\t")
-            self._print("\n\t".join(failures))
-        self._print()
-        # Return
-        return self
+            # Yield current ID
+            yield self._workflows[wid]
     # ------------------------------------------------
 
     # Run a full VIP session 
@@ -771,6 +745,49 @@ class VipSession(VipLauncher):
     # Upload (/download) data on (/from) VIP Servers
     #################################################
 
+    # Override the _update_wokflows() method to ask more information about the files to download
+    def _update_workflows(self, get_exec_results: bool=False, timeout: int=None) -> None:
+        """
+        Updates the status of each workflow in the inventory. 
+        - More information is obtained for execution results if `get_exec_results` is True.
+        - `timeout` controls the duration of the whole process.
+        - returns a list of failed updates
+        """
+        # Keep track of time
+        start = time.time()
+        # Update the workflow status
+        super()._update_workflows()
+        if not get_exec_results: 
+            return []
+        # Get more information about execution results
+        failed = [] # Failure list 
+        for workflow_id in self._workflows:
+            # Skip if there is no output or timout is reached
+            if not self._workflows[workflow_id]["outputs"]: 
+                continue
+            # New timeout
+            curr_time = time.time() - start
+            new_timeout = None if timeout is None else timeout - curr_time
+            # Get information from the API
+            try: 
+                files = vip.get_exec_results(workflow_id, timeout=new_timeout)
+                # Update information in the workflow inventory
+                self._workflows[workflow_id]["outputs"] = [
+                    # filtered information from the otput
+                    { key: elem[key] 
+                        for key in ["path", "isDirectory", "size", "exists"] if key in elem
+                    } for elem in files
+                ]
+            except TimeoutError as e: # Timeout is reached: abort update
+                failed.append(workflow_id)
+            except RuntimeError as vip_error: # Other kind of error
+                failed.append(workflow_id)
+                self._handle_vip_error(vip_error)
+        # Display message in case of failure
+        if failed : 
+            self._print("\n(!) Timeout for workflow(s):", ", ".join(failed))
+    # ------------------------------------------------
+
     # Function to upload all files from a local directory
     def _upload_dir(self, local_path: Path, vip_path: PurePosixPath) -> list:
         """
@@ -844,7 +861,7 @@ class VipSession(VipLauncher):
         return failures
     # ------------------------------------------------
 
-    # Function to upload a single file on VIP
+    # Method to upload a single file on VIP
     @classmethod
     def _upload_file(cls, local_path: Path, vip_path: PurePosixPath) -> bool:
         """
@@ -859,7 +876,7 @@ class VipSession(VipLauncher):
         return done
     # ------------------------------------------------   
 
-    # Function to download a single file from VIP
+    # Method to download a single file from VIP
     @classmethod
     def _download_file(cls, vip_path: PurePosixPath, local_path: Path) -> bool:
         """
@@ -869,6 +886,80 @@ class VipSession(VipLauncher):
         # Download (file existence is not checked to save time)
         return vip.download(str(vip_path), str(local_path))
     # ------------------------------------------------    
+
+    # Method do download files using parallel threads
+    def _download_parallel(self, files_to_download, unzip):
+        """
+        Downloads files from VIP using parallel threads.
+        - `files_to_download`: the output of `_init_download`. Dictionnary with of files to download and metadata.
+        - `unzip`: if True, 
+        """
+        # Copy the input
+        files_to_download = files_to_download.copy()
+        # Check the amount of data
+        try:    total_size = "%.1fMB" % sum([file['size']/(1<<20) for file in files_to_download.values()])
+        except: total_size = "unknown"
+        # Display
+        self._print("%d files to download. Total size: %s." % (len(files_to_download), total_size))
+        self._print("Downloading files...")
+        # Download the files from VIP servers
+        nFile = 0 
+        nb_files = len(files_to_download)
+        for file, done in vip.download_parallel(list(files_to_download)):
+            nFile += 1
+            # Get informations about the new file 
+            vip_path, local_path = file
+            file_info = files_to_download[file]
+            file_size = "[%.1fMB]" % (file_info["size"]/(1<<20)) if "size" in file_info else ""
+            if done: 
+                # Remove file from the list
+                file_info = files_to_download.pop(file)
+                # Display success
+                self._print(f"- [{nFile}/{nb_files}] DONE:", local_path.name, file_size, flush=True)
+                # If the output is a tarball, extract the files and delete the tarball
+                if unzip and tarfile.is_tarfile(local_path):
+                    self._print("\tExtracting archive content ...", end=" ")
+                    if self._extract_tarball(local_path):
+                        self._print("Done.") # Display success
+                    else:
+                        self._print("Extraction failed.") # Display failure
+            else: 
+                # Display failure
+                self._print(f"- [{nFile}/{nb_files}] FAILED:", vip_path.name, file_size, flush=True)
+        # Return failed downloads
+        return files_to_download
+    # ------------------------------------------------
+
+    def _init_download(self, workflow) -> dict:
+        """
+        Returns files to download from VIP as dictionnary with keys (`vip_file`, `local_file`).
+        - The returned dictionnary contains only missing files on the local machine;
+        - Each file may have metadata as a nested dictionnary;
+        - Local parent folders are created along the file scan.
+        """
+        files_to_download = {}
+        for output in workflow["outputs"]:
+            # Get the output path on VIP
+            vip_path = PurePosixPath(output["path"])
+            # Get the local equivalent path
+            local_path = self._get_local_output_path(vip_path)
+            # Check file existence on the local machine
+            if self._exists(local_path, "local"): 
+                continue
+            # Check the existence on VIP
+            if "exists" in output and not output["exists"]:
+                self._print("(!)  ", vip_path, "does not exist anymore on VIP.")
+                continue
+            # Update the files to download
+            file = (vip_path, local_path) # This key matches the requirements of `vip.download_parallel()`
+            files_to_download[file] = {}
+            # Update the file metadata
+            files_to_download[file].update({key: value for key, value in output.items() if key!="path"})
+            # Make the parent directory (if needed)
+            self._mkdirs(local_path.parent, location="local")
+        # Return the list of files to download
+        return files_to_download
+    # ------------------------------------------------
 
     # Method to extract content from a tarball
     @classmethod
@@ -1083,4 +1174,5 @@ class VipSession(VipLauncher):
 #######################################################
 
 if __name__=="__main__":
-    pass
+    VipSession.init()
+    VipSession("test-download").download_outputs(init_timeout=0)

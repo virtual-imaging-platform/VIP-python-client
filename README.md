@@ -9,19 +9,19 @@
 - [`VipSession`](#vipsession)
   - [Get Started](#get-started)
     - [Basic Steps][steps]
-    - [`VipSession` Inputs](#vipsession-inputs)
-    - [`VipSession` Outputs](#session-outputs)
+    - [VipSession Inputs](#vipsession-inputs)
+    - [VipSession Outputs](#session-outputs)
   - [Best Practices](#best-practices)
-    - [Use `VipSession` Shortcuts][shortcuts]
-    - [Use `show_pipeline()` to Set `VipSession` Inputs][show_pipeline]
+    - [Use VipSession Shortcuts][shortcuts]
+    - [Use `show_pipeline()` to Set VipSession Inputs][show_pipeline]
     - [Parallelize your Executions][parallelize]
-    - [Use `VipSession` Backup][backup]
+    - [Use VipSession Backup][backup]
     - [Manipulate VipSession Properties][manipulate-properties]
-    - [Run Multiple `VipSession`s on the Same Dataset][multiple-vipsessions]
+    - [Run Multiple VipSessions on the Same Dataset][multiple-vipsessions]
 -  [Other Resources](#other-resources)
   - [Source Code](#source-code)
-    - [VipLauncher](#viplauncher)
-    - [VipCI](#vipci)
+    - [`VipLauncher`](#viplauncher)
+    - [`VipCI`](#vipci)
     - [vip.py](#vip.py)
   - [Examples](#examples)
 - [Manage your VIP Account](#manage-your-vip-account)
@@ -44,7 +44,7 @@ Ready-to-use Python classes are contained in the `src` directory.
 - Most useful methods are implemented in the `VipSession` class (see [below](#vipsession)). 
 - Classes `VipLauncher` and `VipCI` are mostly used by the VIP team for current projects.
 
-The `VipSession` class comes with a tutorial [Notebook] that can be used in a Binder instance:
+The `VipSession` class comes with a tutorial [Notebook][vipsession-tutorial] that can be used in a Binder instance:
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/virtual-imaging-platform/VIP-python-client/HEAD?labpath=examples%2Ftutorials%2Fdemo-vipsession.ipynb)
 
@@ -61,7 +61,7 @@ pip install requests
 
 ---
 
-# VipSession
+# `VipSession`
 
 This Python class launches executions on [VIP][vip-portal] from any machine where the dataset is stored (*e.g.*, one's server or PC). 
 Running an application ("pipeline") on VIP implies the following process:
@@ -223,7 +223,7 @@ All `VipSession` methods can be run in cascade, so everything holds in a single 
 VipSession.init(api_key=..., session_name=..., input_dir=..., [...]).run_session().finish()
 ```
 
-### Use `show_pipeline()` to Set `VipSession` Inputs
+### Use `show_pipeline()` to Set VipSession Inputs
 [show_pipeline]: #use-show_pipeline-to-set-vipsession-inputs "Use show_pipeline() to Set VipSession Inputs"
 
 The class method `show_pipeline()` can help you getting a `pipeline_id` and writing your `input_settings`. 
@@ -288,7 +288,7 @@ input_settings = {
 ```
 The tag at the beginning of the parameter description provides the input type.
 - *STRING* inputs should be of type `str`. For experimented users, they can be of any Python type that can converts to string (*e.g.* `bool`, `int`...), provided that the converted value fits the application.
-- *FILE* inputs require a valid path to some file, either on **VIP** or in the **local file system**. This path can be `str` or any `os.PathLike` object, including from `pathlib`.
+- *FILE* inputs require a valid path to some file, either on **VIP** or in the **local file system**. This path can be `str` or any `os.PathLike` object, including from [`pathlib`](https://docs.python.org/3/library/pathlib.html).
 
 For each parameter in `input_settings`, the user can also provide a **list** of values. This launches parallel jobs on VIP, as explained below.
 
@@ -350,13 +350,14 @@ In the `VipSession` output directory (`output_dir`), the file tree displayed [ab
 * One `VipSession` instance can launch multiple workflows: 
   - by calling `launch_pipeline()` several times, 
   - by increasing argument `nb_runs`, 
-  - or by [re-starting the session](#relaunch-a-finished-session) after it was "finished". 
+  - by calling `run_sessions()` several times, 
+  - by [re-starting the session](#relaunch-a-finished-session) after it was "finished". 
 
 * In the two first options, the workflows will run in parallel on VIP. To run *parallel workflows* on VIP, please [contact VIP support](<vip-support@creatis.insa-lyon.fr>) to **increase your execution capacity** (1 by default).
 
 * Multiple Vipsession instances can be smartly used to run multiple `pipeline_id` and multiple `input_settings` on the same dataset. See [below][multiple-vipsessions] for a detailed procedure.
 
-### Use `VipSession` Backup
+### Use VipSession Backup
 [backup]: #use-vipsession-backup "Use VipSession Backup"
 
 A *session* is backed up after every step.
@@ -418,7 +419,7 @@ VipSession("my_session").run_session().finish()
 In that case, the new pipeline outputs will be downloaded next to the previous ones.
 This feature can be used to run repeatability experiments.
 
-### Manipulate `VipSession` Properties
+### Manipulate VipSession Properties
 [manipulate-properties]: #manipulate-vipsession-properties "Manipulate VipSession Properties"
 
 #### Use Dot Notation
@@ -467,7 +468,7 @@ This is not without risk for user metadata.
 
 An example of user-specific need is sharing the same dataset between several *sessions* **after** it has been uploaded on VIP. This can be done safely with method `get_inputs()`, as explained below. 
 
-### Run Multiple `VipSession`s on the Same Dataset
+### Run Multiple VipSessions on the Same Dataset
 
 [multiple-vipsessions]: #run-multiple-vipsessions-on-the-same-dataset "Run Multiple VipSessions on the Same Dataset"
 
@@ -550,7 +551,7 @@ Besides saving memory on VIP servers, **smart management of the input dataset ca
 
 ### vip.py
 
-This Python package is used to communicate with the VIP API: it provides 
+This package is used to communicate with the VIP API: it implements the most basic elements of this Python client. 
 This is a synchronous implementation.
 
 #### How to use it
@@ -563,9 +564,9 @@ This module works like a state machine: first, set the `apikey` with
 If there are any VIP issues, functions will raise *RuntimeError* errors. See
 `detect_errors` and `manage_errors` functions if you want to change this.
 
-#### Improvement
+#### Future Work
 
-- an asynchronous version
+An asynchronous version
 
 ## Examples
 
@@ -638,7 +639,7 @@ export VIP_API_KEY=#Your_API_key
 
 **Minor changes**
 - `VipLauncher`: method to kill VIP executions 
-- Maximize log width with `textwrap`
+- Better logs with `logging`and `textwrap`
 - Speed up upload / download time
 
 ## Current Release

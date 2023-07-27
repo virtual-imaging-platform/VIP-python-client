@@ -7,7 +7,10 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
 
-import src.vip as vip
+try:
+    import src.vip as vip
+except: # for testing
+    import vip
 
 class VipLauncher():
     """
@@ -566,8 +569,10 @@ class VipLauncher():
             self._print(f"\t{self._VIP_PORTAL}")
             self._print("-------------------------------------------------------------")
             # Standby until all executions are over
+            time.sleep(refresh_time)
             while self._still_running():
-                time.sleep(refresh_time)
+                # Keep track of time
+                start = time.time()
                 # Update the workflow status & discard connection errors
                 try:
                     self._update_workflows()
@@ -580,7 +585,9 @@ class VipLauncher():
                     self._save()
                     # Raise the error
                     raise e
-            # End of monitoring step
+                # Sleep until next itertation
+                elapsed_time = time.time() - start
+                time.sleep(max(refresh_time - elapsed_time, 0))
             # Display the end of executions
             self._print("All executions are over.")
         # Last execution report
@@ -1186,11 +1193,9 @@ class VipLauncher():
         - Starting time (local time, format '%Y/%m/%d %H:%M:%S')
         - List of paths to the output files.
         """
+        # Get execution infos
         try :
-            # Get execution infos
             infos = vip.execution_info(workflow_id)
-            # Secure way to get execution results
-            files = vip.get_exec_results(workflow_id)
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
         # Return filtered information
@@ -1202,13 +1207,8 @@ class VipLauncher():
                 '%Y/%m/%d %H:%M:%S', time.localtime(infos["startDate"]/1000)
                 ),
             # Returned files (filtered information)
-            "outputs": [
-                {
-                    key: elem[key] 
-                    for key in ["path", "isDirectory", "size", "mimeType"]
-                    if key in elem
-                }
-                for elem in files
+            "outputs": [] if not infos["returnedFiles"] else [
+                {"path": value} for value in infos["returnedFiles"]["output_file"] 
             ]
         }
     # ------------------------------------------------
@@ -1621,9 +1621,16 @@ class VipLauncher():
             # Get input value
             value = input_settings[name]
             # `request` will send only strings
-            assert self._isinstance(value, str), \
-                f"Parameter '{name}' should have been converted to strings ({type(value)} instead)"\
-                    +f"\nPlease convert to strings or contact VIP support ({self._VIP_SUPPORT})"
+            if not self._isinstance(value, str): # This should not happen
+                raise ValueError( # Parameter could not be parsed correctly
+                    f"Parameter: '{name}' \n\twith value: '{value}' \n\twith type: '{type(value)}')\ncould not be parsed."\
+                        +"Please double check the value; if correct, try converting it to `str` in the `input_settings`."
+                )
+            # Check the input has no empty values
+            if not self._is_input_full(value):
+                raise ValueError(
+                    f"Parameter '{name}' contains an empty value"
+                )
             # Check invalid characters for VIP
             invalid = self._invalid_chars_for_vip(value)
             if invalid:
@@ -1641,8 +1648,22 @@ class VipLauncher():
             # Check other input formats ?
             else: pass # TODO
     # ------------------------------------------------
-        
-    # Function to assert the input contains a certain type
+    
+    # Function to look for empty values
+    @classmethod
+    def _is_input_full(cls, value):
+        """
+        Returns False if `value` contains an empty string or list.
+        """
+        if isinstance(value, list) and cls._isinstance(value, str): # Case: list of strings
+            return all([(len(v) > 0) for v in value])
+        elif isinstance(value, (str, list)): # Case: list or string
+            return (len(value) > 0)
+        else: # Case: other
+            return True
+    # ------------------------------------------------
+
+    # Function to assert the input contains only a certain Python type
     @classmethod
     def _isinstance(cls, value, type: type) -> bool: 
         """

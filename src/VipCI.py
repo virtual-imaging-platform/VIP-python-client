@@ -137,14 +137,22 @@ class VipCI(VipLauncher):
 
         - `kwargs` [Optional] (dict): keyword arguments or dictionnary setting properties of the returned instance.     
         """
-        # Initiate a Vip Session
-        super().init(api_key=vip_key)
+        # Initiate a Vip Session silently
+        super().init(api_key=vip_key, verbose=False)
+        # Restore the verbose state
+        cls._VERBOSE = verbose
         # Instantiate a Girder client
         cls._girder_client = girder_client.GirderClient(apiUrl=cls._GIRDER_PORTAL)
         # Check if `girder_key` is in a local file or environment variable
         true_key = cls._get_api_key(girder_key)
         # Authenticate with Girder API key
         cls._girder_client.authenticate(apiKey=true_key)
+        # Diplay success
+        cls._printc()
+        cls._printc("---------------------------------------------")
+        cls._printc("| You are communicating with VIP and Girder |")
+        cls._printc("---------------------------------------------")
+        cls._printc()
         # Return a VipCI instance for method cascading
         return cls(verbose=(verbose and kwargs), **kwargs)
     # ------------------------------------------------
@@ -449,7 +457,7 @@ class VipCI(VipLauncher):
         except girder_client.HttpError as e:
             if e.status == 400:
                 cls._printc("(!) The following path is invalid or refers to a resource that does not exist:")
-                cls._printc(f"    \t{path}")
+                cls._printc("    %s" % path)
                 cls._printc("    Original error from Girder API:")
             raise e
         # Return the resource ID and type

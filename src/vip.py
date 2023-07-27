@@ -1,22 +1,72 @@
+# Built-in libraries
+from concurrent.futures import ThreadPoolExecutor
+from os.path import exists
+from pathlib import *
+import threading
+# Third-Party
 import requests
-from os.path import join, dirname, exists
-
 
 ########################### VARIABLES & ERRORS ################################
 # -----------------------------------------------------------------------------
+# API URL
 __PREFIX = "https://vip.creatis.insa-lyon.fr/rest/"
+
+# API key
 __apikey = None
 __headers = {'apikey': __apikey}
 
-path = join(dirname(__file__), 'certif.crt')
-if not exists(path):
-    __certif = None
-else:
-    __certif = path
-del path
+# Void `requests` session (inefficient until __api_key is unset)
+SESSION = requests.Session() # with retry strategy
+SESSION_NO_RETRY = requests.Session() # without retry strategy
+
+# Strategy for retrying requests
+retry_strategy = requests.adapters.Retry(
+    total = 4, # Retry 3 times at most
+    status_forcelist  = [ 
+        104,    # ConnectionResetError ?
+        500,    # Internal Server Error
+        502,    # Bad Gateway or Proxy Error
+        503,    # Service Unavailable
+        504     # Gateway Time-out
+    ],
+    backoff_factor = 8 # retries after 0s, 16s, 32s, 64s
+)
+
+# Mount a `requests` Session with the API key and retry strategy
+def new_session() -> requests.Session:
+    """Creates a new `requests` Session with headers and retry strategy"""
+    new_session = requests.Session()
+    new_session.mount(__PREFIX, requests.adapters.HTTPAdapter(max_retries=retry_strategy))
+    new_session.headers.update(__headers)
+    return new_session
+
+# Mount a `requests` Session without retry strategy
+def new_session_no_retry() -> requests.Session:
+    """Creates a new `requests` Session without retry strategy"""
+    new_session = requests.Session()
+    new_session.headers.update(__headers)
+    return new_session
+
+# Parallel downloads are implemented with a multithreading 
+# strategy for IO-bound operations.
+
+# Maximum number of threads to parallelize
+MAX_THREADS = 10
+    
+# The `request` Session is not thread-safe: 
+# must be local to each thread when parallelized. 
+
+# Local object to gather thread-safe variables
+thread_local = threading.local()
+
+# Function to create a new Session object when initializing the current thread
+def init_thread()  -> requests.Session:
+    """Creates a new thread-safe version of the `requests` Session with a retry strategy"""
+    assert not hasattr(thread_local, "session")
+    thread_local.session = new_session()
 
 # -----------------------------------------------------------------------------
-def setApiKey(value)->bool:
+def setApiKey(value) -> bool:
     """
     Return True is correct apikey, False otherwise.
     Raise an error if an other problems occured 
@@ -25,26 +75,24 @@ def setApiKey(value)->bool:
     head_test = {
                  'apikey': value,
                 }
-    rq = requests.put(url, headers=head_test, verify=__certif)
+    # Send a test request
+    rq = requests.put(url, headers=head_test)
     res = detect_errors(rq)
     if res[0]:
+        # Error
         if res[1] == 40101:
             return False
         else:
             raise RuntimeError("Error {} from VIP : {}".format(res[1], res[2]))
     else:
-        global __apikey
+        # OK
+        global __apikey, __headers, SESSION, SESSION_NO_RETRY
+        # Set the API key
         __apikey = value
-        __headers['apikey'] = value
+        __headers['apikey'] = __apikey
+        SESSION = new_session()
+        SESSION_NO_RETRY = new_session_no_retry()
         return True
-
-# -----------------------------------------------------------------------------
-def setCertifPath(path)->bool:
-    """
-    TODO : verify if the certif work
-    """
-    __certif = path
-    return True
 
 # -----------------------------------------------------------------------------
 def detect_errors(req)->tuple:
@@ -71,6 +119,8 @@ def detect_errors(req)->tuple:
 def manage_errors(req)->None:
     """
     raise an runtime error if the result of a request is an error message
+
+    # TODO: implement better management based on `req.status_code`
     """
     res = detect_errors(req)
     if res[0]:
@@ -83,7 +133,7 @@ def create_dir(path)->bool:
     Return True if done, False otherwise
     """
     url = __PREFIX + 'path' + path
-    rq = requests.put(url, headers=__headers, verify=__certif)
+    rq = SESSION.put(url, headers=__headers)
     try:
         manage_errors(rq)
     except RuntimeError:
@@ -116,7 +166,7 @@ def _path_action(path, action) -> requests.models.Response:
     """
     assert action in ['list', 'exists', 'properties', 'md5']
     url = __PREFIX + 'path' + path + '?action=' + action
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq
 
@@ -153,7 +203,7 @@ def delete_path(path)->bool:
     Return True if done, False otherwise
     """
     url = __PREFIX + 'path' + path
-    rq = requests.delete(url, headers=__headers, verify=__certif)
+    rq = SESSION.delete(url, headers=__headers)
     try:
         manage_errors(rq)
     except RuntimeError:
@@ -162,11 +212,10 @@ def delete_path(path)->bool:
         return True
 
 # -----------------------------------------------------------------------------
-def upload(path, where_to_save)->bool:
+def upload(path, where_to_save) -> bool:
     """
-    Input:
-        - path : on local computer, the file to upload
-        - where_to_save : on VIP, something like "/vip/Home/RandomName.ext"
+    - `path` : on local computer, the file to upload
+    - `where_to_save` : on VIP, something like "/vip/Home/RandomName.ext"
 
     Return True if done, False otherwise
     """
@@ -177,7 +226,7 @@ def upload(path, where_to_save)->bool:
               }
     with open(path, 'rb') as fid:
         data = fid.read()
-    rq = requests.put(url, headers=headers, data=data, verify=__certif)
+    rq = SESSION.put(url, headers=headers, data=data)
     try:
         manage_errors(rq)
     except RuntimeError:
@@ -186,35 +235,76 @@ def upload(path, where_to_save)->bool:
         return True
 
 # -----------------------------------------------------------------------------
-def download(path, where_to_save):
+def download(path, where_to_save) -> bool :
     """
-    Input:
-        - path: on VIP, something like "/vip/Home/RandomName.ext", content to dl
-        - where_to_save : on local computer
+    Downloads a single file from VIP.
+    - `path`: on VIP, something like "/vip/Home/RandomName.ext", content to dl
+    - `where_to_save` : on local computer
     """
+    # Parse arguments
     url = __PREFIX + 'path' + path + '?action=content'
-    rq = requests.get(url, headers=__headers, stream=True, verify=__certif)
-    try:
-        manage_errors(rq)
-    except RuntimeError:
+    rq = SESSION.get(url, headers=__headers, stream=True)
+    if rq.status_code != 200:
         return False
     else:
         with open(where_to_save, 'wb') as out_file:
             out_file.write(rq.content)
         return True
 
+# Methods for parallel downloads
+    
+# Method to downlad data in a thread-safe session
+def download_thread(file: tuple) -> tuple :
+    """
+    Downloads a single file from VIP with a thread-safe session.
+    - `file` must be in format: (`vip_filename`, `local_filename`)
+    - `vip_filename`, `local_filename` can be strings or os.PathLike objects.
+
+    Returns the Vip path and a success flag.
+    """
+    # Parameters
+    path, where_to_save = map(str, file)
+    # URL for request
+    url = __PREFIX + 'path' + str(path) + '?action=content'
+    # Parallel download
+    with (thread_local.session.get(url, headers=__headers, stream=True) as rq,
+          open(where_to_save, 'wb') as out_file):
+        # TODO: manage HTTP return code
+        if rq.status_code != 200:
+            return file, False
+        else:
+            with open(where_to_save, 'wb') as out_file:
+                out_file.write(rq.content)
+            return file, True
+        
+def download_parallel(files):
+    """
+    Downloads files from VIP in parallel.
+    - `files`: iterable of tuples in format (`vip_file`, `local_file`) 
+    where file paths can be `str` or `os.PathLike` objects; 
+    - Yields a filename and a success flag as soon as the file is downloaded from VIP.
+    """
+    # Threads are run in a context manager to secure their closing
+    with ThreadPoolExecutor(
+        max_workers = min(MAX_THREADS, len(files)), # Number of threads
+        thread_name_prefix = "vip_requests",
+        initializer = init_thread  # Method to create a thread-safe `requests` Session
+        ) as executor:
+        # Transparent connexion between executor.map() and the caller of download_parallel()
+        yield from executor.map(download_thread, files)
+
 ################################ EXECUTIONS ###################################
 # -----------------------------------------------------------------------------
 def list_executions()->list:
     url = __PREFIX + 'executions'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.json()
 
 # -----------------------------------------------------------------------------
 def count_executions()->int:
     url = __PREFIX + 'executions/count'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return int(rq.text)
 
@@ -231,14 +321,31 @@ def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Ho
             "inputValues": inputValues,
             "resultsLocation": resultsLocation
            }
-    rq = requests.post(url, headers=headers, json=data_, verify=__certif)
+    rq = SESSION.post(url, headers=headers, json=data_)
+    manage_errors(rq)
+    return rq.json()["identifier"]
+# -----------------------------------------------------------------------------
+
+def init_exec_without_resultsLocation(pipeline, name="default", inputValues={}) -> str:
+    """Initiate executions with "results-directory" in the `inputValues`"""
+    url = __PREFIX + 'executions'
+    headers = {
+                'apikey': __apikey,
+                'Content-Type': 'application/json'
+              }
+    data_ = {
+            "name": name, 
+            'pipelineIdentifier': pipeline,
+            "inputValues": inputValues
+           }
+    rq = requests.post(url, headers=headers, json=data_)
     manage_errors(rq)
     return rq.json()["identifier"]
 
 # -----------------------------------------------------------------------------
 def execution_info(id_exec)->dict:
     url = __PREFIX + 'executions/' + id_exec
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.json()
 
@@ -250,21 +357,31 @@ def is_running(id_exec)->bool:
 # -----------------------------------------------------------------------------
 def get_exec_stderr(exec_id) -> str:
     url = __PREFIX + 'executions/' + exec_id + '/stderr'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.text
 
 # -----------------------------------------------------------------------------
 def get_exec_stdout(exec_id) -> str:
     url = __PREFIX + 'executions/' + exec_id + '/stdout'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.text
 
 # -----------------------------------------------------------------------------
-def get_exec_results(exec_id) -> str:
+def get_exec_results(exec_id, timeout: int=None) -> str:
+    """
+    New version with `timeout` parameter. 
+    If `timeout` is set, `requests will make a single try with timeout
+    (without the persistent session). 
+    """
     url = __PREFIX + 'executions/' + exec_id + '/results'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    try:
+        # Use the session without retry strategy
+        rq = SESSION_NO_RETRY.get(url, headers=__headers, timeout=timeout)
+        # This will throw TimeoutError in case of timeout
+    except requests.exceptions.ReadTimeout as e:
+        raise TimeoutError(e) # builtin Python error
     manage_errors(rq)
     return rq.json()
 
@@ -273,7 +390,7 @@ def kill_execution(exec_id, deleteFiles=False) -> bool:
     url = __PREFIX + 'executions/' + exec_id
     if deleteFiles:
         url += '?deleteFiles=true'
-    rq = requests.delete(url, headers=__headers, verify=__certif)
+    rq = SESSION.delete(url, headers=__headers)
     try:
         manage_errors(rq)
     except RuntimeError:
@@ -285,14 +402,14 @@ def kill_execution(exec_id, deleteFiles=False) -> bool:
 # -----------------------------------------------------------------------------
 def list_pipeline()->list:
     url = __PREFIX + 'pipelines'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.json()
 
 # -----------------------------------------------------------------------------
 def pipeline_def(pip_id)->dict:
     url = __PREFIX + 'pipelines/' + pip_id
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.json()
 
@@ -300,7 +417,7 @@ def pipeline_def(pip_id)->dict:
 # -----------------------------------------------------------------------------
 def platform_info()->dict:
     url = __PREFIX + 'platform'
-    rq = requests.get(url, headers=__headers, verify=__certif)
+    rq = SESSION.get(url, headers=__headers)
     manage_errors(rq)
     return rq.json()
 
@@ -318,10 +435,11 @@ def get_apikey(username, password)->str:
             "username": username, 
             "password": password
            }
-    rq = requests.post(url, headers=headers, json=data_, verify=__certif)
+    rq = SESSION.post(url, headers=headers, json=data_)
     manage_errors(rq)
     return rq.json()['httpHeaderValue']
 
 ###############################################################################
 if __name__=='__main__':
     pass
+
