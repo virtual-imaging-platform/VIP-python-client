@@ -7,7 +7,10 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
 
-import src.vip as vip
+try:
+    import src.vip as vip
+except: # for testing
+    import vip
 
 class VipLauncher():
     """
@@ -566,8 +569,10 @@ class VipLauncher():
             self._print(f"\t{self._VIP_PORTAL}")
             self._print("-------------------------------------------------------------")
             # Standby until all executions are over
+            time.sleep(refresh_time)
             while self._still_running():
-                time.sleep(refresh_time)
+                # Keep track of time
+                start = time.time()
                 # Update the workflow status & discard connection errors
                 try:
                     self._update_workflows()
@@ -580,7 +585,9 @@ class VipLauncher():
                     self._save()
                     # Raise the error
                     raise e
-            # End of monitoring step
+                # Sleep until next itertation
+                elapsed_time = time.time() - start
+                time.sleep(max(refresh_time - elapsed_time, 0))
             # Display the end of executions
             self._print("All executions are over.")
         # Last execution report
@@ -1186,14 +1193,9 @@ class VipLauncher():
         - Starting time (local time, format '%Y/%m/%d %H:%M:%S')
         - List of paths to the output files.
         """
+        # Get execution infos
         try :
-            # Get execution infos
             infos = vip.execution_info(workflow_id)
-            # Secure way to get execution results
-            # files = vip.get_exec_results(workflow_id)
-            files = [
-                {"path": value} for value in infos["returnedFiles"]["output_file"] 
-            ] if (infos["returnedFiles"]) else []
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
         # Return filtered information
@@ -1205,13 +1207,8 @@ class VipLauncher():
                 '%Y/%m/%d %H:%M:%S', time.localtime(infos["startDate"]/1000)
                 ),
             # Returned files (filtered information)
-            "outputs": [
-                {
-                    key: elem[key] 
-                    for key in ["path", "isDirectory", "size", "mimeType"]
-                    if key in elem
-                }
-                for elem in files
+            "outputs": [] if not infos["returnedFiles"] else [
+                {"path": value} for value in infos["returnedFiles"]["output_file"] 
             ]
         }
     # ------------------------------------------------
