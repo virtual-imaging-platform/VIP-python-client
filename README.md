@@ -1,8 +1,9 @@
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
 
 Python client for the [Virtual Imaging Platform][vip-portal] (VIP). 
-
 *If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
+
+<img src="https://vip.creatis.insa-lyon.fr/images/core/vip-logo.png" alt="VIP" height="100" title="Virtual Imaging Platform"/> 
 
 # Table of Contents
 - [Introduction](#introduction)
@@ -20,7 +21,7 @@ Python client for the [Virtual Imaging Platform][vip-portal] (VIP).
     - [Use VipSession Backup][backup]
     - [Manipulate VipSession Properties][manipulate-properties]
     - [Run Multiple VipSessions on the Same Dataset][multiple-vipsessions]
--  [Other Resources](#other-resources)
+- [Other Resources](#other-resources)
   - [Source Code](#source-code)
     - [VipLauncher](#viplauncher)
     - [VipCI](#vipci)

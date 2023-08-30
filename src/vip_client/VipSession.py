@@ -6,8 +6,8 @@ import re
 import time
 from pathlib import *
 
-from utils import vip
-from VipLauncher import VipLauncher
+from vip_client.utils import vip
+from vip_client.VipLauncher import VipLauncher
 
 class VipSession(VipLauncher):
     """

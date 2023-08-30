@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import *
 
-from utils import vip
+from vip_client.utils import vip
 
 class VipLauncher():
     """
