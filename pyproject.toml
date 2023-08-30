@@ -26,13 +26,15 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps",
 ]
 dependencies = ["requests"]
-dynamic = ["version"]
+dynamic = ["version"] # see [tool.hatch.version]
 
+# Only build files with a __init__.py
 [tool.hatch.build]
 only-packages = true
 
+# File where the software version should be found
 [tool.hatch.version]
-path = "src/vip_client/__init__.py" # File where the client version should be defined
+path = "src/vip_client/__init__.py" 
 
 [project.urls]
 Homepage = "https://vip.creatis.insa-lyon.fr"
