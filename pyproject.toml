@@ -23,7 +23,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Image Processing",
-    "Topic :: Scientific/Engineering :: Medical Science Apps",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = ["requests"]
 dynamic = ["version"] # see [tool.hatch.version]

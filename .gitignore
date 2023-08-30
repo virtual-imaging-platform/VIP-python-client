@@ -12,5 +12,6 @@ examples/repro-brats
 # examples/repro-brats/data
 # examples/repro-brats/old
 
+dist/
 perso/
 tests/*

@@ -1,27 +1,29 @@
 [vip-portal]: https://vip.creatis.insa-lyon.fr/ "https://vip.creatis.insa-lyon.fr/"
 
-*Python client for the [Virtual Imaging Platform][vip-portal] (VIP). If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
+Python client for the [Virtual Imaging Platform][vip-portal] (VIP). 
+
+*If you encounter any issues, please contact us at: <vip-support@creatis.insa-lyon.fr>*
 
 # Table of Contents
 - [Introduction](#introduction)
   - [Content](#content)
   - [Prerequisites](#prerequisites)
-- [`VipSession`](#vipsession)
+- [VipSession](#vipsession)
   - [Get Started](#get-started)
     - [Basic Steps][steps]
     - [VipSession Inputs](#vipsession-inputs)
     - [VipSession Outputs](#session-outputs)
   - [Best Practices](#best-practices)
     - [Use VipSession Shortcuts][shortcuts]
-    - [Use `show_pipeline()` to Set VipSession Inputs][show_pipeline]
+    - [Use show_pipeline() to Set VipSession Inputs][show_pipeline]
     - [Parallelize your Executions][parallelize]
     - [Use VipSession Backup][backup]
     - [Manipulate VipSession Properties][manipulate-properties]
     - [Run Multiple VipSessions on the Same Dataset][multiple-vipsessions]
 -  [Other Resources](#other-resources)
   - [Source Code](#source-code)
-    - [`VipLauncher`](#viplauncher)
-    - [`VipCI`](#vipci)
+    - [VipLauncher](#viplauncher)
+    - [VipCI](#vipci)
     - [vip.py](#vip.py)
   - [Examples](#examples)
 - [Manage your VIP Account](#manage-your-vip-account)
@@ -61,7 +63,7 @@ pip install requests
 
 ---
 
-# `VipSession`
+# VipSession
 
 This Python class launches executions on [VIP][vip-portal] from any machine where the dataset is stored (*e.g.*, one's server or PC). 
 Running an application ("pipeline") on VIP implies the following process:
@@ -70,7 +72,7 @@ Running an application ("pipeline") on VIP implies the following process:
 
 illustrated in the diagram below.
 
-<img src="imgs/Upload_Run_Download.png" alt="Procedure" height="200" title="The Upload-Run-Download Procedure"/>
+<img src="docs/imgs/Upload_Run_Download.png" alt="Procedure" height="200" title="The Upload-Run-Download Procedure"/>
 
 `VipSession` implements this procedure in a few simple steps. 
 
@@ -502,7 +504,7 @@ session_b.run_session().finish()
 
 By default, each dataset uploaded on VIP is bound to a single _session_. In the above example, `my_dataset` is thus **uploaded twice** on VIP servers (and removed twice at the end), as depicted in the diagram below.
 
-<img src="imgs/VipSession_without_get_inputs.png" alt="without_get_inputs" height="250" title="Two VIP Sessions without get_inputs()"/>
+<img src="docs/imgs/VipSession_without_get_inputs.png" alt="without_get_inputs" height="250" title="Two VIP Sessions without get_inputs()"/>
 
 #### With `get_inputs()`
 
@@ -527,7 +529,7 @@ session_a.finish()
 
 **/!\\** Running `finish()` on *session B* will not remove its inputs (i.e., `my_dataset`) from VIP servers, because they belong to *session A* (see the diagram below).
 
-<img src="imgs/VipSession_with_get_inputs.png" alt="with_get_inputs" height="220" title="Two VIP Sessions with get_inputs()"/>
+<img src="docs/imgs/VipSession_with_get_inputs.png" alt="with_get_inputs" height="220" title="Two VIP Sessions with get_inputs()"/>
 
 #### Generalization
 
@@ -588,7 +590,7 @@ and [how to get a VIP API key](#get-a-vip-api-key).
 The registration procedure takes a couple of minutes on the VIP Portal: https://vip.creatis.insa-lyon.fr/.
 It is summarized in the diagram below.
 
-<img src="imgs/Vip_Registration.png" alt="New Vip Account" height="180" title="Procedure for New Vip Account"/>
+<img src="docs/imgs/Vip_Registration.png" alt="New Vip Account" height="180" title="Procedure for New Vip Account"/>
 
 During **Step 2**, the user is asked to select one or several applications they intend to use. This ensures they are registered in an application *group* when using VIP for the first time. 
 
@@ -596,7 +598,7 @@ During **Step 2**, the user is asked to select one or several applications they 
 
 Accessing a given `pipeline_id` from the Python client requires joining the corresponding application group. You can join and leave a group at any time from the [VIP portal][vip-portal], using the following steps.
 
-<img src="imgs/Vip_Groups.png" alt="VIP Groups" height="300" title="Register to New Groups"/>
+<img src="docs/imgs/Vip_Groups.png" alt="VIP Groups" height="300" title="Register to New Groups"/>
 
 ## Get a VIP API key
 
@@ -606,7 +608,7 @@ A valid API key is required to run the VIP Python client.
 
 Once a VIP account [has been created](#create-a-vip-account), the API key can be generated in two steps. The procedure is summarized in the image below.
 
-<img src="imgs/VIP_key.png" alt="VIP API key" height="150" title="How to get a VIP API key"/>
+<img src="docs/imgs/VIP_key.png" alt="VIP API key" height="150" title="How to get a VIP API key"/>
 
 Your VIP API key **must be kept private**. Please reset it as soon as it may have been compromised.
 

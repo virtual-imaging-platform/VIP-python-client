@@ -7,4 +7,4 @@ Contacts: Sorina Camarasu-Pop <sorina.pop@creatis.insa-lyon.fr> & Axel Bonnet <a
 
 # Info
 __license__ = "CECILL-B"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
