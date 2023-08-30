@@ -13,4 +13,4 @@ examples/repro-brats
 # examples/repro-brats/old
 
 perso/
-tests/
+tests/*
