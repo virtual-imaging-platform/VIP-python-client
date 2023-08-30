@@ -6,5 +6,4 @@ Contact Sorina Camarasu-Pop and Axel Bonnet for more informations.
 """
 
 # info
-__version__ = "0.1"
 __license__ = "CECILL-B"

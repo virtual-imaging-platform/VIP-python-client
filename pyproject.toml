@@ -1,6 +1,5 @@
 [build-system]
-# requires = ["hatchling", "pathspec"]
-requires = ["hatchling""]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -29,11 +28,8 @@ classifiers = [
 ]
 dependencies = ["requests"]
 
-# [tool.hatch.build]
-# only-packages = true
-
-# [tool.hatch.build.sources]
-# "src" = "vipapi"
+[tool.hatch.build]
+only-packages = true
 
 [project.urls]
 Homepage = "https://vip.creatis.insa-lyon.fr"
