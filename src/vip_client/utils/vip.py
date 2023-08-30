@@ -1,3 +1,6 @@
+# Author: Timothée Chabat
+# Maintainer: Gaël Vila
+
 # Built-in libraries
 from concurrent.futures import ThreadPoolExecutor
 from os.path import exists

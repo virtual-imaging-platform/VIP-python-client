@@ -1,5 +1,5 @@
 /*
-Copyright 2009-2023
+Copyright 20018-2023
 
 CREATIS
 CNRS UMR 5220 -- INSERM U1044 -- Université Lyon 1 -- INSA Lyon
@@ -11,7 +11,7 @@ Axel Bonnet (axel.bonnet@creatis.insa-lyon.fr)
 Sorina Pop (sorina.pop@creatis.insa-lyon.fr)
 Timothée Chabat
 
-This software is a python client for pipeline execution on distributed systems.
+This software is a Python client for pipeline execution on distributed systems.
 
 This software is governed by the CeCILL-B license under French law and
 abiding by the rules of distribution of free software.  You can use,

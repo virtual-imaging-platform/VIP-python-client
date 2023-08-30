@@ -6,12 +6,8 @@ import re
 import time
 from pathlib import *
 
-try:
-    import src.vip as vip
-    from src.VipLauncher import VipLauncher
-except: # for testing
-    import vip
-    from VipLauncher import VipLauncher
+from utils import vip
+from VipLauncher import VipLauncher
 
 class VipSession(VipLauncher):
     """
@@ -1174,5 +1170,4 @@ class VipSession(VipLauncher):
 #######################################################
 
 if __name__=="__main__":
-    VipSession.init()
-    VipSession("test-download").download_outputs(init_timeout=0)
+    pass
