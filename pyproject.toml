@@ -4,14 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vip-client"
-version = "0.0.1"
 description = "Python client to use the Virtual Imaging Platform (VIP) through its RESTful API."
 authors = [
   { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
 ]
 maintainers = [
   { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
-  { name="Axel Bonnet", email="axel.@creatis.insa-lyon.fr" },
+  { name="Axel Bonnet", email="axel.bonnet@creatis.insa-lyon.fr" },
 ]
 readme = "README.md"
 requires-python = ">=3.7"
@@ -27,9 +26,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps",
 ]
 dependencies = ["requests"]
+dynamic = ["version"]
 
 [tool.hatch.build]
 only-packages = true
+
+[tool.hatch.version]
+path = "src/vip_client/__init__.py" # File where the client version should be defined
 
 [project.urls]
 Homepage = "https://vip.creatis.insa-lyon.fr"

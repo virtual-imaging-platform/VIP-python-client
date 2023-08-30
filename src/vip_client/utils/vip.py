@@ -1,3 +1,7 @@
+"""
+Historical module implementing all API requests through the `requests` library.
+"""
+
 # Author: Timothée Chabat
 # Maintainer: Gaël Vila
 
