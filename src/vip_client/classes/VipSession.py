@@ -7,7 +7,7 @@ import time
 from pathlib import *
 
 from vip_client.utils import vip
-from vip_client.VipLauncher import VipLauncher
+from vip_client.classes.VipLauncher import VipLauncher
 
 class VipSession(VipLauncher):
     """

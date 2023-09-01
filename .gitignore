@@ -1,8 +1,7 @@
 __pycache__/
 .vscode/
 vip_outputs/
-
-src/future
+perso/
 
 examples/old
 examples/Repro-*
@@ -12,6 +11,6 @@ examples/repro-brats
 # examples/repro-brats/data
 # examples/repro-brats/old
 
+publish.sh
 dist/
-perso/
 tests/*

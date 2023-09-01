@@ -28,9 +28,9 @@ classifiers = [
 dependencies = ["requests"]
 dynamic = ["version"] # see [tool.hatch.version]
 
-# Only build files with a __init__.py
-[tool.hatch.build]
-only-packages = true
+# Only build files inside src/vip_client
+[tool.hatch.build.targets.wheel]
+packages = ["src/vip_client"]
 
 # File where the software version should be found
 [tool.hatch.version]

@@ -1,0 +1,8 @@
+# environment.yaml
+
+name: vip-client
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.7
+  - requests=2.31.0
