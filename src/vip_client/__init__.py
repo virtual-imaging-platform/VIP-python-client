@@ -1,8 +1,10 @@
 """
-VIP Python client
+Python client for the Virtual Imaging Platform (VIP): https://vip.creatis.insa-lyon.fr/.
 
-Python classes to interact with the Virtual Imaging Platform (VIP) through its CARMIN (RESTful) API.
-Contacts: Sorina Camarasu-Pop <sorina.pop@creatis.insa-lyon.fr> & Axel Bonnet <axel.bonnet@creatis.insa-lyon.fr>.
+Python classes and methods to interact with VIP through its RESTful API.
+Main user class: VipSession 
+    from vip_client import VipSession
+For more information: https://github.com/virtual-imaging-platform/VIP-python-client.
 """
 
 # Informations

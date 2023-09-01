@@ -1,6 +1,10 @@
 """
-Useful modules for the Python classes. 
-- vip.py: makes requests to the VIP API.
+All classes for the client.
+- VipSession: main user class. To run a VIP application on local datasets.
+- VipLauncher: to run a Vip application on datasets located on VIP servers.
+- VipCI (alpha): to run a Vip application on datasets located on CREATIS data warehouse.
+- VipLoader (planned): to upload / download data to / from VIP servers.
+- VipLoader (planned): base class.
 """
 
 # Import classes and modules to secure the namespace
