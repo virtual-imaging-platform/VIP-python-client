@@ -1581,8 +1581,11 @@ class VipLauncher():
         """
         # Check every required field is there 
         missing_fields = (
-            # pipeline parameters
-            {param["name"] for param in self._pipeline_def['parameters'] if not param["isOptional"]} 
+            # required parameters without a default value
+            {
+                param["name"] for param in self._pipeline_def['parameters'] 
+                if not param["isOptional"] and (param["defaultValue"] == '$input.getDefaultValue()')
+            } 
             # current parameters
             - set(input_settings.keys()) 
         )

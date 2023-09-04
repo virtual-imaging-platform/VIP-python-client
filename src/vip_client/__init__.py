@@ -8,7 +8,7 @@ For more information: https://github.com/virtual-imaging-platform/VIP-python-cli
 """
 
 # Informations
-__version__ = "0.0.12"
+__version__ = "0.0.13"
 __license__ = "CECILL-B"
 
 # Import classes and packages to secure the namespace
