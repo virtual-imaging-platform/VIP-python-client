@@ -1,0 +1,19 @@
+# environment.yaml
+
+name: vip-client
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.7
+  - requests
+  - ipywidgets
+  - matplotlib
+  - nibabel
+  - numpy
+  - pandas
+  - parse
+  - scipy
+  - pip
+  - pip:
+    - vip-client
+    - girder-client
