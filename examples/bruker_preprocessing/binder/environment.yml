@@ -1,6 +1,6 @@
 # environment.yaml
 
-name: vip-client
+name: vip-girder
 channels:
   - conda-forge
 dependencies:
