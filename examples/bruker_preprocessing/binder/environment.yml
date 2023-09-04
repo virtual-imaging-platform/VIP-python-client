@@ -8,5 +8,5 @@ dependencies:
   - requests=2.31.0
   - pip
   - pip:
-    - vip-client=0.1.0
-    - girder-client=3.1.15
+    - vip-client==0.1.0
+    - girder-client==3.1.15
