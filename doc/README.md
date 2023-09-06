@@ -1,6 +1,6 @@
-# Documentation
+# Documentation pages 
 
-Documentation pages referenced in [README](../README.md) or elsewhere on the Web.
+Referenced the [README](../README.md) or elsewhere on the Web.
 - [**account.md**](account.md): How to create and manage your personal VIP account
 - [**history.md**](history.md): Version history and release notes
 - [**pypi.md**](pypi.md): Package introduction for Pypi
