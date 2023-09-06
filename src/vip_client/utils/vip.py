@@ -1,5 +1,7 @@
 """
-Historical module implementing all API requests through the `requests` library.
+This package is used to communicate with the VIP RESTful API.
+It implements the most basic elements of this Python client. 
+NB: This is a synchronous implementation.
 """
 
 # Author: Timothée Chabat

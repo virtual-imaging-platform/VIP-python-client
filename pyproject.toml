@@ -12,7 +12,7 @@ maintainers = [
   { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
   { name="Axel Bonnet", email="axel.bonnet@creatis.insa-lyon.fr" },
 ]
-readme = "docs/pypi.md"
+readme = "doc/pypi.md"
 requires-python = ">=3.7"
 classifiers = [
     "Development Status :: 3 - Alpha", 
