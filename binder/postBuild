@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Error handler
+set -e
+
+# Packages cannot be installed in the Binder container (permission denied)
+# apt-get install --yes --no-install-recommends tree
+
+# For ipywidgets
+# jupyter contrib nbextension install --user
+jupyter nbextension enable --py widgetsnbextension

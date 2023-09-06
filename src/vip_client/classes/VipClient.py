@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from pathlib import *
 
-import src.vip as vip
+from vip_client.utils import vip
 
 class VipClient():
     """

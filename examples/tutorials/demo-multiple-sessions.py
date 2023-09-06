@@ -11,8 +11,7 @@ on the same input data (`input_dir`). This is done in two steps :
 import sys
 from pathlib import *
 from shutil import rmtree
-sys.path.append(str(Path().resolve()))
-from src.VipSession import VipSession
+from vip_client import VipSession
 
 ##############
 # Parameters #

@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from src.VipSession import VipSession
+from vip_client import VipSession
 
 _apikey_default = ".api_token.txt"
 

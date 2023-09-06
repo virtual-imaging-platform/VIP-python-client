@@ -3,8 +3,8 @@ import os
 import tarfile
 from pathlib import *
 
-import src.vip as vip
-from src.VipClient import VipClient
+from vip_client.utils import vip
+from vip_client.classes.VipClient import VipClient
 
 class VipLoader(VipClient):
     """
@@ -324,7 +324,8 @@ class VipLoader(VipClient):
 #######################################################
 
 if __name__=="__main__":
-    from VipLoader import VipLoader
-    from pathlib import *
-    VipLoader.init()
-    VipLoader._download_dir(vip_path=PurePosixPath("/vip/Home/test-VipLauncher"), local_path=Path("Here."))
+    pass
+    # from VipLoader import VipLoader
+    # from pathlib import *
+    # VipLoader.init()
+    # VipLoader._download_dir(vip_path=PurePosixPath("/vip/Home/test-VipLauncher"), local_path=Path("Here."))

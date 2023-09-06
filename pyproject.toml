@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vip-client"
+description = "Python client to use the Virtual Imaging Platform (VIP) through its RESTful API."
+authors = [
+  { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
+]
+maintainers = [
+  { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
+  { name="Axel Bonnet", email="axel.bonnet@creatis.insa-lyon.fr" },
+]
+readme = "doc/pypi.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 3 - Alpha", 
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: CeCILL-B Free Software License Agreement (CECILL-B)",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = ["requests"]
+dynamic = ["version"] # see [tool.hatch.version]
+
+# Only build files inside src/vip_client
+[tool.hatch.build.targets.wheel]
+packages = ["src/vip_client"]
+
+# File where the software version should be found
+[tool.hatch.version]
+path = "src/vip_client/__init__.py" 
+
+[project.urls]
+Homepage = "https://vip.creatis.insa-lyon.fr"
+Source = "https://github.com/virtual-imaging-platform/VIP-python-client"
+Tracker = "https://github.com/virtual-imaging-platform/VIP-python-client/issues"

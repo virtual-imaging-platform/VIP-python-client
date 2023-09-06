@@ -1,6 +1,6 @@
-[submodule "example/hanganu-etal-2014"]
-	path = example/hanganu-etal-2014
+[submodule "examples/hanganu-etal-2014"]
+	path = examples/hanganu-etal-2014
 	url = https://github.com/yohanchatelain/hanganu-etal-2014
-[submodule "example/freesurfer/inputs/ds001600"]
-	path = example/freesurfer/inputs/ds001600
+[submodule "examples/freesurfer/inputs/ds001600"]
+	path = examples/freesurfer/inputs/ds001600
 	url = https://github.com/OpenNeuroDatasets/ds001600.git

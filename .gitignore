@@ -1,18 +1,10 @@
 __pycache__/
 .vscode/
-pyproject.toml
-
-src/VipLoader.py
-src/VipClient.py
+vip_outputs/
+perso/
 
 examples/old
-examples/Repro-*
-examples/VipCI
-# examples/vip-cli.py
-examples/repro-brats
-# examples/repro-brats/data
-# examples/repro-brats/old
 
-perso/
-tests/
-vip_outputs/
+publish.sh
+dist/
+tests/*
