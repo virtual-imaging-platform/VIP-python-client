@@ -10,16 +10,8 @@ from vip_client.utils import vip
 
 class VipClient():
     """
-    Python class to run VIP pipelines on datasets located on VIP servers.
-
-    A single instance allows to run 1 pipeline with 1 parameter set (any number of runs).
-    Pipeline runs need at least three inputs:
-    - `pipeline_id` (str) Name of the pipeline. 
-    - `input_settings` (dict) All parameters needed to run the pipeline.
-    - `output_dir` (str | os.PathLike) Path to the VIP directory where pipeline outputs will be stored.
-
-    N.B.: all instance methods require that `VipClient.init()` has been called with a valid API key. 
-    See GitHub documentation to get your own VIP API key.
+    Base class for the client.
+    WORK IN PROGRESS
     """
 
                     ##################
