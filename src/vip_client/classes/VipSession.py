@@ -503,7 +503,7 @@ class VipSession(VipLauncher):
             if not failed:  # All missing files were succesfully downloaded
                 self._print("All files downloaded.")
             else: 
-                self._print("%d downloads failed. Waiting for the 2nd try.")
+                self._print("%d downloads failed. Waiting for the 2nd try." % len(failed))
                 failures.update(failed)
             self._print()
         # End of workflow loop    
@@ -523,32 +523,9 @@ class VipSession(VipLauncher):
         else:
             self._print("The following files could not be downloaded from VIP:", end="\n\t")
             self._print("\n\t".join([str(file) for file, _ in failures]))
+        self._print("--------------------------------")
         # Return
         return self
-    # ------------------------------------------------
-
-    def _select_workflows(self, get_status: list) -> dict:
-        """
-        Generator to enumerate session workflows with status in `get_status`.
-        Prints the workflow status; yields the workflow metadata.
-        """
-        # Get execution report
-        report = self._execution_report(display=False)
-        # Count the number of executions to process
-        nb_exec = sum([len(report[status]) for status in get_status if status in report])
-        nExec = 0
-        # Enumerate workflows
-        for wid in self._workflows:
-            # Check if the workflow should be processed
-            if self._workflows[wid]["status"] not in get_status:
-                continue
-            nExec+=1 
-            # Display current execution
-            self._print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
-                " | Started on: ", self._workflows[wid]["start"],
-                " | Status: ", self._workflows[wid]["status"], sep='')
-            # Yield current ID
-            yield self._workflows[wid]
     # ------------------------------------------------
 
     # Run a full VIP session 
@@ -784,6 +761,31 @@ class VipSession(VipLauncher):
             self._print("\n(!) Timeout for workflow(s):", ", ".join(failed))
     # ------------------------------------------------
 
+    # Method to enumerated worflows based on their status
+    def _select_workflows(self, get_status: list) -> dict:
+        """
+        Generator to enumerate session workflows with status in `get_status`.
+        Prints the workflow status; yields the workflow metadata.
+        """
+        # Get execution report
+        report = self._execution_report(display=False)
+        # Count the number of executions to process
+        nb_exec = sum([len(report[status]) for status in get_status if status in report])
+        nExec = 0
+        # Enumerate workflows
+        for wid in self._workflows:
+            # Check if the workflow should be processed
+            if self._workflows[wid]["status"] not in get_status:
+                continue
+            nExec+=1 
+            # Display current execution
+            self._print(f"[{nExec}/{nb_exec}] Outputs from: ", wid, 
+                " | Started on: ", self._workflows[wid]["start"],
+                " | Status: ", self._workflows[wid]["status"], sep='')
+            # Yield current ID
+            yield self._workflows[wid]
+    # ------------------------------------------------
+
     # Function to upload all files from a local directory
     def _upload_dir(self, local_path: Path, vip_path: PurePosixPath) -> list:
         """
@@ -950,7 +952,7 @@ class VipSession(VipLauncher):
             file = (vip_path, local_path) # This key matches the requirements of `vip.download_parallel()`
             files_to_download[file] = {}
             # Update the file metadata
-            files_to_download[file].update({key: value for key, value in output.items() if key!="path"})
+            files_to_download[file].update()
             # Make the parent directory (if needed)
             self._mkdirs(local_path.parent, location="local")
         # Return the list of files to download

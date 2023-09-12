@@ -8,13 +8,8 @@ from vip_client.classes.VipClient import VipClient
 
 class VipLoader(VipClient):
     """
-    Python class to run VIP pipelines on datasets located on VIP servers.
-
-    A single instance allows to run 1 pipeline with 1 parameter set (any number of runs).
-    Pipeline runs need at least three inputs:
-    - `pipeline_id` (str) Name of the pipeline. 
-    - `input_settings` (dict) All parameters needed to run the pipeline.
-    - `output_dir` (str | os.PathLike) Path to the VIP directory where pipeline outputs will be stored.
+    Python class to upload / download files to / from VIP servers.
+    WORK IN PROGRESS
 
     N.B.: all instance methods require that `VipLoader.init()` has been called with a valid API key. 
     See GitHub documentation to get your own VIP API key.
@@ -28,34 +23,100 @@ class VipLoader(VipClient):
     __name__ = "VipLoader"
     # Default verbose state
     _VERBOSE = True
+    # List of known directory contents
+    _VIP_TREE = {}
 
                     ################
     ################ Public Methods ##################
                     ################
 
     @classmethod
-    def upload_dir():
-        pass
-
-    @staticmethod
-    def _list_files(vip_path: PurePosixPath) -> PurePosixPath:
+    def list_dir(cls, vip_path: PurePosixPath) -> list[str]:
+        """
+        Returns a list of directories under `vip_path` [str or os.PathLike].
+        """
         return [
-            PurePosixPath(element["path"])
-            for element in vip.list_elements(str(vip_path))
+            PurePosixPath(element["path"]).name
+            for element in cls._list_dir_vip(PurePosixPath(vip_path), update=True)
         ]
+
+    @classmethod
+    def download_dir(cls, vip_path, local_path, unzip=True):
+        """
+        Download all files from `vip_path` to `local_path` (if needed).
+        Displays what it does if `cls._VERBOSE` is True.
+        Returns a dictionary of failed downloads.
+        """
+        cls._printc("Recursive download from:", vip_path)
+        # Path-ify
+        vip_path = PurePosixPath(vip_path)
+        local_path = Path(local_path)
+        # Assert folder existence on VIP
+        if not cls._exists(vip_path, location='vip'):
+            raise FileNotFoundError("Folder does not exist on VIP.")
+        # Scan the distant and local directories and get a list of files to download
+        cls._printc("\nCloning the distant folder tree")
+        cls._printc("-------------------------------")
+        files_to_download = cls._init_download_dir(vip_path, local_path)
+        cls._printc("-------------------------------")
+        cls._printc("Done.")
+        # Download the files from VIP servers & keep track of the failures
+        cls._printc("\nParallel download of the distant files")
+        cls._printc("--------------------------------------")
+        failures = cls._download_parallel(files_to_download, unzip) 
+        cls._printc("--------------------------------------")
+        cls._printc("End of parallel downloads\n")
+        if not failures :
+            return
+        # Retry in case of failure
+        cls._printc(len(failures), "files could not be downloaded from VIP.")
+        cls._printc("\nGiving a second try")
+        cls._printc("---------------------")
+        failures = cls._download_parallel(failures, unzip)
+        cls._printc("---------------------")
+        cls._printc("End of the process.")
+        if failures :
+            cls._printc("The following files could not be downloaded from VIP:", end="\n\t")
+            cls._printc("\n\t".join([str(file) for file, _ in failures]))
+    # ------------------------------------------------
+
     
-    @staticmethod
-    def _list_dir(vip_path: PurePosixPath) -> PurePosixPath:
-        return [
-            PurePosixPath(element["path"])
-            for element in vip.list_directory(str(vip_path))
-        ]
-
-
                     #################
     ################ Private Methods ################
                     #################
+
+    @classmethod
+    def _list_content_vip(cls, vip_path: PurePosixPath, update=True) -> list[dict]:
+        """
+        Updates `cls._VIP_TREE` with the content of `vip_path` on VIP servers. 
+        """
+        if update or (vip_path not in cls._VIP_TREE):
+            cls._VIP_TREE[vip_path] = vip.list_content(str(vip_path))
+        return cls._VIP_TREE[vip_path]
+    # ------------------------------------------------
+
+    @classmethod
+    def _list_files_vip(cls, vip_path: PurePosixPath, update=True) -> list[dict]:
+        return [
+            element
+            for element in cls._list_content_vip(vip_path, update)
+            if element['exists'] and not element['isDirectory']
+        ]
+    # ------------------------------------------------
     
+    @classmethod
+    def _list_dir_vip(cls, vip_path: PurePosixPath, update=True) -> list[dict]:
+        return [
+            element
+            for element in cls._list_content_vip(vip_path, update)
+            if element['exists'] and element['isDirectory']
+        ]
+    # ------------------------------------------------
+    
+    #########################
+    # Methods to be optimized
+    #########################
+
     # Method to check existence of a distant or local resource.
     @classmethod
     def _exists(cls, path: PurePath, location="local") -> bool:
@@ -93,13 +154,159 @@ class VipLoader(VipClient):
             return super()._create_dir(path=path, location=location, **kwargs)
     # ------------------------------------------------
 
-    #################################################
-    # ($A) Manage a session from start to finish
-    #################################################
+    @classmethod
+    def _init_download_dir(cls, vip_path: PurePosixPath, local_path: Path) -> dict:
+        """
+        Copy the folder tree under `vip_path` to `local_path`
 
-    # ($A.2/A.5) Upload (/download) data on (/from) VIP Servers
-    ###########################################################
+        Returns a dictionary of files within `vip_path` that are not in `local_paths`.
+        Dictionary keys: (vip_path, local_path).
+        Dictionary values: file metadata.
+        """ 
+        # First display
+        cls._printc(f"{local_path} : ", end="")
+        # Scan the current VIP directory
+        cls._list_content_vip(vip_path)
+        # Look for files
+        all_files = cls._list_files_vip(vip_path, update=False)
+        # Scan the local directory and look for files to download
+        if cls._mkdirs(local_path, location="local"):
+            # The local directory did not exist before call
+            cls._printc("Created.")
+            # -> download all the files (no scan to save time)
+        else: 
+            # The local directory already exists
+            cls._printc("Already there.")
+            # Scan it to check if there are more files to download
+            local_filenames = {
+                elem.name for elem in local_path.iterdir() if elem.exists()
+            }
+            # Get the files to download
+            all_files = [ 
+                element for element in all_files 
+                if PurePosixPath(element["path"]).name not in local_filenames
+            ]
+        # Return files to download as a dictionary
+        files_to_download = {}
+        for file in all_files:
+            # Dict key: VIP & local paths
+            file_vip_path = PurePosixPath(file["path"])
+            file_local_path = local_path / file_vip_path.name
+            files_to_download[(file_vip_path, file_local_path)] = {
+                # Dict value: Metadata
+                key: value for key, value in file.items() if key!="path"
+            }
+        # Recurse this function over sub-directories
+        for subdir in cls._list_dir_vip(vip_path, update=False):
+            subdir_path = PurePosixPath(subdir["path"])
+            # Scan the subdirectory
+            new_files = cls._init_download_dir(
+                vip_path = subdir_path,
+                local_path = local_path / subdir_path.name,
+            )
+            # Update the list of files to download
+            files_to_download.update(new_files)
+        return files_to_download
+    # ------------------------------------------------
 
+    # Method do download files using parallel threads
+    @classmethod
+    def _download_parallel(cls, files_to_download: dict, unzip: bool):
+        """
+        Downloads files from VIP using parallel threads.
+        - `files_to_download`: Dictionnary with key: (vip_path, local_path) and value: metadata.
+        - `unzip`: if True, extracts the tarballs inplace after the download.
+
+        Returns a list of failed downloads.
+        """
+        # Copy the input
+        files_to_download = files_to_download.copy()
+        # Return if there is no file to download
+        if not files_to_download:
+            cls._printc("No file to download.")
+            return files_to_download
+        # Check the amount of data
+        try:    total_size = "%.1fMB" % sum([file['size']/(1<<20) for file in files_to_download.values()])
+        except: total_size = "unknown"
+        # Display
+        cls._printc(f"Downloading {len(files_to_download)} file(s) (total size: {total_size})...")
+        # Sort the files to download by size
+        try:
+            file_list = sorted(files_to_download.keys(), key=lambda file: files_to_download[file]["size"])
+        except: 
+            file_list = list(files_to_download)
+        # Download the files from VIP servers
+        nFile = 0 
+        nb_files = len(files_to_download)
+        for file, done in vip.download_parallel(file_list):
+            nFile += 1
+            # Get informations about the new file 
+            vip_path, local_path = file
+            file_info = files_to_download[file]
+            file_size = "[%.1fMB]" % (file_info["size"]/(1<<20)) if "size" in file_info else ""
+            if done: 
+                # Remove file from the list
+                file_info = files_to_download.pop(file)
+                # Display success
+                cls._printc(f"- [{nFile}/{nb_files}] DONE:", local_path, file_size, flush=True)
+                # If the output is a tarball, extract the files and delete the tarball
+                if unzip and tarfile.is_tarfile(local_path):
+                    cls._printc("\tExtracting archive ...", end=" ")
+                    if cls._extract_tarball(local_path):
+                        cls._printc("Done.") # Display success
+                    else:
+                        cls._printc("Extraction failed.") # Display failure
+            else: 
+                # Display failure
+                cls._printc(f"- [{nFile}/{nb_files}] FAILED:", vip_path, file_size, flush=True)
+        # Return failed downloads
+        return files_to_download
+    # ------------------------------------------------
+
+    # Function to download a single file from VIP
+    @classmethod
+    def _download_file(cls, vip_path: PurePosixPath, local_path: Path) -> bool:
+        """
+        Downloads a single file in `vip_path` to `local_path`.
+        Returns a success flag.
+        """
+        # Download (file existence on VIP is not checked to save time)
+        try:
+            return vip.download(str(vip_path), str(local_path))
+        except RuntimeError as vip_error:
+            cls._handle_vip_error(vip_error)
+    # ------------------------------------------------    
+
+    # Method to extract content from a tarball
+    @classmethod
+    def _extract_tarball(cls, local_file: Path):
+        """
+        Replaces tarball `local_file` by a directory with the same name 
+        and extracted content.
+        Returns success flag.
+        """
+        # Rename current archive
+        archive = local_file.parent / "tmp.tgz"
+        os.rename(local_file, archive) # pathlib version does not work it in Python 3.7
+        # Create a new directory to store archive content
+        cls._mkdirs(local_file, location="local")
+        # Extract archive content
+        try:
+            with tarfile.open(archive) as tgz:
+                tgz.extractall(path=local_file)
+            success = True
+        except:
+            success = False
+        # Deal with the temporary archive
+        if success: # Remove the archive
+            os.remove(archive)
+        else: # Rename the archive
+            os.rename(archive, local_file)
+        # Return the flag
+        return success
+    # ------------------------------------------------
+
+    
     # Function to upload all files from a local directory
     @classmethod
     def _upload_dir(cls, local_path: Path, vip_path: PurePosixPath) -> list:
@@ -190,142 +397,9 @@ class VipLoader(VipClient):
             cls._handle_vip_error(vip_error)
     # ------------------------------------------------   
 
-    # Function to upload all files from a local directory
-    @classmethod
-    def _download_dir(cls, vip_path: PurePosixPath, local_path: Path, unzip=True) -> list:
-        """
-        Download all files from `vip_path` to `local_path` (if needed).
-        Displays what it does if `cls._VERBOSE` is True.
-        Returns a list of files which failed to be downloaded from VIP.
-        """
-        # First display
-        cls._printc(f"Folder: {local_path} ", end="... ")
-        # Scan the VIP directory
-        assert cls._exists(vip_path, location='vip'), f"{vip_path} does not exist."
-        all_content = vip.list_content(str(vip_path))
-        # Look for files
-        all_files = [ 
-            element for element in all_content 
-            if not element["isDirectory"] and element["exists"]
-        ]
-        # Scan the distant directory and look for files to upload
-        if cls._mkdirs(local_path, location="local"):
-            # The local directory did not exist before call
-            # -> download all the data (no scan to save time)
-            files_to_download = all_files
-            cls._printc("(Created locally)")
-            if files_to_download:
-                cls._printc(f"\t{len(files_to_download)} file(s) to download.")
-        else: # The local directory already exists
-            # Scan it to check if there are more files to download
-            local_filenames = {
-                elem.name for elem in local_path.iterdir() if elem.exists()
-            }
-            # Get the files to download
-            files_to_download = [ 
-                element for element in all_files 
-                if PurePosixPath(element["path"]).name not in local_filenames
-            ]
-            # Update the display
-            if files_to_download: 
-                cls._printc(f"\n\tDirectory already exists and will be updated with {len(files_to_download)} file(s).")
-            else:
-                cls._printc("Already there.")
-        # Upload the files
-        nFile = 0
-        failures = []
-        for vip_file in files_to_download :
-            nFile+=1
-            # Get the file size (if possible)
-            if "size" in vip_file: 
-                size = f"{vip_file['size']/(1<<20):,.1f}MB"
-            else:
-                size = "size unknown"
-            # Get the path
-            vip_file_path = PurePosixPath(vip_file["path"])
-            # Display the current file
-            cls._printc(f"\t[{nFile}/{len(files_to_download)}] Downloading file: {vip_file_path.name} ({size}) ...", end=" ")
-            # Download the file from VIP
-            local_file = local_path / vip_file_path.name # Local file path
-            if cls._download_file(vip_path=vip_file_path, local_path=local_file):
-                # Upload was successful
-                cls._printc("Done.")
-                # If the output is a tarball, extract the files and delete the tarball
-                if unzip and ("mimeType" in vip_file) and (vip_file["mimeType"]=="application/gzip") and tarfile.is_tarfile(local_file):
-                    cls._printc("\t\tExtracting archive content ...", end=" ")
-                    if cls._extract_tarball(local_file):
-                        cls._printc("Done.") # Display success
-                    else:
-                        cls._printc("Extraction failed.") # Display failure
-            else:
-                # Update display
-                cls._printc(f"\n(!) Something went wrong during the download.")
-                # Update missing files
-                failures.append(str(vip_file_path))
-        # Look for sub-directories
-        subdirs = [ 
-            PurePosixPath(element["path"]) for element in all_content 
-            if element["isDirectory"] and element["exists"]
-        ]
-        # Recurse this function over sub-directories
-        for subdir in subdirs:
-            failures += cls._download_dir(
-                vip_path = subdir,
-                local_path = local_path / subdir.name
-            )
-        # Return the list of failures
-        return failures
-    # ------------------------------------------------
-
-    # Function to download a single file from VIP
-    @classmethod
-    def _download_file(cls, vip_path: PurePosixPath, local_path: Path) -> bool:
-        """
-        Downloads a single file in `vip_path` to `local_path`.
-        Returns a success flag.
-        """
-        # Download (file existence on VIP is not checked to save time)
-        try:
-            return vip.download(str(vip_path), str(local_path))
-        except RuntimeError as vip_error:
-            cls._handle_vip_error(vip_error)
-    # ------------------------------------------------    
-
-    # Method to extract content from a tarball
-    @classmethod
-    def _extract_tarball(cls, local_file: Path):
-        """
-        Replaces tarball `local_file` by a directory with the same name 
-        and extracted content.
-        Returns success flag.
-        """
-        # Rename current archive
-        archive = local_file.parent / "tmp.tgz"
-        os.rename(local_file, archive) # pathlib version does not work it in Python 3.7
-        # Create a new directory to store archive content
-        cls._mkdirs(local_file, location="local")
-        # Extract archive content
-        try:
-            with tarfile.open(archive) as tgz:
-                tgz.extractall(path=local_file)
-            success = True
-        except:
-            success = False
-        # Deal with the temporary archive
-        if success: # Remove the archive
-            os.remove(archive)
-        else: # Rename the archive
-            os.rename(archive, local_file)
-        # Return the flag
-        return success
-    # ------------------------------------------------
-
 
 #######################################################
 
 if __name__=="__main__":
     pass
-    # from VipLoader import VipLoader
-    # from pathlib import *
-    # VipLoader.init()
-    # VipLoader._download_dir(vip_path=PurePosixPath("/vip/Home/test-VipLauncher"), local_path=Path("Here."))
+    
