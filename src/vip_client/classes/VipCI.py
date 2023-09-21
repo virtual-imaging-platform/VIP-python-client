@@ -3,7 +3,11 @@ import os
 import time
 from pathlib import *
 
-import girder_client
+try:
+    import girder_client
+except:
+    from warnings import warn
+    warn("vip_client.classes.VipCI is unavailable (unable to import girder-client)")
 from vip_client.utils import vip
 from vip_client.classes.VipLauncher import VipLauncher
 
