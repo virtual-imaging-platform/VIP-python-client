@@ -1,13 +1,15 @@
+# Builtins
 from __future__ import annotations
 import os
 import time
 from pathlib import *
-
+# Try importing the Girder client
 try:
     import girder_client
 except:
     from warnings import warn
-    warn("vip_client.classes.VipCI is unavailable (unable to import girder-client)")
+    warn("vip_client.classes.VipCI is unavailable (missing package: girder-client)")
+# Other classes from VIP client
 from vip_client.utils import vip
 from vip_client.classes.VipLauncher import VipLauncher
 
@@ -553,9 +555,9 @@ class VipCI(VipLauncher):
             elif girder_type == "folder":
                 # Retrieve all items
                 items = [ it["_id"] for it in self._girder_client.listItem(folderId=girder_id) ]
+                new_inputs = []
                 # Browse items
                 for itemId in items:
-                    new_inputs = []
                     # Retrieve the corresponding file
                     fileId = get_file_from_item(itemId)
                     # Update the file list with new Girder path
