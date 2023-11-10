@@ -70,7 +70,7 @@ class VipCI(VipLauncher):
                     #############
     def __init__(
         self, output_dir=None, pipeline_id: str=None, input_settings: dict=None, 
-        session_name: str=None, verbose: bool=None
+        session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None
     ) -> None:
         """
         Creates a VipCI instance and sets its properties from keyword arguments.
@@ -108,6 +108,8 @@ class VipCI(VipLauncher):
             input_settings = input_settings,
             verbose = verbose
         )
+        # Set custom properties
+        self._custom_wf_metadata = custom_wf_metadata
         # End display
         if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
             self._print()
@@ -405,6 +407,9 @@ class VipCI(VipLauncher):
         for workflow_id in self._workflows:
             metadata = self._meta_workflow(workflow_id=workflow_id)
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
+            if self._custom_wf_metadata is not None:
+                metadata = {**metadata, **self._custom_wf_metadata}
+                print(metadata)
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
         self._print()
