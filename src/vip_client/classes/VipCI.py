@@ -58,16 +58,27 @@ class VipCI(VipLauncher):
     _GIRDER_ID_PREFIX = "pilotGirder"
     # Grider portal
     _GIRDER_PORTAL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
+    #_GIRDER_PORTAL = 'http://localhost:8080/api/v1'
 
                     #################
     ################ Main Properties ##################
                     ################# 
     
-    # Same as the parent class
+    @property
+    def custom_wf_metadata(self) -> dict:
+        return self._custom_wf_metadata
+    
+    @custom_wf_metadata.setter
+    def custom_wf_metadata(self, value: dict) -> None:
+        if value != None:
+            assert isinstance(value, dict), f"Custom metadata must be a dictionary, not {type(value)}"
+        self._custom_wf_metadata = value
+
+
 
                     #############
     ################ Constructor ##################
-                    #############
+                    ############# 
     def __init__(
         self, output_dir=None, pipeline_id: str=None, input_settings: dict=None, 
         session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None
@@ -96,6 +107,8 @@ class VipCI(VipLauncher):
         - `verbose` [Optional] (bool) Verbose mode for this instance.
             - If True, instance methods will display logs;
             - If False, instance methods will run silently.
+        
+        - `custom_wf_metadata` [Optional] (dict) Custom metadata to add to each workflow.
 
         `session_name` is only set at instantiation; other properties can be set later in function calls.
         If `output_dir` leads to data from a previous session, properties will be loaded from the metadata on Girder.
@@ -109,7 +122,7 @@ class VipCI(VipLauncher):
             verbose = verbose
         )
         # Set custom properties
-        self._custom_wf_metadata = custom_wf_metadata
+        self.custom_wf_metadata = custom_wf_metadata
         # End display
         if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
             self._print()
@@ -407,9 +420,8 @@ class VipCI(VipLauncher):
         for workflow_id in self._workflows:
             metadata = self._meta_workflow(workflow_id=workflow_id)
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
-            if self._custom_wf_metadata is not None:
-                metadata = {**metadata, **self._custom_wf_metadata}
-                print(metadata)
+            if self.custom_wf_metadata is not None:
+                metadata = {**metadata, **self.custom_wf_metadata}
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
         self._print()
@@ -444,7 +456,10 @@ class VipCI(VipLauncher):
                     return None
         # Display success if the folder was found
         self._print("<< Session restored from its output directory\n")
-        # Return session metadata 
+        # Return session metadata
+        print(folder)
+        print("Metadata:")
+        print(folder["meta"])
         return folder["meta"]
     # ------------------------------------------------
     
