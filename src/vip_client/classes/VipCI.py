@@ -360,12 +360,16 @@ class VipCI(VipLauncher):
 
     # Function extract metadata from a single workflow
     def _meta_workflow(self, workflow_id: str) -> dict:
-        return {
+        metadata = {
             "session_name": self._session_name,
             "workflow_id": workflow_id,
             "workflow_start": self._workflows[workflow_id]["start"],
             "workflow_status": self._workflows[workflow_id]["status"]
         }
+        # If custom metadata is provided, add it to the metadata
+        if self.custom_wf_metadata is not None:
+            metadata = {**metadata, **self.custom_wf_metadata}
+        return metadata
 
     # Overwrite _get_exec_infos() to bypass call to vip.get_exec_results() (does not work at this time)
     @classmethod
@@ -419,8 +423,6 @@ class VipCI(VipLauncher):
         for workflow_id in self._workflows:
             metadata = self._meta_workflow(workflow_id=workflow_id)
             folderId, _ = self._girder_path_to_id(path=self._workflows[workflow_id]["output_path"])
-            if self.custom_wf_metadata is not None:
-                metadata = {**metadata, **self.custom_wf_metadata}
             self._girder_client.addMetadataToFolder(folderId=folderId, metadata=metadata)
         # Display
         self._print()
