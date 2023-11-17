@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
-dependencies = ["requests"]
+dependencies = ["requests", "girder-client"]
 dynamic = ["version"] # see [tool.hatch.version]
 
 # Only build files inside src/vip_client
