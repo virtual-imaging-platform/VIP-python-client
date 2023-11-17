@@ -58,11 +58,10 @@ class VipCI(VipLauncher):
     _GIRDER_ID_PREFIX = "pilotGirder"
     # Grider portal
     _GIRDER_PORTAL = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
-    #_GIRDER_PORTAL = 'http://localhost:8080/api/v1'
 
                     #################
     ################ Main Properties ##################
-                    ################# 
+                    #################
     
     @property
     def custom_wf_metadata(self) -> dict:
@@ -457,9 +456,6 @@ class VipCI(VipLauncher):
         # Display success if the folder was found
         self._print("<< Session restored from its output directory\n")
         # Return session metadata
-        print(folder)
-        print("Metadata:")
-        print(folder["meta"])
         return folder["meta"]
     # ------------------------------------------------
     
