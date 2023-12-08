@@ -7,4 +7,5 @@ examples/old
 
 publish.sh
 dist/
-tests/*
+tests/old
+tests/__pycache__
