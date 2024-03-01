@@ -1205,7 +1205,7 @@ class VipLauncher():
                 ),
             # Returned files (filtered information)
             "outputs": [] if not infos["returnedFiles"] else [
-                {"path": value} for value in infos["returnedFiles"]["output_file"] 
+                {"path": value} for output_files in infos["returnedFiles"].values() for value in output_files
             ]
         }
     # ------------------------------------------------
