@@ -7,4 +7,3 @@ examples/old
 
 publish.sh
 dist/
-tests/*
