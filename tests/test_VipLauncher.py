@@ -247,6 +247,9 @@ def test_properties_interface(mocker):
     
     def fake_unlink(self):
         return True
+    
+    def fake_unlink_linux():
+        return True
 
     mocked_exists = mocker.patch("vip_client.utils.vip.exists")
     mocked_exists.side_effect = fake_exists
@@ -268,11 +271,19 @@ def test_properties_interface(mocker):
 
     mocked_unlink = mocker.patch("os.unlink")
     mocked_unlink.side_effect = fake_unlink
+    mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
+    mocked_unlink_linux.side_effect = fake_unlink_linux
 
     VipLauncher._BACKUP_LOCATION = "vip"
 
     # Copy the first session
     s = VipLauncher(output_dir=PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"))
+    s.input_settings = {
+        "zipped_folder": 'fake_value1',
+        "basis_file": 'fake_value2',
+        "signal_file": ['fake_value3', 'fake_value4'],
+        "control_file": ['fake_value5']
+    }
     # Backup the inputs
     backup = s.input_settings
     # Run a subtest for each property
