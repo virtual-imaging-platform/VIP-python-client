@@ -29,6 +29,7 @@ def setup_teardown_vip_launcher(request, mocker):
     # Create a buffer file for the backup
     with open('tmp_data.json', 'w') as f:
         f.write('{}')
+        print("Trying to create the buffer file")
     # Mock the VIP API
     mocked_list_pipeline = mocker.patch("vip_client.utils.vip.list_pipeline")
     mocked_list_pipeline.return_value = [
