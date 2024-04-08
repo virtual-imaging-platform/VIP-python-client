@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
   pull_request:
     branches:
       - main
@@ -24,7 +25,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install pytest pytest_mock requests
 
     - name: Run Pytest
       run: |
+        export PYTHONPATH=src:$PYTHONPATH
         pytest
