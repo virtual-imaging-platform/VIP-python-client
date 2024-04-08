@@ -182,6 +182,9 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
     
     def fake_unlink(self):
         return True
+    
+    def fake_unlink_linux():
+        return True
 
     mocked_exists = mocker.patch("vip_client.utils.vip.exists")
     mocked_exists.side_effect = fake_exists
@@ -203,6 +206,8 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
 
     mocked_unlink = mocker.patch("os.unlink")
     mocked_unlink.side_effect = fake_unlink
+    mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
+    mocked_unlink_linux.side_effect = fake_unlink_linux
 
     VipLauncher._BACKUP_LOCATION = backup_location
     # Return if backup is disabled
