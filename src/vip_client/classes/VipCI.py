@@ -434,6 +434,8 @@ class VipCI(VipLauncher):
             try:
                 girder_id, _ = self._girder_path_to_id(self.vip_output_dir)
                 folder = self._girder_client.getFolder(folderId=girder_id)
+                print("CASCA")
+                print(folder)
             except girder_client.HttpError as e:
                 if e.status == 400: # Folder was not found
                     return None

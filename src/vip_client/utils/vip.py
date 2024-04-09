@@ -80,6 +80,7 @@ def setApiKey(value) -> bool:
     Return True is correct apikey, False otherwise.
     Raise an error if an other problems occured 
     """
+    print("Were in the real one")
     url = __PREFIX + 'plateform'
     head_test = {
                  'apikey': value,

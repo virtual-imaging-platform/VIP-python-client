@@ -217,7 +217,7 @@ class VipLauncher():
     @output_dir.setter
     def output_dir(self, new_dir: str) -> None:
         # Call deleter if agument is None
-        if new_dir is None: 
+        if new_dir is None:
             del self.vip_output_dir
             return
         # Display
@@ -1280,6 +1280,8 @@ class VipLauncher():
                 self._set(**backup_data)
             return True
         # If the backup data do not have the right properties, raise TypeError
+        print("SESSION DATA", session_data)
+        print("BACKUP DATA", backup_data)
         missing_props = set(session_data.keys()) - set(backup_data.keys())
         if missing_props:
             raise TypeError(f"The following properties are missing in the backup data:\n\t{', '.join(missing_props)}")
