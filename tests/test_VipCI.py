@@ -5,143 +5,8 @@ from pathlib import *
 import pytest_mock
 from src.vip_client.utils import vip
 from src.vip_client.classes import VipCI
-
-
-def mock_vip_api(mocker, pipeline_id):
-    
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_list_pipeline():
-        return [
-            {'identifier': 'LCModel/0.1', 'name': 'LCModel', 'description': None, 
-            'version': '0.1', 'parameters': [], 'canExecute': True},
-            {'identifier': 'CQUEST/0.3', 'name': 'LCModel', 'description': None, 
-            'version': '0.1', 'parameters': [], 'canExecute': True}
-        ]
-    
-    def fake_set_api_key(api_key):
-        return True if api_key == "FAKE_KEY" else False
-
-    
-    def fake_pipeline_def(pipeline):
-        return {
-            'identifier': pipeline_id, 
-                'name': 'LCModel', 
-                'description': 'MR spectrosocpy signal quantification software', 
-                'version': '0.1', 
-                'parameters': [
-                    {
-                        'name': 'zipped_folder', 
-                        'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
-                        'description': 'Archive containing all metabolite & macromolecules in .RAW format', 
-                        'isOptional': False, 
-                        'isReturnedValue': False
-                    }, 
-                    {
-                        'name': 'basis_file', 
-                        'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
-                        'description': "Text file with extension '.basis' containing information & prior ...", 
-                        'isOptional': False, 
-                        'isReturnedValue': False
-                    }, 
-                    {
-                        'name': 'signal_file', 
-                        'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
-                        'description': "Text file with extension '.RAW' containing the signal to quantify", 
-                        'isOptional': False, 
-                        'isReturnedValue': False
-                    }, 
-                    {
-                        'name': 'control_file', 
-                        'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
-                        'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 
-                        'isOptional': False, 
-                        'isReturnedValue': False
-                    }, 
-                    {
-                        'name': 'script_file', 
-                        'type': 'File', 
-                        'defaultValue': '/vip/ReproVIP (group)/LCModel/run-lcmodel.sh', 
-                        'description': 'Script lauching lcmodel', 
-                        'isOptional': False, 'isReturnedValue': False
-                    }
-                ], 
-                'canExecute': True
-            }
-    
-    def fake_init_exec(pipeline, name, inputValues, resultsLocation):
-        return 'workflow-XXXXXX'
-    
-    def fake_execution_info(workflow_id):
-        return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
-    
-    mocker.patch("vip_client.utils.vip.exists").return_value = True
-    mocker.patch("pathlib.Path.exists").return_value = True
-    mocker.patch("vip_client.utils.vip.upload").return_value = True
-    mocker.patch("vip_client.utils.vip.download").return_value = True
-    mocker.patch("os.unlink").return_value = True
-    mocker.patch("pathlib.Path.unlink").return_value = True
-    mocker.patch("pathlib.Path.open").side_effect = fake_pathlib_open
-    mocker.patch("vip_client.utils.vip.pipeline_def").side_effect = fake_pipeline_def
-    mocker.patch("vip_client.utils.vip.list_pipeline").side_effect = fake_list_pipeline
-    mocker.patch("vip_client.utils.vip.setApiKey").side_effect = fake_set_api_key
-    mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
-    mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
-
-class FakeGirderClient():
-    
-    pipeline_id = "LCModel/0.1"
-    def __init__(self, apiUrl):
-        pass
-    def authenticate(self, apiKey):
-        return True
-    
-    def resourceLookup(self, path):
-        return {'_id': 'fake_id', '_modelType': 'folder'}
-    
-    def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
-        return {'_id': 'fake_id'}
-    
-    def addMetadataToFolder(self, folderId, metadata):
-        return True
-    
-    def getFolder(cls, folderId):
-        print("GUTS: ", cls.pipeline_id)
-        metadata = {
-            'input_settings': {
-            'zipped_folder': 'fake_value', 
-            'basis_file': 'fake_value', 
-            'signal_file': ['fake_value', 'fake_value'], 
-            'control_file': ['fake_value']},
-            "pipeline_id": cls.pipeline_id,
-            'session_name': 'test-VipLauncher', 
-            'workflows': {}, 
-            "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
-        }
-        return {'_id': 'fake_id', 'meta': metadata}
-    
-    def get(self, path):
-        return {'_id': 'fake_id'}
-    
-    def listFiles(self, folderId):
-        return [{'_id': 'fake_id'}]
-    
-    def listItem(self, folderId):
-        return {'_id': 'fake_id'}
-    
-    @classmethod
-    def set_pipeline_id(cls, pipeline_id):
-        print("GRIFITH: ", pipeline_id)
-        cls.pipeline_id = pipeline_id
-
-
-def mock_girder_client(mocker):
-    mocker.patch("girder_client.GirderClient", FakeGirderClient)
+from mocked_services import mock_vip_api, mock_girder_client, mock_pathlib, mock_os
+from FakeGirderClient import FakeGirderClient
 
 
 def get_properties(obj) -> dict:
@@ -163,10 +28,11 @@ def get_properties(obj) -> dict:
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_teardown_vip_launcher(request, mocker):
-    # Mock the VIP API
+    # Mock services
     mock_vip_api(mocker, "LCModel/0.1")
-    # Mock the Girder Client
     mock_girder_client(mocker)
+    mock_pathlib(mocker)
+    mock_os(mocker)
 
     # Create a buffer file for the backup
     with open('tmp_data.json', 'w') as f:

@@ -6,9 +6,7 @@ from pathlib import *
 import pytest_mock
 from src.vip_client.utils import vip
 from src.vip_client.classes import VipSession
-
-
-pipeline_id_global = "LCModel/0.1"
+from mocked_services import mock_vip_api, mock_pathlib, mock_os
 
 def get_properties(obj) -> dict:
     """
@@ -33,20 +31,11 @@ def setup_teardown_vip_launcher(request, mocker):
     # Create a buffer file for the backup
     with open('tmp_data.json', 'w') as f:
         f.write('{}')
+        
     # Mock the VIP API
-    mocked_list_pipeline = mocker.patch("vip_client.utils.vip.list_pipeline")
-    mocked_list_pipeline.return_value = [
-        {'identifier': 'LCModel/0.1', 'name': 'LCModel', 'description': None, 
-         'version': '0.1', 'parameters': [], 'canExecute': True},
-        {'identifier': 'CQUEST/0.3', 'name': 'LCModel', 'description': None, 
-        'version': '0.1', 'parameters': [], 'canExecute': True}
-    ]
-
-    def fake_set_vip_api_key(api_key):
-        return True if api_key == "FAKE_KEY" else False
-
-    mocked_set_api_key = mocker.patch("vip_client.utils.vip.setApiKey")
-    mocked_set_api_key.side_effect = fake_set_vip_api_key
+    mock_vip_api(mocker, "LCModel/0.1")
+    mock_pathlib(mocker)
+    mock_os(mocker)
     
     # Setup code before running the tests in the class
     print("Handshake with VIP")
@@ -73,75 +62,27 @@ def cleanup():
     ]
 )
 def test_run_and_finish(mocker, nb_runs, pipeline_id):
-
-    removed = False
-    
-    def fake_pipeline_def(pipeline):
-        return {'identifier': pipeline_id, 'name': 'LCModel', 'description': 'MR spectrosocpy signal quantification software', 'version': '0.1', 'parameters': [{'name': 'zipped_folder', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': 'Archive containing all metabolite & macromolecules in .RAW format', 'isOptional': False, 'isReturnedValue': False}, {'name': 'basis_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.basis' containing information & prior knowledge about the metabolites used for signal fit", 'isOptional': False, 'isReturnedValue': False}, {'name': 'signal_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.RAW' containing the signal to quantify", 'isOptional': False, 'isReturnedValue': False}, {'name': 'control_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 'isOptional': False, 'isReturnedValue': False}, {'name': 'script_file', 'type': 'File', 'defaultValue': '/vip/ReproVIP (group)/LCModel/run-lcmodel.sh', 'description': 'Script lauching lcmodel', 'isOptional': False, 'isReturnedValue': False}], 'canExecute': True}
     
     wf_counter = 0
+    s1_init = True
 
-    def fake_init_exec(pipeline, name, inputValues, resultsLocation):
-        nonlocal wf_counter
-        wf_counter += 1
-        return 'workflow-X' + str(wf_counter)
-    
-    def fake_execution_info(workflow_id):
-        return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
-    
-    def fake_delete_path(path):
-        nonlocal removed
-        removed = True
-        return True
-    
     def fake_exists(cls=None, path=None, location="local"):
         return True
     
-        
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_unlink(self):
-        return True
-    
-    def fake_unlink_linux():
-        return True
-    
-    def fake_list_elements(self):
-        return [{'name': 'element1', 'path': 'path1'}, {'name': 'element2', 'path': 'path2'}]
-    
-    def fake_pathlib_iterdir():
-        return [Path('tmp_data.json')]
-    
     with patch.object(VipSession, '_exists', fake_exists):
-
-        mocked_pipeline_def = mocker.patch("vip_client.utils.vip.pipeline_def")
-        mocked_pipeline_def.side_effect = fake_pipeline_def
-
-        mocked_init_exec = mocker.patch("vip_client.utils.vip.init_exec")
-        mocked_init_exec.side_effect = fake_init_exec
-
-        mocked_execution_info = mocker.patch("vip_client.utils.vip.execution_info")
-        mocked_execution_info.side_effect = fake_execution_info
-
-        mocked_delete_path = mocker.patch("vip_client.utils.vip.delete_path")
-        mocked_delete_path.side_effect = fake_delete_path
-
-        mocked_pathlib_open = mocker.patch("pathlib.Path.open")
-        mocked_pathlib_open.side_effect = fake_pathlib_open
-
-        mocked_unlink = mocker.patch("os.unlink")
-        mocked_unlink.side_effect = fake_unlink
-
-        mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
-        mocked_unlink_linux.side_effect = fake_unlink_linux
-
-        mocked_list_elements = mocker.patch("vip_client.utils.vip.list_elements")
-        mocked_list_elements.side_effect = fake_list_elements
         
-        mocked_pathlib_iterdir = mocker.patch("pathlib.Path.iterdir")
-        mocked_pathlib_iterdir.side_effect = fake_pathlib_iterdir
-
+        def fake_init_exec(pipeline, name, inputValues, resultsLocation):
+            nonlocal wf_counter
+            wf_counter += 1
+            return 'workflow-X' + str(wf_counter)
+        
+        def fake_is_file():
+            nonlocal s1_init
+            return not s1_init # If s1 is initialized, return False for not using the backup
+        
+        mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
+        mocker.patch("pathlib.Path.is_file").side_effect = fake_is_file
+        
         # Launch a Full Session Run
         s = VipSession(output_dir="test-VipSession/out", input_dir="test-VipSession/in")
         s.pipeline_id = pipeline_id
@@ -197,129 +138,38 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
         wf_counter += 1
         return 'workflow-X' + str(wf_counter)
     
-    def fake_execution_info(workflow_id):
-        return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
-    
-    def fake_exists(cls=None, path=None, location="local"):
-        return True
-        
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_unlink(self):
-        return True
-    
-    def fake_unlink_linux():
-        return True
-    
-    def fake_list_elements(self):
-        return [{'name': 'element1', 'path': 'path1'}, {'name': 'element2', 'path': 'path2'}]
-    
-    def fake_pathlib_iterdir():
-        return [Path('tmp_data.json')]
-    
     def fake_is_file():
         nonlocal s1_init
         return not s1_init # If s1 is initialized, return False for not using the backup
     
-    with patch.object(VipSession, '_exists', fake_exists):
-        mocked_pipeline_def = mocker.patch("vip_client.utils.vip.pipeline_def")
-        mocked_pipeline_def.side_effect = fake_pipeline_def
-
-        mocked_init_exec = mocker.patch("vip_client.utils.vip.init_exec")
-        mocked_init_exec.side_effect = fake_init_exec
-
-        mocked_execution_info = mocker.patch("vip_client.utils.vip.execution_info")
-        mocked_execution_info.side_effect = fake_execution_info
-
-        mocked_pathlib_open = mocker.patch("pathlib.Path.open")
-        mocked_pathlib_open.side_effect = fake_pathlib_open
-
-        mocked_unlink = mocker.patch("os.unlink")
-        mocked_unlink.side_effect = fake_unlink
-
-        mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
-        mocked_unlink_linux.side_effect = fake_unlink_linux
-
-        mocked_list_elements = mocker.patch("vip_client.utils.vip.list_elements")
-        mocked_list_elements.side_effect = fake_list_elements
-        
-        mocked_pathlib_iterdir = mocker.patch("pathlib.Path.iterdir")
-        mocked_pathlib_iterdir.side_effect = fake_pathlib_iterdir
-
-        mocked_is_file = mocker.patch("pathlib.Path.is_file")
-        mocked_is_file.side_effect = fake_is_file
-
-        VipSession._BACKUP_LOCATION = backup_location
-        # Return if backup is disabled
-        if VipSession._BACKUP_LOCATION is None:
-            return
-        # Create session
-        s1 = VipSession(output_dir=output_dir)
-        s1.input_settings = input_settings
-        s1.pipeline_id = pipeline_id
-        # Backup
-        s1._save()
-        # Set the s1 initialization flag to False
-        s1_init = False
-
-        # Load backup
-        s2 = VipSession(output_dir=s1.output_dir)
-        # Check parameters
-        assert s2.input_settings == s1.input_settings
-        assert s2.pipeline_id == s1.pipeline_id
-        assert s2.output_dir == s1.output_dir
-        assert s2.workflows == s1.workflows
-
+    # Mock the VipSession method "_exists"
+    mocker.patch.object(VipSession, '_exists', return_value=True)
+    
+    mocker.patch("vip_client.utils.vip.pipeline_def").side_effect = fake_pipeline_def
+    mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
+    mocker.patch("pathlib.Path.is_file").side_effect = fake_is_file
+    
+    VipSession._BACKUP_LOCATION = backup_location
+    # Return if backup is disabled
+    if VipSession._BACKUP_LOCATION is None:
+        return
+    # Create session
+    s1 = VipSession(output_dir=output_dir)
+    s1.input_settings = input_settings
+    s1.pipeline_id = pipeline_id
+    # Backup
+    s1._save()
+    # Set the s1 initialization flag to False
+    s1_init = False
+    # Load backup
+    s2 = VipSession(output_dir=s1.output_dir)
+    # Check parameters
+    assert s2.input_settings == s1.input_settings
+    assert s2.pipeline_id == s1.pipeline_id
+    assert s2.output_dir == s1.output_dir
+    assert s2.workflows == s1.workflows
 
 def test_properties_interface(mocker):
-
-    def fake_exists(path):
-        return True
-
-    def fake_pathlib_exists():
-        return True
-        
-    def fake_delete_path(path):
-        return True
-    
-    def fake_upload(local_path, vip_path):
-        return True
-    
-    def fake_download(vip_path, local_path):
-        return True
-    
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_unlink(self):
-        return True
-    
-    def fake_unlink_linux():
-        return True
-
-    mocked_exists = mocker.patch("vip_client.utils.vip.exists")
-    mocked_exists.side_effect = fake_exists
-
-    mocked_pathlib_exists = mocker.patch("pathlib.Path.exists")
-    mocked_pathlib_exists.side_effect = fake_pathlib_exists
-
-    mocked_delete_path = mocker.patch("vip_client.utils.vip.delete_path")
-    mocked_delete_path.side_effect = fake_delete_path
-
-    mocked_upload = mocker.patch("vip_client.utils.vip.upload")
-    mocked_upload.side_effect = fake_upload
-
-    mocked_download_file = mocker.patch("vip_client.utils.vip.download")
-    mocked_download_file.side_effect = fake_download
-
-    mocked_pathlib_open = mocker.patch("pathlib.Path.open")
-    mocked_pathlib_open.side_effect = fake_pathlib_open
-
-    mocked_unlink = mocker.patch("os.unlink")
-    mocked_unlink.side_effect = fake_unlink
-    mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
-    mocked_unlink_linux.side_effect = fake_unlink_linux
 
     VipSession._BACKUP_LOCATION = "local"
 
