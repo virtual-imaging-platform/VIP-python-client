@@ -7,7 +7,142 @@ from src.vip_client.utils import vip
 from src.vip_client.classes import VipCI
 
 
-pipeline_id_global = "LCModel/0.1"
+def mock_vip_api(mocker, pipeline_id):
+    
+    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
+        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
+    
+    def fake_list_pipeline():
+        return [
+            {'identifier': 'LCModel/0.1', 'name': 'LCModel', 'description': None, 
+            'version': '0.1', 'parameters': [], 'canExecute': True},
+            {'identifier': 'CQUEST/0.3', 'name': 'LCModel', 'description': None, 
+            'version': '0.1', 'parameters': [], 'canExecute': True}
+        ]
+    
+    def fake_set_api_key(api_key):
+        return True if api_key == "FAKE_KEY" else False
+
+    
+    def fake_pipeline_def(pipeline):
+        return {
+            'identifier': pipeline_id, 
+                'name': 'LCModel', 
+                'description': 'MR spectrosocpy signal quantification software', 
+                'version': '0.1', 
+                'parameters': [
+                    {
+                        'name': 'zipped_folder', 
+                        'type': 'File', 
+                        'defaultValue': '$input.getDefaultValue()', 
+                        'description': 'Archive containing all metabolite & macromolecules in .RAW format', 
+                        'isOptional': False, 
+                        'isReturnedValue': False
+                    }, 
+                    {
+                        'name': 'basis_file', 
+                        'type': 'File', 
+                        'defaultValue': '$input.getDefaultValue()', 
+                        'description': "Text file with extension '.basis' containing information & prior ...", 
+                        'isOptional': False, 
+                        'isReturnedValue': False
+                    }, 
+                    {
+                        'name': 'signal_file', 
+                        'type': 'File', 
+                        'defaultValue': '$input.getDefaultValue()', 
+                        'description': "Text file with extension '.RAW' containing the signal to quantify", 
+                        'isOptional': False, 
+                        'isReturnedValue': False
+                    }, 
+                    {
+                        'name': 'control_file', 
+                        'type': 'File', 
+                        'defaultValue': '$input.getDefaultValue()', 
+                        'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 
+                        'isOptional': False, 
+                        'isReturnedValue': False
+                    }, 
+                    {
+                        'name': 'script_file', 
+                        'type': 'File', 
+                        'defaultValue': '/vip/ReproVIP (group)/LCModel/run-lcmodel.sh', 
+                        'description': 'Script lauching lcmodel', 
+                        'isOptional': False, 'isReturnedValue': False
+                    }
+                ], 
+                'canExecute': True
+            }
+    
+    def fake_init_exec(pipeline, name, inputValues, resultsLocation):
+        return 'workflow-XXXXXX'
+    
+    def fake_execution_info(workflow_id):
+        return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
+    
+    mocker.patch("vip_client.utils.vip.exists").return_value = True
+    mocker.patch("pathlib.Path.exists").return_value = True
+    mocker.patch("vip_client.utils.vip.upload").return_value = True
+    mocker.patch("vip_client.utils.vip.download").return_value = True
+    mocker.patch("os.unlink").return_value = True
+    mocker.patch("pathlib.Path.unlink").return_value = True
+    mocker.patch("pathlib.Path.open").side_effect = fake_pathlib_open
+    mocker.patch("vip_client.utils.vip.pipeline_def").side_effect = fake_pipeline_def
+    mocker.patch("vip_client.utils.vip.list_pipeline").side_effect = fake_list_pipeline
+    mocker.patch("vip_client.utils.vip.setApiKey").side_effect = fake_set_api_key
+    mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
+    mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
+
+class FakeGirderClient():
+    
+    pipeline_id = "LCModel/0.1"
+    def __init__(self, apiUrl):
+        pass
+    def authenticate(self, apiKey):
+        return True
+    
+    def resourceLookup(self, path):
+        return {'_id': 'fake_id', '_modelType': 'folder'}
+    
+    def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
+        return {'_id': 'fake_id'}
+    
+    def addMetadataToFolder(self, folderId, metadata):
+        return True
+    
+    def getFolder(cls, folderId):
+        print("GUTS: ", cls.pipeline_id)
+        metadata = {
+            'input_settings': {
+            'zipped_folder': 'fake_value', 
+            'basis_file': 'fake_value', 
+            'signal_file': ['fake_value', 'fake_value'], 
+            'control_file': ['fake_value']},
+            "pipeline_id": cls.pipeline_id,
+            'session_name': 'test-VipLauncher', 
+            'workflows': {}, 
+            "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
+        }
+        return {'_id': 'fake_id', 'meta': metadata}
+    
+    def get(self, path):
+        return {'_id': 'fake_id'}
+    
+    def listFiles(self, folderId):
+        return [{'_id': 'fake_id'}]
+    
+    def listItem(self, folderId):
+        return {'_id': 'fake_id'}
+    
+    @classmethod
+    def set_pipeline_id(cls, pipeline_id):
+        print("GRIFITH: ", pipeline_id)
+        cls.pipeline_id = pipeline_id
+
+
+def mock_girder_client(mocker):
+    mocker.patch("girder_client.GirderClient", FakeGirderClient)
+
 
 def get_properties(obj) -> dict:
     """
@@ -28,77 +163,14 @@ def get_properties(obj) -> dict:
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_teardown_vip_launcher(request, mocker):
-    
-    class FakeGirderClient():
-        def __init__(self, apiUrl):
-            pass
-
-        def authenticate(self, apiKey):
-            return True
-        
-        def resourceLookup(self, path):
-            return {'_id': 'fake_id', '_modelType': 'folder'}
-        
-        def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
-            return {'_id': 'fake_id'}
-        
-        def addMetadataToFolder(self, folderId, metadata):
-            return True
-        
-        def getFolder(self, folderId):
-            metadata = {
-                'input_settings': {
-                'zipped_folder': 'fake_value', 
-                'basis_file': 'fake_value', 
-                'signal_file': ['fake_value', 'fake_value'], 
-                'control_file': ['fake_value']},
-                "pipeline_id": pipeline_id_global,
-                'session_name': 'test-VipLauncher', 
-                'workflows': {
-                    # "workflow-fe5pXw": {
-                    # "output_path": "/collection/ReproVIPSpectro/results/atest_recup_session/2023-11-14_15:27:07",
-                    # "start": "2023/11/14 15:27:13",
-                    # "status": "Finished"}
-                }, 
-                "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
-            }
-            return {'_id': 'fake_id', 'meta': metadata}
-        
-        def get(self, path):
-            return {'_id': 'fake_id'}
-        
-        def listFiles(self, folderId):
-            return [{'_id': 'fake_id'}]
-        
-        def listItem(self, folderId):
-            return {'_id': 'fake_id'}
-    
-    mocker.patch("girder_client.GirderClient", FakeGirderClient)
+    # Mock the VIP API
+    mock_vip_api(mocker, "LCModel/0.1")
+    # Mock the Girder Client
+    mock_girder_client(mocker)
 
     # Create a buffer file for the backup
     with open('tmp_data.json', 'w') as f:
         f.write('{}')
-    # Mock the VIP API
-    mocked_list_pipeline = mocker.patch("vip_client.utils.vip.list_pipeline")
-    mocked_list_pipeline.return_value = [
-        {'identifier': 'LCModel/0.1', 'name': 'LCModel', 'description': None, 
-         'version': '0.1', 'parameters': [], 'canExecute': True},
-        {'identifier': 'CQUEST/0.3', 'name': 'LCModel', 'description': None, 
-        'version': '0.1', 'parameters': [], 'canExecute': True}
-    ]
-
-    def fake_set_vip_api_key(api_key):
-        return True if api_key == "FAKE_KEY" else False
-    
-    def fake_set_girder_api_key(apiKey):
-        return True if apiKey == "FAKE_KEY" else False
-    
-
-    mocked_set_api_key = mocker.patch("vip_client.utils.vip.setApiKey")
-    mocked_set_api_key.side_effect = fake_set_vip_api_key
-
-    mocked_set_girder_api_key = mocker.patch("girder_client.GirderClient.authenticate")
-    mocked_set_girder_api_key.side_effect = fake_set_girder_api_key
     
     # Setup code before running the tests in the class
     print("Handshake with VIP")
@@ -126,81 +198,17 @@ def cleanup():
 )
 def test_run_and_finish(mocker, nb_runs, pipeline_id):
 
-    removed = False
-    global pipeline_id_global # Use to dynamically change the pipeline_id of the mocked GirderClient
-    pipeline_id_global = pipeline_id
-
-    class FakeGirderClient():
-        def __init__(self, apiUrl):
-            pass
-
-        def authenticate(self, apiKey):
-            return True
-        
-        def resourceLookup(self, path):
-            return {'_id': 'fake_id', '_modelType': 'folder'}
-        
-        def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
-            return {'_id': 'fake_id'}
-        
-        def addMetadataToFolder(self, folderId, metadata):
-            return True
-        
-        def getFolder(self, folderId):
-            metadata = {
-                'input_settings': {
-                'zipped_folder': 'fake_value', 
-                'basis_file': 'fake_value', 
-                'signal_file': ['fake_value', 'fake_value'], 
-                'control_file': ['fake_value']},
-                "pipeline_id": pipeline_id,
-                'session_name': 'test-VipLauncher', 
-                'workflows': {}, 
-                "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
-            }
-            return {'_id': 'fake_id', 'meta': metadata}
-        
-        def get(self, path):
-            return {'_id': 'fake_id'}
-        
-        def listFiles(self, folderId):
-            return [{'_id': 'fake_id'}]
-        
-        def listItem(self, folderId):
-            return {'_id': 'fake_id'}
-    
-    mocker.patch("girder_client.GirderClient", FakeGirderClient)
-    
-    def fake_pipeline_def(pipeline):
-        return {'identifier': pipeline_id, 'name': 'LCModel', 'description': 'MR spectrosocpy signal quantification software', 'version': '0.1', 'parameters': [{'name': 'zipped_folder', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': 'Archive containing all metabolite & macromolecules in .RAW format', 'isOptional': False, 'isReturnedValue': False}, {'name': 'basis_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.basis' containing information & prior knowledge about the metabolites used for signal fit", 'isOptional': False, 'isReturnedValue': False}, {'name': 'signal_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.RAW' containing the signal to quantify", 'isOptional': False, 'isReturnedValue': False}, {'name': 'control_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 'isOptional': False, 'isReturnedValue': False}, {'name': 'script_file', 'type': 'File', 'defaultValue': '/vip/ReproVIP (group)/LCModel/run-lcmodel.sh', 'description': 'Script lauching lcmodel', 'isOptional': False, 'isReturnedValue': False}], 'canExecute': True}
-    
+    FakeGirderClient.set_pipeline_id(pipeline_id)
     wf_counter = 0
-
+    
     def fake_init_exec(pipeline, name, inputValues, resultsLocation):
         nonlocal wf_counter
         wf_counter += 1
-        return 'workflow-X' + str(wf_counter)
+        return f'workflow-{wf_counter}'
     
-    def fake_execution_info(workflow_id):
-        return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
+    # Re patch the init_exec function to update the workflow counter
+    mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
     
-    def fake_delete_path(path):
-        nonlocal removed
-        removed = True
-        return True
-
-    mocked_pipeline_def = mocker.patch("vip_client.utils.vip.pipeline_def")
-    mocked_pipeline_def.side_effect = fake_pipeline_def
-
-    mocked_init_exec = mocker.patch("vip_client.utils.vip.init_exec")
-    mocked_init_exec.side_effect = fake_init_exec
-
-    mocked_execution_info = mocker.patch("vip_client.utils.vip.execution_info")
-    mocked_execution_info.side_effect = fake_execution_info
-
-    mocked_delete_path = mocker.patch("vip_client.utils.vip.delete_path")
-    mocked_delete_path.side_effect = fake_delete_path
-
     # Launch a Full Session Run
     s = VipCI()
     s.pipeline_id = pipeline_id
@@ -247,97 +255,6 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
 )
 def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir):
 
-    global pipeline_id_global # Use to dynamically change the pipeline_id of the mocked GirderClient
-    pipeline_id_global = pipeline_id
-
-    class FakeGirderClient():
-        def __init__(self, apiUrl):
-            pass
-
-        def authenticate(self, apiKey):
-            return True
-        
-        def resourceLookup(self, path):
-            return {'_id': 'fake_id', '_modelType': 'folder'}
-        
-        def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
-            return {'_id': 'fake_id'}
-        
-        def addMetadataToFolder(self, folderId, metadata):
-            return True
-        
-        def getFolder(self, folderId):
-            metadata = {
-                'input_settings': {
-                'zipped_folder': 'fake_value', 
-                'basis_file': 'fake_value', 
-                'signal_file': ['fake_value', 'fake_value'], 
-                'control_file': ['fake_value']},
-                "pipeline_id": pipeline_id,
-                'session_name': 'test-VipLauncher', 
-                'workflows': {}, 
-                "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
-            }
-            return {'_id': 'fake_id', 'meta': metadata}
-        
-        def get(self, path):
-            return {'_id': 'fake_id'}
-        
-        def listFiles(self, folderId):
-            return [{'_id': 'fake_id'}]
-        
-        def listItem(self, folderId):
-            return {'_id': 'fake_id'}
-    
-    mocker.patch("girder_client.GirderClient", FakeGirderClient)
-
-    def fake_exists(path):
-        return True
-
-    def fake_pathlib_exists():
-        return True
-        
-    def fake_delete_path(path):
-        return True
-    
-    def fake_upload(local_path, vip_path):
-        return True
-    
-    def fake_download(vip_path, local_path):
-        return True
-    
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_unlink(self):
-        return True
-    
-    def fake_unlink_linux():
-        return True
-
-    mocked_exists = mocker.patch("vip_client.utils.vip.exists")
-    mocked_exists.side_effect = fake_exists
-
-    mocked_pathlib_exists = mocker.patch("pathlib.Path.exists")
-    mocked_pathlib_exists.side_effect = fake_pathlib_exists
-
-    mocked_delete_path = mocker.patch("vip_client.utils.vip.delete_path")
-    mocked_delete_path.side_effect = fake_delete_path
-
-    mocked_upload = mocker.patch("vip_client.utils.vip.upload")
-    mocked_upload.side_effect = fake_upload
-
-    mocked_download_file = mocker.patch("vip_client.utils.vip.download")
-    mocked_download_file.side_effect = fake_download
-
-    mocked_pathlib_open = mocker.patch("pathlib.Path.open")
-    mocked_pathlib_open.side_effect = fake_pathlib_open
-
-    mocked_unlink = mocker.patch("os.unlink")
-    mocked_unlink.side_effect = fake_unlink
-    mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
-    mocked_unlink_linux.side_effect = fake_unlink_linux
-
     VipCI._BACKUP_LOCATION = backup_location
     # Return if backup is disabled
     if VipCI._BACKUP_LOCATION is None:
@@ -359,53 +276,6 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
 
 
 def test_properties_interface(mocker):
-
-    def fake_exists(path):
-        return True
-
-    def fake_pathlib_exists():
-        return True
-        
-    def fake_delete_path(path):
-        return True
-    
-    def fake_upload(local_path, vip_path):
-        return True
-    
-    def fake_download(vip_path, local_path):
-        return True
-    
-    def fake_pathlib_open(mode='r', buffering=-1, encoding=None, errors=None, newline=None):
-        return io.open('tmp_data.json', mode, buffering, encoding, errors, newline)
-    
-    def fake_unlink(self):
-        return True
-    
-    def fake_unlink_linux():
-        return True
-
-    mocked_exists = mocker.patch("vip_client.utils.vip.exists")
-    mocked_exists.side_effect = fake_exists
-
-    mocked_pathlib_exists = mocker.patch("pathlib.Path.exists")
-    mocked_pathlib_exists.side_effect = fake_pathlib_exists
-
-    mocked_delete_path = mocker.patch("vip_client.utils.vip.delete_path")
-    mocked_delete_path.side_effect = fake_delete_path
-
-    mocked_upload = mocker.patch("vip_client.utils.vip.upload")
-    mocked_upload.side_effect = fake_upload
-
-    mocked_download_file = mocker.patch("vip_client.utils.vip.download")
-    mocked_download_file.side_effect = fake_download
-
-    mocked_pathlib_open = mocker.patch("pathlib.Path.open")
-    mocked_pathlib_open.side_effect = fake_pathlib_open
-
-    mocked_unlink = mocker.patch("os.unlink")
-    mocked_unlink.side_effect = fake_unlink
-    mocked_unlink_linux = mocker.patch("pathlib.Path.unlink")
-    mocked_unlink_linux.side_effect = fake_unlink_linux
 
     VipCI._BACKUP_LOCATION = "girder"
 
