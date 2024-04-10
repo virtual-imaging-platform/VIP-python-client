@@ -1230,7 +1230,6 @@ class VipLauncher():
         - Returns a success flag;
         - Displays information unless `_VERBOSE` is False.
         """
-        print("BERSERK")
         # Return if no-backup mode is activated
         print("BACKUP LOCATION: ", self._BACKUP_LOCATION)
         if self._BACKUP_LOCATION is None:
@@ -1243,7 +1242,6 @@ class VipLauncher():
             backup_data = self._load_session(location=self._BACKUP_LOCATION)
         # If there is no backup data (i.e. None or empty dict), save immediately
         if not backup_data:
-            print("BERSERKER")
             return self._save_session(session_data, location=self._BACKUP_LOCATION)
         # If the session name is different from backup, raise an error
         print("SESSION NAME: ", session_data)
