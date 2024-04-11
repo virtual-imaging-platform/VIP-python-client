@@ -540,7 +540,7 @@ class VipSession(VipLauncher):
         3. Monitors pipeline executions until they are all over;
         4. Downloads execution results from VIP.
 
-        /!\ This method assumes that all session properties are already set.
+        |!| This method assumes that all session properties are already set.
         Optional arguments can still be provided:
         - Set `update_files` to False to avoid checking the input data on VIP;
         - Increase `nb_runs` to run more than 1 execution at once;

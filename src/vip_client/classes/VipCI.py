@@ -212,7 +212,7 @@ class VipCI(VipLauncher):
         2. Monitors pipeline executions until they are all over;
             and Adds metadata on Girder output folder.
 
-        /!\ This function assumes that all session properties are already set.
+        |!| This function assumes that all session properties are already set.
         Optional arguments can be provided:
         - Increase `nb_runs` to run more than 1 execution at once;
         - Set `refresh_time` to modify the default refresh time.

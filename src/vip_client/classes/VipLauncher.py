@@ -217,7 +217,7 @@ class VipLauncher():
     @output_dir.setter
     def output_dir(self, new_dir: str) -> None:
         # Call deleter if agument is None
-        if new_dir is None:
+        if new_dir is None: 
             del self.vip_output_dir
             return
         # Display
@@ -602,11 +602,11 @@ class VipLauncher():
         1. Launches pipeline executions on VIP;
         2. Monitors pipeline executions until they are all over.
 
-        /!\ This function assumes that all session properties are already set.
+        |!| This function assumes that all session properties are already set.
         Optional arguments can be provided:
         - Increase `nb_runs` to run more than 1 execution at once;
         - Set `refresh_time` to modify the default refresh time;
-        """
+        """ 
         # Run the pipeline
         return (
             # 1. Launch `nb_runs` pipeline executions on VIP
@@ -1205,7 +1205,7 @@ class VipLauncher():
                 ),
             # Returned files (filtered information)
             "outputs": [] if not infos["returnedFiles"] else [
-                {"path": value} for value in infos["returnedFiles"]["output_file"] 
+                {"path": value} for value in infos["returnedFiles"].values()
             ]
         }
     # ------------------------------------------------
@@ -1231,12 +1231,10 @@ class VipLauncher():
         - Displays information unless `_VERBOSE` is False.
         """
         # Return if no-backup mode is activated
-        print("BACKUP LOCATION: ", self._BACKUP_LOCATION)
         if self._BACKUP_LOCATION is None:
             return False
         # Get session properties
         session_data = self._data_to_save()
-        print("CASCO: ", session_data)
         # Get backup data from the output directory
         with self._silent_session():
             backup_data = self._load_session(location=self._BACKUP_LOCATION)
@@ -1244,8 +1242,6 @@ class VipLauncher():
         if not backup_data:
             return self._save_session(session_data, location=self._BACKUP_LOCATION)
         # If the session name is different from backup, raise an error
-        print("SESSION NAME: ", session_data)
-        print("BACKUP NAME: ", backup_data)
         if backup_data["session_name"] != session_data["session_name"]:
             raise ValueError(
                 f"The backup data have a different session name ('{backup_data['session_name']}').\n"
@@ -1284,8 +1280,6 @@ class VipLauncher():
                 self._set(**backup_data)
             return True
         # If the backup data do not have the right properties, raise TypeError
-        print("SESSION DATA", session_data)
-        print("BACKUP DATA", backup_data)
         missing_props = set(session_data.keys()) - set(backup_data.keys())
         if missing_props:
             raise TypeError(f"The following properties are missing in the backup data:\n\t{', '.join(missing_props)}")
@@ -1590,14 +1584,14 @@ class VipLauncher():
             # required parameters without a default value
             {
                 param["name"] for param in self._pipeline_def['parameters'] 
-                if not param["isOptional"] and (param["defaultValue"] == '$input.getDefaultValue()')
+                if not param["isOptional"] and param["defaultValue"] == None
             } 
             # current parameters
             - set(input_settings.keys()) 
         )
         # Raise an error if a field is missing
         if missing_fields:
-            raise TypeError("Missing input parameter(s) :\n" + ", ".join(missing_fields))
+            raise TypeError("Missing input parameter(s): " + ", ".join(missing_fields))
         # Check every input parameter is a valid field
         unknown_fields = (
             set(input_settings.keys()) # current parameters
@@ -1618,7 +1612,10 @@ class VipLauncher():
         Prerequisite: input_settings is defined and contains only strings, or lists of strings.
         """
         # Browse the input parameters
-        for param in self._pipeline_def['parameters'] :
+        missing_inputs = []
+        invalid_chars = []
+        wrong_types = []
+        for param in self._pipeline_def['parameters']:
             # Get parameter name
             name = param['name']
             # Skip irrelevant inputs (this should not happen after self._check_input_keys())
@@ -1634,25 +1631,43 @@ class VipLauncher():
                 )
             # Check the input has no empty values
             if not self._is_input_full(value):
-                raise ValueError(
-                    f"Parameter '{name}' contains an empty value"
-                )
+                missing_inputs.append(name)
+                continue
             # Check invalid characters for VIP
             invalid = self._invalid_chars_for_vip(value)
             if invalid:
-                raise ValueError(
-                    f"Parameter '{name}' contains some invalid character(s): {', '.join(invalid)}"
-                )
-            # If input is a File, check file(s) existence 
+                invalid_chars.append((name, invalid))
+                continue
+            # If input is a File, check file(s) existence
             if param["type"] == "File":
                 # Ensure every file exists at `location`
+                print("Checking file existence for", name)
                 missing_file = self._first_missing_file(value, location)
+                print("Missing file", missing_file)
                 if missing_file:
                     raise FileNotFoundError(
-                        f"Parameter '{name}': The following file is missing in the {location.upper()} file system:\n\t{missing_file}"
+                        f"Parameter '{name}': The following file is missing in the {location.upper()} file system: {missing_file}"
                     )
+            if param["type"] == "Boolean":
+                if value not in ["true", "false"]:
+                    wrong_types.append(name)
+                    continue
             # Check other input formats ?
             else: pass # TODO
+        if missing_inputs:
+            raise ValueError(
+                f"Missing input value(s) for parameter(s): {', '.join(sorted(missing_inputs))}"
+            )
+        if invalid_chars:
+            raise ValueError(
+                f"Invalid character(s) in input value(s) for parameter(s): {', '.join(sorted(invalid_chars))}"
+            )
+        if wrong_types:
+            raise ValueError(
+                f"Wrong type(s) for parameter(s): {', '.join(sorted(wrong_types))}"
+            )
+        # raise RuntimeError("An error should have been raised before this point.")
+        
     # ------------------------------------------------
     
     # Function to look for empty values
