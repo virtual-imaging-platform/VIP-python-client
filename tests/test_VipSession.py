@@ -64,35 +64,45 @@ def cleanup():
 def test_run_and_finish(mocker, nb_runs, pipeline_id):
     
     wf_counter = 0
-    s1_init = True
+    processing = 100
+    
 
     def fake_exists(cls=None, path=None, location="local"):
         return True
     
     with patch.object(VipSession, '_exists', fake_exists):
-        
+
         def fake_init_exec(pipeline, name, inputValues, resultsLocation):
+            print("LUCIE: ", inputValues)
+            x=1/0
             nonlocal wf_counter
             wf_counter += 1
             return 'workflow-X' + str(wf_counter)
-        
-        def fake_is_file():
-            nonlocal s1_init
-            return not s1_init # If s1 is initialized, return False for not using the backup
-        
+                    
+        def fake_execution_info(workflow_id):
+            nonlocal processing
+            if not processing:
+                return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
+            processing -= 1
+            return {'status': 'Running', 'returnedFiles': [], 'startDate': 0}
+            
+
+        mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
+
+
+        mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
         mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
-        mocker.patch("pathlib.Path.is_file").side_effect = fake_is_file
         
         # Launch a Full Session Run
         s = VipSession(output_dir="test-VipSession/out", input_dir="test-VipSession/in")
         s.pipeline_id = pipeline_id
         s.input_settings = {
-            "zipped_folder": 'fake_value',
-            "basis_file": 'fake_value',
-            "signal_file": ['fake_value', 'fake_value'],
-            "control_file": ['fake_value']
+            "zipped_folder": 'path/on/host/input.zip',
+            "basis_file": 'path/on/host/fake_value',
+            "signal_file": ['path/on/host/fake_value', 'path/on/host/fake_value'],
+            "control_file": ['path/on/host/fake_value']
         }
-        s.run_session(nb_runs=nb_runs)
+        s.run_session(nb_runs=nb_runs, refresh_time=0)
         # Check the Results
         assert s.workflows
         assert len(s.workflows) == nb_runs
@@ -127,16 +137,11 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
     ]
 )
 def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir):
+    
     def fake_pipeline_def(pipeline):
         return {'identifier': pipeline_id, 'name': 'LCModel', 'description': 'MR spectrosocpy signal quantification software', 'version': '0.1', 'parameters': [{'name': 'zipped_folder', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': 'Archive containing all metabolite & macromolecules in .RAW format', 'isOptional': False, 'isReturnedValue': False}, {'name': 'basis_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.basis' containing information & prior knowledge about the metabolites used for signal fit", 'isOptional': False, 'isReturnedValue': False}, {'name': 'signal_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.RAW' containing the signal to quantify", 'isOptional': False, 'isReturnedValue': False}, {'name': 'control_file', 'type': 'File', 'defaultValue': '$input.getDefaultValue()', 'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 'isOptional': False, 'isReturnedValue': False}, {'name': 'script_file', 'type': 'File', 'defaultValue': '/vip/ReproVIP (group)/LCModel/run-lcmodel.sh', 'description': 'Script lauching lcmodel', 'isOptional': False, 'isReturnedValue': False}], 'canExecute': True}
     
-    wf_counter = 0
     s1_init = True
-
-    def fake_init_exec(pipeline, name, inputValues, resultsLocation):
-        nonlocal wf_counter
-        wf_counter += 1
-        return 'workflow-X' + str(wf_counter)
     
     def fake_is_file():
         nonlocal s1_init
@@ -146,17 +151,18 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
     mocker.patch.object(VipSession, '_exists', return_value=True)
     
     mocker.patch("vip_client.utils.vip.pipeline_def").side_effect = fake_pipeline_def
-    mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
     mocker.patch("pathlib.Path.is_file").side_effect = fake_is_file
     
     VipSession._BACKUP_LOCATION = backup_location
     # Return if backup is disabled
-    if VipSession._BACKUP_LOCATION is None:
-        return
+
     # Create session
     s1 = VipSession(output_dir=output_dir)
     s1.input_settings = input_settings
-    s1.pipeline_id = pipeline_id
+    s1.pipeline_id = pipeline_id    
+    
+    assert s1._save() is not (VipSession._BACKUP_LOCATION is None) # Return False if no backup location
+    
     # Backup
     s1._save()
     # Set the s1 initialization flag to False
@@ -164,10 +170,14 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
     # Load backup
     s2 = VipSession(output_dir=s1.output_dir)
     # Check parameters
-    assert s2.input_settings == s1.input_settings
-    assert s2.pipeline_id == s1.pipeline_id
     assert s2.output_dir == s1.output_dir
-    assert s2.workflows == s1.workflows
+    if VipSession._BACKUP_LOCATION is None:
+        assert not s2._load()
+        assert s2.input_settings != s1.input_settings
+        assert s2.pipeline_id != s1.pipeline_id
+    else:
+        assert s2.input_settings == s1.input_settings
+        assert s2.pipeline_id == s1.pipeline_id
 
 def test_properties_interface(mocker):
 

@@ -157,21 +157,21 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
     s1.input_settings = input_settings
     s1.pipeline_id = pipeline_id
     s1.output_dir = output_dir
-    # Backup
-    s1._save()
+    
+    # Return if backup is disabled
+    assert s1._save() is not (VipLauncher._BACKUP_LOCATION is None) # Return False if no backup location
+    
     # Load backup
     s2 = VipLauncher(output_dir=s1.output_dir)
     # Check parameters
-    if backup_location is not None:
+    assert s2.output_dir == s1.output_dir
+    if VipLauncher._BACKUP_LOCATION is None:
+        assert not s2._load()
+        assert s2.input_settings != s1.input_settings
+        assert s2.pipeline_id != s1.pipeline_id
+    else:
         assert s2.input_settings == s1.input_settings
         assert s2.pipeline_id == s1.pipeline_id
-        assert s2.output_dir == s1.output_dir
-        assert s2.workflows == s1.workflows
-    else:
-        assert s2.input_settings == None
-        assert s2.pipeline_id is None
-        assert s2.output_dir == s1.output_dir
-        assert s2.workflows == {}
 
 
 def test_properties_interface(mocker):

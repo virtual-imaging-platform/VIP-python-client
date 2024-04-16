@@ -25,7 +25,7 @@ def mock_vip_api(mocker, pipeline_id):
                     {
                         'name': 'zipped_folder', 
                         'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
+                        'defaultValue': None, 
                         'description': 'Archive containing all metabolite & macromolecules in .RAW format', 
                         'isOptional': False, 
                         'isReturnedValue': False
@@ -33,7 +33,7 @@ def mock_vip_api(mocker, pipeline_id):
                     {
                         'name': 'basis_file', 
                         'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
+                        'defaultValue': None, 
                         'description': "Text file with extension '.basis' containing information & prior ...", 
                         'isOptional': False, 
                         'isReturnedValue': False
@@ -41,7 +41,7 @@ def mock_vip_api(mocker, pipeline_id):
                     {
                         'name': 'signal_file', 
                         'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
+                        'defaultValue': None, 
                         'description': "Text file with extension '.RAW' containing the signal to quantify", 
                         'isOptional': False, 
                         'isReturnedValue': False
@@ -49,9 +49,9 @@ def mock_vip_api(mocker, pipeline_id):
                     {
                         'name': 'control_file', 
                         'type': 'File', 
-                        'defaultValue': '$input.getDefaultValue()', 
+                        'defaultValue': None, 
                         'description': "Text file with extension '.control' setting up constraints, options and prior knowledge used in LCModel algorithm", 
-                        'isOptional': False, 
+                        'isOptional': True, 
                         'isReturnedValue': False
                     }, 
                     {

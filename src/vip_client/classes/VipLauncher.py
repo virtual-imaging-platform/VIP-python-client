@@ -137,6 +137,7 @@ class VipLauncher():
     
     @input_settings.setter
     def input_settings(self, input_settings: dict):
+        print("Setting input settings")
         # Call deleter if agument is None
         if input_settings is None: 
             del self.input_settings
@@ -1193,6 +1194,7 @@ class VipLauncher():
         # Get execution infos
         try :
             infos = vip.execution_info(workflow_id)
+            print(infos)
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
         # Return filtered information
@@ -1584,14 +1586,14 @@ class VipLauncher():
             # required parameters without a default value
             {
                 param["name"] for param in self._pipeline_def['parameters'] 
-                if not param["isOptional"] and param["defaultValue"] == None
+                if not param["isOptional"] and param["defaultValue"] is None
             } 
             # current parameters
             - set(input_settings.keys()) 
         )
         # Raise an error if a field is missing
         if missing_fields:
-            raise TypeError("Missing input parameter(s): " + ", ".join(missing_fields))
+            raise AttributeError("Missing input parameter(s): " + ", ".join(sorted(missing_fields)))
         # Check every input parameter is a valid field
         unknown_fields = (
             set(input_settings.keys()) # current parameters
@@ -1616,6 +1618,7 @@ class VipLauncher():
         invalid_chars = []
         wrong_types = []
         for param in self._pipeline_def['parameters']:
+            print("CHECKING PARAMETER: ", param['name'])
             # Get parameter name
             name = param['name']
             # Skip irrelevant inputs (this should not happen after self._check_input_keys())
@@ -1623,6 +1626,7 @@ class VipLauncher():
                 continue
             # Get input value
             value = input_settings[name]
+            print("VALUE: ", value)
             # `request` will send only strings
             if not self._isinstance(value, str): # This should not happen
                 raise ValueError( # Parameter could not be parsed correctly
@@ -1641,9 +1645,7 @@ class VipLauncher():
             # If input is a File, check file(s) existence
             if param["type"] == "File":
                 # Ensure every file exists at `location`
-                print("Checking file existence for", name)
                 missing_file = self._first_missing_file(value, location)
-                print("Missing file", missing_file)
                 if missing_file:
                     raise FileNotFoundError(
                         f"Parameter '{name}': The following file is missing in the {location.upper()} file system: {missing_file}"

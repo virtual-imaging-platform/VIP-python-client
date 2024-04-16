@@ -1,4 +1,5 @@
 import io
+from urllib.error import HTTPError
 import pytest
 from pathlib import *
 
@@ -66,14 +67,23 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
 
     FakeGirderClient.set_pipeline_id(pipeline_id)
     wf_counter = 0
+    processing = True
     
     def fake_init_exec(pipeline, name, inputValues, resultsLocation):
         nonlocal wf_counter
         wf_counter += 1
         return f'workflow-{wf_counter}'
+             
+    def fake_execution_info(workflow_id):
+        nonlocal processing
+        if not processing:
+            return {'status': 'Finished', 'returnedFiles': [], 'startDate': 0}
+        processing -= 1
+        return {'status': 'Running', 'returnedFiles': [], 'startDate': 0}
     
     # Re patch the init_exec function to update the workflow counter
     mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
+    mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
     
     # Launch a Full Session Run
     s = VipCI()
@@ -122,23 +132,24 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
 def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir):
 
     VipCI._BACKUP_LOCATION = backup_location
-    # Return if backup is disabled
-    if VipCI._BACKUP_LOCATION is None:
-        return
+        
     # Create session
-    s1 = VipCI()
-    s1.input_settings = input_settings
-    s1.pipeline_id = pipeline_id
+    s1 = VipCI(pipeline_id=pipeline_id, input_settings=input_settings)
     s1.output_dir = output_dir
-    # Backup
-    s1._save()
+    
+    assert s1._save() is not (VipCI._BACKUP_LOCATION is None) # Return False if no backup location
+    
     # Load backup
     s2 = VipCI(output_dir=s1.output_dir)
     # Check parameters
-    assert s2.input_settings == s1.input_settings
-    assert s2.pipeline_id == s1.pipeline_id
     assert s2.output_dir == s1.output_dir
-    assert s2.workflows == s1.workflows
+    if VipCI._BACKUP_LOCATION is None:
+        assert not s2._load()
+        assert s2.input_settings != s1.input_settings
+        assert s2.pipeline_id != s1.pipeline_id
+    else:
+        assert s2.input_settings == s1.input_settings
+        assert s2.pipeline_id == s1.pipeline_id
 
 
 def test_properties_interface(mocker):

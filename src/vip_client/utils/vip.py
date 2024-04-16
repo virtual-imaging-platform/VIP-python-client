@@ -80,7 +80,6 @@ def setApiKey(value) -> bool:
     Return True is correct apikey, False otherwise.
     Raise an error if an other problems occured 
     """
-    print("Were in the real one")
     url = __PREFIX + 'plateform'
     head_test = {
                  'apikey': value,
@@ -142,6 +141,7 @@ def create_dir(path)->bool:
     """
     Return True if done, False otherwise
     """
+    path = path + '/' if path[-1] != '/' else path
     url = __PREFIX + 'path' + path
     rq = SESSION.put(url, headers=__headers)
     try:
@@ -397,10 +397,11 @@ def get_exec_results(exec_id, timeout: int=None) -> str:
 
 # -----------------------------------------------------------------------------
 def kill_execution(exec_id, deleteFiles=False) -> bool:
-    url = __PREFIX + 'executions/' + exec_id
+    url = __PREFIX + 'executions/' + exec_id + '/kill'
     if deleteFiles:
         url += '?deleteFiles=true'
-    rq = SESSION.delete(url, headers=__headers)
+    rq = SESSION.put(url, headers=__headers)
+    print("req is: ", url)
     try:
         manage_errors(rq)
     except RuntimeError:
