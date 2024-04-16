@@ -11,6 +11,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      VIP_API_KEY: ${{ secrets.VIP_API_KEY }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
