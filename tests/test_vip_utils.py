@@ -18,6 +18,12 @@ def setup_teardown_vip_launcher(request, mocker):
     assert new_session()
     if not create_dir(BASE_PATH_VIP):
         raise Exception("Error creating directory")
+    counter = 0
+    while not exists(BASE_PATH_VIP):
+        time.sleep(5)
+        if counter > 12:
+            raise Exception("Directory not created after 60 seconds")
+        counter += 1
     assert is_dir(BASE_PATH_VIP)
 
 @pytest.fixture(scope="function", autouse=True)
