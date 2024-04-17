@@ -401,7 +401,6 @@ def kill_execution(exec_id, deleteFiles=False) -> bool:
     if deleteFiles:
         url += '?deleteFiles=true'
     rq = SESSION.put(url, headers=__headers)
-    print("req is: ", url)
     try:
         manage_errors(rq)
     except RuntimeError:

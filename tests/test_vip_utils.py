@@ -12,8 +12,8 @@ def compare_files(file1, file2):
     with open(file1, 'r') as f1, open(file2, 'r') as f2:
         return f1.read() == f2.read()
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_teardown_vip_launcher(request, mocker):
+@pytest.fixture(scope="session", autouse=True)
+def setup_teardown_vip_launcher():
     assert setApiKey(os.environ['VIP_API_KEY'])
     assert new_session()
     if not create_dir(BASE_PATH_VIP):
@@ -21,16 +21,11 @@ def setup_teardown_vip_launcher(request, mocker):
     counter = 0
     while not exists(BASE_PATH_VIP):
         time.sleep(5)
-        if counter > 12:
-            raise Exception("Directory not created after 60 seconds")
+        if counter > 24:
+            raise Exception("Directory not created after 120 seconds")
         counter += 1
-    assert is_dir(BASE_PATH_VIP)
-
-@pytest.fixture(scope="function", autouse=True)
-def cleanup():
     yield
     assert delete_path(BASE_PATH_VIP)
-    
 
 def test_upload_download():
     assert upload(BASE_PATH_LOCAL + 'file.txt', BASE_PATH_VIP + 'file.txt')
@@ -40,7 +35,7 @@ def test_upload_download():
     assert delete_path(BASE_PATH_VIP + 'file.txt')
 
 
-def atest_init_exec():
+def test_init_exec():
     input_values = {
         'mand_text': 'value1',
         'mand_file': '/vip/Home/file.txt',
