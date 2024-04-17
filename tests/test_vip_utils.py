@@ -94,7 +94,6 @@ def test_get_exec_results():
         counter += 1
     results = get_exec_results(exec_id)
     # assert that this is a list of dictionaries
-    print(results)
     assert isinstance(results, list)
     for r in results:
         assert isinstance(r, dict)
@@ -129,7 +128,6 @@ def test_pipeline_def():
 
 def test_platform_info():
     info = platform_info()
-    print(info)
     assert isinstance(info, dict)
     assert info['platformName'] == 'VIP'
    
