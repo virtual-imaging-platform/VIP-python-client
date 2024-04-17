@@ -1090,8 +1090,6 @@ class VipSession(VipLauncher):
                 # Return the part of `input_path` that is relative to `input_dir` (if relevant)
                 try: # No condition since PurePath.is_relative_to() is unavailable for Python <3.9
                     if len(str(input)) > 0:
-                        print("ALICE: ", PurePosixPath(input_path.relative_to(input_dir)))
-                        x=1/0
                         return PurePosixPath( # Force Posix flavor to avoid conflicts with Windows paths when checking equality
                             input_path.relative_to(input_dir)) # Relative part of `input_path`
                     return input

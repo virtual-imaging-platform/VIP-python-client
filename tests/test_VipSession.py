@@ -73,8 +73,6 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
     with patch.object(VipSession, '_exists', fake_exists):
 
         def fake_init_exec(pipeline, name, inputValues, resultsLocation):
-            print("LUCIE: ", inputValues)
-            x=1/0
             nonlocal wf_counter
             wf_counter += 1
             return 'workflow-X' + str(wf_counter)
