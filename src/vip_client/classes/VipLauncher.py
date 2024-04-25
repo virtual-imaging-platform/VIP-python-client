@@ -137,7 +137,6 @@ class VipLauncher():
     
     @input_settings.setter
     def input_settings(self, input_settings: dict):
-        print("Setting input settings")
         # Call deleter if agument is None
         if input_settings is None: 
             del self.input_settings
@@ -490,10 +489,7 @@ class VipLauncher():
             self._print("OK")
         # Check the input parameters
         self._print("Input settings: ", end="", flush=True)
-            # Check existence
-        if not self._is_defined("_input_settings"):
-            raise TypeError("Please provide input parameters for Session: %s" %self._session_name)  
-            # Check content
+        # Check content
         self._check_input_settings(location=self._SERVER_NAME)
         self._print("OK")
         # End parameters checks
@@ -603,11 +599,11 @@ class VipLauncher():
         1. Launches pipeline executions on VIP;
         2. Monitors pipeline executions until they are all over.
 
-        |!| This function assumes that all session properties are already set.
+        /!\ This function assumes that all session properties are already set.
         Optional arguments can be provided:
         - Increase `nb_runs` to run more than 1 execution at once;
         - Set `refresh_time` to modify the default refresh time;
-        """ 
+        """
         # Run the pipeline
         return (
             # 1. Launch `nb_runs` pipeline executions on VIP
@@ -1194,7 +1190,6 @@ class VipLauncher():
         # Get execution infos
         try :
             infos = vip.execution_info(workflow_id)
-            print(infos)
         except RuntimeError as vip_error:
             cls._handle_vip_error(vip_error)
         # Return filtered information
@@ -1564,7 +1559,7 @@ class VipLauncher():
             if self._is_defined("_input_settings"):
                 input_settings = self._get_input_settings(location)
             else:
-                raise AttributeError("Input settings are missing")
+                input_settings = {}
         # Check the pipeline identifier
         if not self._is_defined("_pipeline_id"): 
             raise AttributeError("Input settings could not be checked without a pipeline identifier.")
@@ -1586,7 +1581,7 @@ class VipLauncher():
             # required parameters without a default value
             {
                 param["name"] for param in self._pipeline_def['parameters'] 
-                if not param["isOptional"] and param["defaultValue"] is None
+                if not param["isOptional"] and param["defaultValue"] == None
             } 
             # current parameters
             - set(input_settings.keys()) 
@@ -1618,7 +1613,6 @@ class VipLauncher():
         invalid_chars = []
         wrong_types = []
         for param in self._pipeline_def['parameters']:
-            print("CHECKING PARAMETER: ", param['name'])
             # Get parameter name
             name = param['name']
             # Skip irrelevant inputs (this should not happen after self._check_input_keys())
@@ -1626,7 +1620,6 @@ class VipLauncher():
                 continue
             # Get input value
             value = input_settings[name]
-            print("VALUE: ", value)
             # `request` will send only strings
             if not self._isinstance(value, str): # This should not happen
                 raise ValueError( # Parameter could not be parsed correctly
