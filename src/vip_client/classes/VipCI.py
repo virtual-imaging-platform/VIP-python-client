@@ -61,16 +61,26 @@ class VipCI(VipLauncher):
 
                     #################
     ################ Main Properties ##################
-                    ################# 
+                    #################
     
-    # Same as the parent class
+    @property
+    def custom_wf_metadata(self) -> dict:
+        return self._custom_wf_metadata
+    
+    @custom_wf_metadata.setter
+    def custom_wf_metadata(self, value: dict) -> None:
+        if value != None:
+            assert isinstance(value, dict), f"Custom metadata must be a dictionary, not {type(value)}"
+        self._custom_wf_metadata = value
+
+
 
                     #############
     ################ Constructor ##################
-                    #############
+                    ############# 
     def __init__(
         self, output_dir=None, pipeline_id: str=None, input_settings: dict=None, 
-        session_name: str=None, verbose: bool=None
+        session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None
     ) -> None:
         """
         Creates a VipCI instance and sets its properties from keyword arguments.
@@ -96,6 +106,8 @@ class VipCI(VipLauncher):
         - `verbose` [Optional] (bool) Verbose mode for this instance.
             - If True, instance methods will display logs;
             - If False, instance methods will run silently.
+        
+        - `custom_wf_metadata` [Optional] (dict) Custom metadata to add to each workflow.
 
         `session_name` is only set at instantiation; other properties can be set later in function calls.
         If `output_dir` leads to data from a previous session, properties will be loaded from the metadata on Girder.
@@ -108,6 +120,8 @@ class VipCI(VipLauncher):
             input_settings = input_settings,
             verbose = verbose
         )
+        # Set custom properties
+        self.custom_wf_metadata = custom_wf_metadata
         # End display
         if any([session_name, output_dir]) and (self.__name__ == "VipCI"): 
             self._print()
@@ -346,12 +360,16 @@ class VipCI(VipLauncher):
 
     # Function extract metadata from a single workflow
     def _meta_workflow(self, workflow_id: str) -> dict:
-        return {
+        metadata = {
             "session_name": self._session_name,
             "workflow_id": workflow_id,
             "workflow_start": self._workflows[workflow_id]["start"],
             "workflow_status": self._workflows[workflow_id]["status"]
         }
+        # If custom metadata is provided, add it to the metadata
+        if self.custom_wf_metadata is not None:
+            metadata = {**metadata, **self.custom_wf_metadata}
+        return metadata
 
     # Overwrite _get_exec_infos() to bypass call to vip.get_exec_results() (does not work at this time)
     @classmethod
@@ -439,7 +457,7 @@ class VipCI(VipLauncher):
                     return None
         # Display success if the folder was found
         self._print("<< Session restored from its output directory\n")
-        # Return session metadata 
+        # Return session metadata
         return folder["meta"]
     # ------------------------------------------------
     

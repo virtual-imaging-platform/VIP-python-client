@@ -470,6 +470,8 @@ class VipSession(VipLauncher):
                         "... ", end="", sep="", flush=True
                 )
             self._update_workflows(get_exec_results=True, timeout=init_timeout)
+            # update output info
+            self._save()
             self._print("Done.\n")
         # Initial display
         self._print("Downloading pipeline outputs to:", self._local_output_dir)

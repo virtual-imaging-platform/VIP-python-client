@@ -1,0 +1,66 @@
+ $LCMODL
+ OWNER='CREATIS'
+ KEY(1)=0
+ TITLE='FIGURE 1: ISHC Project Data (11.7T STEAM, TE= 3 ms).'
+ ratipm = 2.0
+ ltable=7, filtab='output/result.table'
+ lprint=6, filpri='output/result.dump'
+ FILBAS='Basis_117T.basis'
+ FILRAW=''
+ FILPS='output/result.ps'
+ FILCOO='output/result_coord'
+ nameac(2)='NAAG'
+ neach=2  nameac(1)='NAA' 
+ NUNFIL=1024, DELTAT=.000183
+ HZPPPM=500.307373
+ NSIMUL = 0
+ NUSE1 = 5
+ CHUSE1 = 'Cr','PCr','NAA','Glu','Ins'
+ NAMREL = 'Cr+PCr'
+ CONREL = 8.00
+ NCOMBI = 5
+ CHCOMB(1) = 'PCho+GPC'
+ CHCOMB(2) = 'Cr+PCr'
+ CHCOMB(3) = 'NAA+NAAG'
+ CHCOMB(4) = 'Glu+Gln'
+ CHCOMB(5) = 'Glc+Tau'
+ NRATIO = 0
+ LPRINT = 6
+ LCOORD = 9
+ NOMIT = 6
+ CHOMIT(1) = 'Ace'
+ CHOMIT(2) =' ATP'
+ CHOMIT(3) = 'Gly'
+ CHOMIT(4) = 'Thr'
+ CHOMIT(5) = 'bHB'
+ CHOMIT(6) ='Cho'
+ NEACH = 99
+ NRATIO=17
+ CHRATO(1) = 'MM087/MM09* = 1 +- 0.3'
+ CHRATO(2) = 'MM079/MM09* = 1 +- 0.3'
+ CHRATO(3) = 'MM181/MM167* = 1 +- 0.05'
+ CHRATO(4) = 'MM37/MM09* = 1 +- 0.20'
+ CHRATO(5) = 'MM39/MM09* = 1 +- 0.20'
+ CHRATO(6) = 'MM10/MM09* = 1 +- 0.20'
+ CHRATO(7) = 'MM22/MM09* = 1 +- 0.05'
+ CHRATO(8) = 'MM27/MM09* = 1 +- 0.05'
+ CHRATO(9) = 'MM12/MM09* = 1 +- 0.20'
+ CHRATO(10) = 'MM14/MM09* = 1 +- 0.20'
+ CHRATO(11) = 'MM19/MM09* = 1 +- 0.05'
+ CHRATO(12) = 'MM32/MM09* = 1 +- 0.05'
+ CHRATO(13) = 'MM30/MM09* = 1 +- 0.05'
+ CHRATO(14) = 'NAAG/NAA* = 1 +- 0.80'
+ CHRATO(15) = 'PCr/Cre* = 1 +- 0.10'
+ CHRATO(16) = 'GPC/PCh* = 1 +- 0.10'
+ CHRATO(17) = 'Gly/Ins* = 1 +- 0.80'
+ SDDEGZ = 0.00
+ SDDEGP = 0.00
+ SHIFMN = -0.2,-0.1
+ SHIFMX = 0.3,0.3
+ FWHMBA = 0.0050
+ RFWHM = 2.5
+ DKNTMN = 0.15
+ PPMST = 4.2
+ PPMEND = 0.5
+ PPMSHF = 0.0
+ $END
