@@ -120,14 +120,15 @@ def test_missing_input_values(mocker, input_settings, tested_class):
         s.input_dir = "."
     else:
         s.output_dir = "/path/to/output"
-    s.input_settings = input_settings
     
     missing_fields = [field for field in input_settings if not is_input_full(input_settings[field])]
     
     if not missing_fields:
+        s.input_settings = input_settings
         s.run_session()
         return
     # Catch the exception message
     with pytest.raises(ValueError) as e:
+        s.input_settings = input_settings
         s.run_session()
     assert str(e.value) == "Missing input value(s) for parameter(s): " + ", ".join(sorted(missing_fields))
