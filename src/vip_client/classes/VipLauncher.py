@@ -148,6 +148,7 @@ class VipLauncher():
             raise TypeError("`input_settings` should be a dictionary")
         # Check if each input can be converted to a string with valid characters for VIP
         for param, value in input_settings.items():
+            invalid = self._is_input_full(value)
             invalid = self._invalid_chars_for_vip(value)
             # if not (set(invalid) <= {'\\'}): # '\\' is OK for Windows paths #EDIT: Corrected in _invalid_chars_for_vip
             if invalid:
@@ -1610,8 +1611,8 @@ class VipLauncher():
         """
         # Browse the input parameters
         missing_inputs = []
-        invalid_chars = []
-        wrong_types = []
+        invalid_chars_inputs = []
+        wrong_type_inputs = []
         for param in self._pipeline_def['parameters']:
             # Get parameter name
             name = param['name']
@@ -1633,7 +1634,7 @@ class VipLauncher():
             # Check invalid characters for VIP
             invalid = self._invalid_chars_for_vip(value)
             if invalid:
-                invalid_chars.append((name, invalid))
+                invalid_chars_inputs.append((name, invalid))
                 continue
             # If input is a File, check file(s) existence
             if param["type"] == "File":
@@ -1645,7 +1646,7 @@ class VipLauncher():
                     )
             if param["type"] == "Boolean":
                 if value not in ["true", "false"]:
-                    wrong_types.append(name)
+                    wrong_type_inputs.append(name)
                     continue
             # Check other input formats ?
             else: pass # TODO
@@ -1653,13 +1654,13 @@ class VipLauncher():
             raise ValueError(
                 f"Missing input value(s) for parameter(s): {', '.join(sorted(missing_inputs))}"
             )
-        if invalid_chars:
+        if invalid_chars_inputs:
             raise ValueError(
-                f"Invalid character(s) in input value(s) for parameter(s): {', '.join(sorted(invalid_chars))}"
+                f"Invalid character(s) in input value(s) for parameter(s): {', '.join(sorted(invalid_chars_inputs))}"
             )
-        if wrong_types:
+        if wrong_type_inputs:
             raise ValueError(
-                f"Wrong type(s) for parameter(s): {', '.join(sorted(wrong_types))}"
+                f"Wrong type(s) for parameter(s): {', '.join(sorted(wrong_type_inputs))}"
             )
         # raise RuntimeError("An error should have been raised before this point.")
         
@@ -1671,12 +1672,10 @@ class VipLauncher():
         """
         Returns False if `value` contains an empty string or list.
         """
-        if isinstance(value, list) and cls._isinstance(value, str): # Case: list of strings
-            return all([(len(v) > 0) for v in value])
-        elif isinstance(value, (str, list)): # Case: list or string
-            return (len(value) > 0)
-        else: # Case: other
-            return True
+        if isinstance(value, list): # Case: list
+            return len(value) > 0 and all([cls._is_input_full(v) for v in value])
+        else:
+            return (len(str(value)) > 0)
     # ------------------------------------------------
 
     # Function to assert the input contains only a certain Python type

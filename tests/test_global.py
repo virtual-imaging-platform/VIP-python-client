@@ -103,12 +103,10 @@ def test_missing_input_values(mocker, input_settings, tested_class):
         """
         Returns False if `value` contains an empty string or list.
         """
-        if isinstance(value, list) and all([isinstance(v, str) for v in value]): # Case: list of strings
-            return all([(len(v) > 0) for v in value])
-        elif isinstance(value, (str, list)): # Case: list or string
-            return (len(value) > 0)
-        else: # Case: other
-            return True
+        if isinstance(value, list): # Case: list
+            return len(value) > 0 and all([is_input_full(v) for v in value])
+        else:
+            return (len(str(value)) > 0)
 
     tested_class._BACKUP_LOCATION = None
     
