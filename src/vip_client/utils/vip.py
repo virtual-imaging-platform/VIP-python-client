@@ -23,7 +23,7 @@ __PREFIX = "https://vip.creatis.insa-lyon.fr/rest/"
 def set_vip_api_url(new_prefix: str) -> None:
     """Change the API prefix"""
     global __PREFIX
-    __PREFIX = new_prefix
+    __PREFIX = new_prefix + "/rest/"
 
 # API key
 __apikey = None

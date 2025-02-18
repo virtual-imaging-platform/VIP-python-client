@@ -350,7 +350,7 @@ class VipSession(VipLauncher):
         elif not self._is_defined("_local_input_dir"): 
             raise TypeError(f"Session '{self._session_name}': Please provide an input directory.")
         # Check local input directory
-        if not self._exists(self._local_input_dir, location="local"): 
+        if not self._exists(self._local_input_dir, location="local"):
             raise FileNotFoundError(f"Session '{self._session_name}': Input directory '{self._local_input_dir}' does not exist.")
         # Check the local values of `input_settings` before uploading
         if self._is_defined("_input_settings"):
@@ -832,11 +832,10 @@ class VipSession(VipLauncher):
         failures = []
         for local_file in files_to_upload :
             nFile+=1
-            try:
-                size = local_file.stat().st_size
-                if size == 0: raise ValueError("Empty file")
-                size = f"{size/(1<<20):,.1f}MB"
-            except: size = "unknown size"
+            # Check the file size
+            size = local_file.stat().st_size
+            if size == 0: raise ValueError(f"{local_file} is an empty file. Empty file are not supported on VIP")
+            size = f"{size/(1<<20):,.1f}MB"
             # Display the current file
             self._print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
             # Upload the file on VIP

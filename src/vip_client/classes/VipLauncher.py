@@ -49,7 +49,7 @@ class VipLauncher():
     # Default file name to save session properties 
     _SAVE_FILE = "session_data.json"
     # Vip portal
-    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/rest/"
+    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
     # Mail address for support
     _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
     # Regular expression for invalid characters (i.e. all except valid characters)
@@ -1655,9 +1655,9 @@ class VipLauncher():
             # If input is a File, check file(s) existence
             if param["type"] == "File":
                 # Ensure every file exists at `location`
-                missing_file = self._missing_file(value, location)
-                if missing_file:
-                    missing_files.append(name)
+                missing_files_found = self._missing_file(value, location)
+                if missing_files_found:
+                    missing_files.extend(missing_files_found)
                     continue
             if param["type"] == "Boolean":
                 if value not in ["true", "false"]:
@@ -1721,21 +1721,27 @@ class VipLauncher():
     
     # Function to assert file existence in the input settings
     @classmethod
-    def _missing_file(cls, value, location: str) -> str: 
+    def _missing_file(cls, value, location: str) -> list[str]:
         """
-        Returns true if the file `value` does not exist at `location`.
-        - `value` can contain a single file path or a list of paths.
-        - `location` refers to the storage infrastructure (e.g., "vip") to feed in cls._exists().
+        Returns a list of missing files for `value` at `location`.
+        
+        - `value` can be either a single file path or a list of paths.
+        - `location` refers to the storage infrastructure (e.g., "vip") used by cls._exists().
         """
-        # Case : list of files
+        missing_files = []
+        
+        # Case: list of files
         if isinstance(value, list):
-            for file in value :
+            for file in value:
                 if not cls._exists(file, location=location):
-                    return file
-        # Case : single file
+                    missing_files.append(file)
+        # Case: single file
         else:
             if not cls._exists(value, location=location):
-                return value
+                missing_files.append(value)
+        
+        return missing_files
+
     # ------------------------------------------------
 
     ########################################
