@@ -399,7 +399,7 @@ class VipLauncher():
         # Set User API key
         try:
             # setApiKey() may return False
-            vip.set_vip_api_url(cls._VIP_PORTAL)
+            vip.set_vip_url(cls._VIP_PORTAL)
             assert vip.setApiKey(true_key), \
                 f"(!) Unable to set the VIP API key: {true_key}.\nPlease check the key or retry later."
         except RuntimeError as vip_error:
@@ -1655,7 +1655,7 @@ class VipLauncher():
             # If input is a File, check file(s) existence
             if param["type"] == "File":
                 # Ensure every file exists at `location`
-                missing_files_found = self._missing_file(value, location)
+                missing_files_found = self._missing_files(value, location)
                 if missing_files_found:
                     missing_files.extend(missing_files_found)
                     continue
@@ -1721,7 +1721,7 @@ class VipLauncher():
     
     # Function to assert file existence in the input settings
     @classmethod
-    def _missing_file(cls, value, location: str) -> list[str]:
+    def _missing_files(cls, value, location: str) -> list[str]:
         """
         Returns a list of missing files for `value` at `location`.
         
