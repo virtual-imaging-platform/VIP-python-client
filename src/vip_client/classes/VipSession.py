@@ -350,8 +350,8 @@ class VipSession(VipLauncher):
         elif not self._is_defined("_local_input_dir"): 
             raise TypeError(f"Session '{self._session_name}': Please provide an input directory.")
         # Check local input directory
-        if not self._exists(self._local_input_dir, location="local"): 
-            raise FileNotFoundError(f"Session '{self._session_name}': Input directory does not exist.")
+        if not self._exists(self._local_input_dir, location="local"):
+            raise FileNotFoundError(f"Session '{self._session_name}': Input directory '{self._local_input_dir}' does not exist.")
         # Check the local values of `input_settings` before uploading
         if self._is_defined("_input_settings"):
             self._print("Checking references to the dataset within Input Settings ... ", end="", flush=True)
@@ -684,11 +684,12 @@ class VipSession(VipLauncher):
     def _exists(cls, path: PurePath, location="local") -> bool:
         """
         Checks existence of a distant (`location`="vip") or local (`location`="local") resource.
-        `path` can be a string or path-like object.
+        `path` can be a string or path-like object. If `location` is "local", empty folders are 
+        considered as non-existent.
         """
         # Check path existence in `location`
         if location=="local":
-            return os.path.exists(path)
+            return os.path.exists(path) and os.path.isdir(path) and os.listdir(path)
         else: 
             return super()._exists(path=path, location=location)
     # ------------------------------------------------
@@ -831,9 +832,10 @@ class VipSession(VipLauncher):
         failures = []
         for local_file in files_to_upload :
             nFile+=1
-            # Get the file size (if possible)
-            try: size = f"{local_file.stat().st_size/(1<<20):,.1f}MB"
-            except: size = "unknown size"
+            # Check the file size
+            size = local_file.stat().st_size
+            if size == 0: raise ValueError(f"{local_file} is an empty file. Empty file are not supported on VIP")
+            size = f"{size/(1<<20):,.1f}MB"
             # Display the current file
             self._print(f"\t[{nFile}/{len(files_to_upload)}] Uploading file: {local_file.name} ({size}) ...", end=" ")
             # Upload the file on VIP

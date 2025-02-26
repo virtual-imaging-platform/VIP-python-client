@@ -20,6 +20,11 @@ import requests
 # API URL
 __PREFIX = "https://vip.creatis.insa-lyon.fr/rest/"
 
+def set_vip_url(vip_portal_url: str) -> None:
+    """Change the API prefix"""
+    global __PREFIX
+    __PREFIX = vip_portal_url + "/rest/"
+
 # API key
 __apikey = None
 __headers = {'apikey': __apikey}
@@ -80,7 +85,7 @@ def setApiKey(value) -> bool:
     Return True is correct apikey, False otherwise.
     Raise an error if an other problems occured 
     """
-    url = __PREFIX + 'plateform'
+    url = __PREFIX + 'platform'
     head_test = {
                  'apikey': value,
                 }
