@@ -1,10 +1,7 @@
-import io
 from unittest.mock import patch
 import pytest
 from pathlib import *
 
-import pytest_mock
-from vip_client.utils import vip
 from vip_client.classes import VipSession
 from mocked_services import mock_vip_api, mock_pathlib, mock_os
 

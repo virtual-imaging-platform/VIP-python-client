@@ -22,12 +22,12 @@
 
 ### June 2023
 
-- Class [`VipLauncher`](#viplauncher) is introduced for specific user needs, as a parent of `VipSession` & `VipCI`;
+- Class [`VipLauncher`](#viplauncher) is introduced for specific user needs, as a parent of `VipSession` & `VipGirder`;
 - Session properties (`session_name`, `pipeline_id`, *etc.*) can be safely accessed and modified in all "`Vip*`" classes;
 - A list of available pipelines and detailed informations about each pipeline can be displayed through new class method `show_pipeline()`;
 
 ### April 2023
-- Class [`VipCI`](#vipci) to interacts with Girder datasets (tailored for CI tests in the ReproVIP project).
+- Class [`VipGirder`](#VipGirder) to interacts with Girder datasets (tailored for CI tests in the ReproVIP project).
 
 ### March 2023
 - Class [`VipSession`](#vipsession): user-friendly interface to run VIP jobs on local datasets.

@@ -12,7 +12,7 @@ The most user-friendly class to interact with VIP. See the documentation [here](
 
 A parent class of `VipSession` that implements everything needed to launch VIP applications on remote data sets. *More information to come*.
 
-### [vip_client.classes.**VipCI**](../src/vip_client/classes/VipCI.py)
+### [vip_client.classes.**VipGirder**](../src/vip_client/classes/VipGirder.py)
 
 [Prototype] A `VipLauncher` implementation to launch VIP application on [Girder](https://girder.readthedocs.io/en/latest/) datasets. Currently used for continuous integration (CI) tests on the VIP platform.
 

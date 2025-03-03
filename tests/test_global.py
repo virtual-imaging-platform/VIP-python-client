@@ -1,4 +1,4 @@
-from vip_client.classes import VipSession, VipCI, VipLauncher
+from vip_client.classes import VipSession, VipGirder, VipLauncher
 from mocked_services import mock_vip_api, mock_pathlib, mock_os, mock_girder_client
 import pytest
 
@@ -48,8 +48,8 @@ test_cases_missing_input_values = [
     }
 ]
 
-test_cases_missing_input_fields = [(input_settings, tested_class) for input_settings in test_cases_missing_input_fields for tested_class in [VipSession, VipLauncher, VipCI]]
-test_cases_missing_input_values = [(input_settings, tested_class) for input_settings in test_cases_missing_input_values for tested_class in [VipSession, VipLauncher, VipCI]]
+test_cases_missing_input_fields = [(input_settings, tested_class) for input_settings in test_cases_missing_input_fields for tested_class in [VipSession, VipLauncher, VipGirder]]
+test_cases_missing_input_values = [(input_settings, tested_class) for input_settings in test_cases_missing_input_values for tested_class in [VipSession, VipLauncher, VipGirder]]
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_teardown_vip_launcher(request, mocker):
@@ -63,7 +63,7 @@ def setup_teardown_vip_launcher(request, mocker):
     print("Handshake with VIP")
     VipSession.init(api_key="FAKE_KEY")
     VipLauncher.init(api_key="FAKE_KEY")
-    VipCI.init(vip_key="FAKE_KEY", girder_key="FAKE_KEY")
+    VipGirder.init(vip_key="FAKE_KEY", girder_key="FAKE_KEY")
     print("Setup done")
 
 
@@ -72,10 +72,10 @@ def setup_teardown_vip_launcher(request, mocker):
 )
 def test_missing_input_settings(input_settings, tested_class):
 
-    VipCI._BACKUP_LOCATION = None
+    VipGirder._BACKUP_LOCATION = None
     
     # Copy the first session
-    s = VipCI()
+    s = VipGirder()
     s.pipeline_id = "LCModel/0.1"
     s.output_dir = "/path/to/output"
     s.input_settings = input_settings
