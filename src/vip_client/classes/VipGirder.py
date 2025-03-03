@@ -354,16 +354,19 @@ class VipGirder(VipLauncher):
         Returns the workflow identifier.
         """
         # Get function arguments
-        # input_settings = self._vip_input_settings(self._input_settings)
         input_settings = self._get_input_settings(location="vip-girder")
-        # Create a workflow-specific result directory
-        res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) 
-            # no simple way to rename later with workflow_id
-        res_id = self._create_dir(
-            path=res_path, location=self._OUTPUT_SERVER_NAME, 
-            description=f"VIP outputs from one workflow in Session '{self._session_name}'"
-        )
-        res_vip = self._vip_girder_id(res_id)
+        res_path = str(self._vip_output_dir) + "/OUTPUTS"
+        res_vip = res_path
+        if (self._OUTPUT_SERVER_NAME == "girder"):
+            # Create a workflow-specific result directory
+            res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) 
+                # no simple way to rename later with workflow_id
+            res_id = self._create_dir(
+                path=res_path, location=self._OUTPUT_SERVER_NAME, 
+                description=f"VIP outputs from one workflow in Session '{self._session_name}'"
+            )
+            res_vip = self._vip_girder_id(res_id)
+
         # Launch execution
         workflow_id = vip.init_exec(
             pipeline = self.pipeline_id, 

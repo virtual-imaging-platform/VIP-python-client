@@ -43,7 +43,8 @@ class VipLauncher():
     # (set to None to avoid saving and loading backup files)
     _BACKUP_LOCATION = None
     # Default location for VIP inputs/outputs (can be different for subclasses)
-    _SERVER_NAME = "vip"
+    _INPUT_SERVER_NAME = "vip"
+    _OUTPUT_SERVER_NAME = "vip"
     # Prefix that defines a path from VIP
     _SERVER_PATH_PREFIX = "/vip"
     # Default file name to save session properties 
@@ -482,15 +483,15 @@ class VipLauncher():
         if not self._is_defined("_vip_output_dir"):
             raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
         else: self._print("Output directory: ", end="", flush=True)
-            # Ensure the directory exists
-        if self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME):
-            self._print(f"Created on {self._SERVER_NAME.upper()}")
+        # Ensure the directory exists
+        if self._mkdirs(path=self._vip_output_dir, location=self._OUTPUT_SERVER_NAME):
+            self._print(f"Created on {self._OUTPUT_SERVER_NAME.upper()}")
         else:
             self._print("OK")
         # Check the input parameters
         self._print("Input settings: ", end="", flush=True)
         # Check content
-        self._check_input_settings(location=self._SERVER_NAME)
+        self._check_input_settings(location=self._INPUT_SERVER_NAME)
         self._print("OK")
         # End parameters checks
         self._print("----------------\n")
@@ -921,6 +922,8 @@ class VipLauncher():
         Deletes `path` on `location` and waits until `path` is actually removed.
         After `timeout` (seconds), displays a warning if `path` still exist.
         """
+        if location != "vip":
+            raise NotImplementedError(f"Unknown location: {location}")
         # Delete the path
         cls._delete_path(path, location)
         # Standby until path is indeed removed (give up after some time)
@@ -1004,7 +1007,7 @@ class VipLauncher():
 
     # Simple context manager to unlock session properties while executing code
     @contextmanager
-    def _unlocked_properties(self) -> None:
+    def _unlocked_properties(self):
         """
         Under this context, session properties can be modified without raising an error.
         """
@@ -1016,7 +1019,7 @@ class VipLauncher():
 
     # Simple context manager to silence session logs while executing code
     @contextmanager
-    def _silent_session(self) -> None:
+    def _silent_session(self):
         """
         Under this context, the session will not print anything.
         """
@@ -1029,7 +1032,7 @@ class VipLauncher():
     # Simple context manager to silence logs from class methods while executing code
     @classmethod
     @contextmanager
-    def _silent_class(cls) -> None:
+    def _silent_class(cls):
         """
         Under this context, the session will not print anything.
         """
@@ -1528,6 +1531,8 @@ class VipLauncher():
         Returns the input settings with their orignal values in string format.
         `location` is destined to subclasses.
         """
+        if location != "vip":
+            raise NotImplementedError(f"Unknown location: {location}")
         return {
             key: [str(v) for v in value] if isinstance(value, list) else str(value)
             for key, value in self._input_settings.items()
@@ -1553,7 +1558,7 @@ class VipLauncher():
         """
         # If location is not provided, default to server
         if location is None:
-            location = self._SERVER_NAME
+            location = self._INPUT_SERVER_NAME
         # If input_settings are not provided, get instance attribute instead
         if not input_settings:
             if self._is_defined("_input_settings"):
