@@ -614,7 +614,7 @@ class VipLauncher():
     # ------------------------------------------------
 
     # Clean session data on VIP
-    def finish(self, timeout=300) -> VipLauncher:
+    def finish(self, timeout=300, **kwargs) -> VipLauncher:
         """
         Removes session's output data from VIP servers. 
 
@@ -641,7 +641,7 @@ class VipLauncher():
         self._print("---------------------")
         # Browse paths to delete
         success = True
-        for path, location in self._path_to_delete().items():
+        for path, location in self._path_to_delete(**kwargs).items():
             # Display progression
             self._print(f"[{location}] {path} ... ", end="", flush=True)
             # Check data existence
@@ -694,7 +694,7 @@ class VipLauncher():
         else:
             self._print("(!) There may still be temporary data on VIP.")
             self._print(f"Please run finish() again or check the following path(s) on the VIP portal ({self._VIP_PORTAL}):")
-            self._print('\n\t'.join([str(path) for path in self._path_to_delete()]))
+            self._print('\n\t'.join([str(path) for path in self._path_to_delete(**kwargs)]))
             # Finish display
             self._print()
         # Return 
@@ -838,7 +838,7 @@ class VipLauncher():
     ###################################################################
 
     # Path to delete during session finish
-    def _path_to_delete(self) -> dict:
+    def _path_to_delete(self, **kwargs) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
         return {
             self._vip_output_dir: "vip"

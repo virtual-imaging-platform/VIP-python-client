@@ -563,7 +563,7 @@ class VipSession(VipLauncher):
         )
 
     # Clean session data on VIP
-    def finish(self, timeout=300) -> VipSession:
+    def finish(self, timeout=300, keep_output=False) -> VipSession:
         """
         Removes session's data from VIP servers (INPUTS and OUTPUTS). 
         The downloaded outputs and the input dataset are kept on the local machine.
@@ -574,7 +574,7 @@ class VipSession(VipLauncher):
         - Workflows status are set to "Removed" when the corresponding outputs have been removed from VIP servers.
         """
         # Finish the session based on self._path_to_delete()
-        super().finish(timeout=timeout)
+        super().finish(timeout=timeout, keep_output=keep_output)
         # Check if the input data have been erased (this is not the case when get_inputs have been used)
         if (self._vip_input_dir != self._vip_dir / "INPUTS"
                 and self._exists(self._vip_input_dir, location="vip")):
@@ -673,11 +673,16 @@ class VipSession(VipLauncher):
     ###################################################################
 
     # Path to delete during session finish()
-    def _path_to_delete(self) -> dict:
+    def _path_to_delete(self, **kwargs) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        return {
-            self._vip_dir: "vip"
-        }
+        if (kwargs.get("keep_output", False)):
+            return {
+                self._vip_dir / "INPUTS": "vip"
+            }
+        else:
+            return {
+                self._vip_dir: "vip"
+            }
 
     # Method to check existence of a distant or local resource.
     @classmethod
