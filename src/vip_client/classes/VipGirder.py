@@ -293,7 +293,7 @@ class VipGirder(VipLauncher):
         elif not keep_output:
             for values in self._workflows.values():
                 self._delete_and_check(PurePath(values["output_path"]).parent)
-                print(f"Workflow successfully cleaned on VIP ({str(PurePath(values["output_path"]).parent)})")
+                print(f"Workflow successfully cleaned on VIP ({str(PurePath(values['output_path']).parent)})")
 
     # ------------------------------------------------
 
