@@ -259,16 +259,42 @@ class VipGirder(VipLauncher):
         return super().display()
     # ------------------------------------------------
 
+    def download_outputs(self, output_dir: str):
+        """This will works only when girder isn't the output location."""
+        output_path = PurePath(output_dir)
+
+        os.mkdir(output_path)
+        for workflow in self._workflows.keys():
+            files = vip.get_exec_results(workflow)
+            files = vip.get_exec_results(workflow)
+            to_download = [file["path"] for file in files]
+            linked_download = []
+
+            for path in to_download:
+                posixPath = PosixPath(path)
+                linked_download.append((path, output_path / posixPath.name))
+
+            for v in linked_download:
+                if not (vip.download(v[0], v[1])):
+                    print(f"Failed to download {v[0]} to {v[1]}")
+            print("Workflow outputs successfully downloaded locally!")
+
+    # ------------------------------------------------
+
     # Return error in case of call to finish()
-    def finish(self, verbose: bool=None) -> None:
+    def finish(self, verbose: bool=None, keep_output=False) -> None:
         """
-        This function does not work in VipGirder.
+        This function does nothing when using girder as output location else it erase the data on vip.
         """
-        # Update the verbose state and display
-        self._verbose = verbose
-        self._print("\n=== FINISH ===\n", max_space=2)
-        # Raise error message
-        raise NotImplementedError(f"Class {self.__name__} cannot delete the distant data.")
+        if (self._OUTPUT_SERVER_NAME == "girder"):
+            # Update the verbose state and display
+            self._verbose = verbose
+            self._print("\n=== FINISH ===\n", max_space=2)
+        elif not keep_output:
+            for values in self._workflows.values():
+                self._delete_and_check(PurePath(values["output_path"]).parent)
+                print(f"Workflow successfully cleaned on VIP ({str(PurePath(values["output_path"]).parent)})")
+
     # ------------------------------------------------
 
                     #################
