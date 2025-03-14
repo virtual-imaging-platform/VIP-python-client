@@ -263,7 +263,7 @@ class VipGirder(VipLauncher):
         """This will works only when girder isn't the output location."""
         output_path = PurePath(output_dir)
 
-        os.mkdir(output_path)
+        os.makedirs(output_path, exist_ok=True)
         for workflow in self._workflows.keys():
             files = vip.get_exec_results(workflow)
             files = vip.get_exec_results(workflow)
