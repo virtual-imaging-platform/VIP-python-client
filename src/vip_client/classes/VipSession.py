@@ -565,13 +565,14 @@ class VipSession(VipLauncher):
     # Clean session data on VIP
     def finish(self, timeout=300, keep_output=False) -> VipSession:
         """
-        Removes session's data from VIP servers (INPUTS and OUTPUTS). 
+        Removes session's data from VIP servers (INPUTS and by default OUTPUTS). 
         The downloaded outputs and the input dataset are kept on the local machine.
 
         Detailed behaviour:
         - This process checks for actual deletion on VIP servers until `timeout` (seconds) is reached.
             If deletion could not be verified, the procedure ends with a warning message.
         - Workflows status are set to "Removed" when the corresponding outputs have been removed from VIP servers.
+        - OUTPUTS are by default deleted from VIP servers, the option `keep_output` override this behavior
         """
         # Finish the session based on self._path_to_delete()
         super().finish(timeout=timeout, keep_output=keep_output)
