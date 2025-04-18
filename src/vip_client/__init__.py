@@ -8,7 +8,7 @@ For more information: https://github.com/virtual-imaging-platform/VIP-python-cli
 """
 
 # Informations
-__version__ = "0.1.6"
+__version__ = "0.1.8"
 __license__ = "CECILL-B"
 
 from vip_client.classes import VipSession

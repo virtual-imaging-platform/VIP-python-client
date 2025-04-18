@@ -50,7 +50,7 @@ class VipLauncher():
     # Default file name to save session properties 
     _SAVE_FILE = "session_data.json"
     # Vip portal
-    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
+    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr"
     # Mail address for support
     _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
     # Regular expression for invalid characters (i.e. all except valid characters)
