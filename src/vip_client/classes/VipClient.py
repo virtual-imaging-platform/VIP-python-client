@@ -23,7 +23,7 @@ class VipClient():
     # Default verbose state
     _VERBOSE = True
     # Vip portal
-    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr/"
+    _VIP_PORTAL = "https://vip.creatis.insa-lyon.fr"
     # Mail address for support
     _VIP_SUPPORT = "vip-support@creatis.insa-lyon.fr"
     # Regular expression for invalid characters
