@@ -563,7 +563,7 @@ class VipSession(VipLauncher):
         )
 
     # Clean session data on VIP
-    def finish(self, timeout=300, keep_output=False) -> VipSession:
+    def finish(self, timeout=300, keep_output=False, keep_input=False) -> VipSession:
         """
         Removes session's data from VIP servers (INPUTS and by default OUTPUTS). 
         The downloaded outputs and the input dataset are kept on the local machine.
@@ -575,7 +575,7 @@ class VipSession(VipLauncher):
         - OUTPUTS are by default deleted from VIP servers, the option `keep_output` override this behavior
         """
         # Finish the session based on self._path_to_delete()
-        super().finish(timeout=timeout, keep_output=keep_output)
+        super().finish(timeout=timeout, keep_output=keep_output, keep_input=keep_input)
         # Check if the input data have been erased (this is not the case when get_inputs have been used)
         if (self._vip_input_dir != self._vip_dir / "INPUTS"
                 and self._exists(self._vip_input_dir, location="vip")):
@@ -674,16 +674,18 @@ class VipSession(VipLauncher):
     ###################################################################
 
     # Path to delete during session finish()
-    def _path_to_delete(self, **kwargs) -> dict:
+    def _path_to_delete(self, keep_output=False, keep_input=False) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        if (kwargs.get("keep_output", False)):
-            return {
-                self._vip_dir / "INPUTS": "vip"
-            }
-        else:
-            return {
-                self._vip_dir: "vip"
-            }
+        if not keep_input and not keep_output:
+            return { self._vip_dir: "vip" }
+        
+        result = {}
+
+        if not keep_input:
+            result[self._vip_dir / "INPUTS"] = "vip"
+        if not keep_output:
+            result[self._vip_dir / "OUTPUTS"] = "vip"
+        return result
 
     # Method to check existence of a distant or local resource.
     @classmethod
