@@ -11,9 +11,9 @@ except:
     warn("vip_client.classes.VipGirder is unavailable (missing package: girder-client)")
 # Other classes from VIP client
 from vip_client.utils import vip
-from vip_client.classes.VipLauncher import VipLauncher
+from vip_client.classes.VipSession import VipSession
 
-class VipGirder(VipLauncher):
+class VipGirder(VipSession):
     """
     Python class to run VIP pipelines on datasets located on Girder.
 
@@ -22,6 +22,11 @@ class VipGirder(VipLauncher):
     - `pipeline_id` (str) Name of the pipeline. 
     - `input_settings` (dict) All parameters needed to run the pipeline.
     - `output_dir` (str) Path to a Girder folder where execution results will be stored.
+
+    By default, results will be written in the output_dir on girder.
+    But results can also be written on VIP or locally, using the output_location parameter.
+    If output_location is "vip", results will be written on VIP, and output_dir must NOT be given
+    If output_location is "local", results will be written on VIP, and are meant to be downloaded (this uses VipSession)
 
     N.B.: all instance methods require that `VipGirder.init()` has been called with:
     - a valid VIP API key;
@@ -40,7 +45,9 @@ class VipGirder(VipLauncher):
     _PROPERTIES = [
         "session_name", 
         "pipeline_id",
-        "vip_output_dir", 
+        "local_output_dir",
+        "vip_output_dir",
+        "output_location",
         "input_settings", 
         "workflows"
     ]
@@ -62,34 +69,73 @@ class VipGirder(VipLauncher):
                     #################
     ################ Main Properties ##################
                     #################
-    
+
+    @property
+    def output_dir(self) -> str:
+        if self.output_location is None or self.output_location == "girder":
+            return self.vip_output_dir
+        else:
+            return self.local_output_dir
+
+    @output_dir.setter
+    def output_dir(self, new_dir: str) -> None:
+        # Display
+        self._print("Output directory:", new_dir)
+        # Set the new output directory
+        if self.output_location is None or self.output_location == "girder":
+            self.vip_output_dir = new_dir
+        else:
+            self.local_output_dir = new_dir
+        # Load backup data from the new output directory
+        # in output_location is vip, session is loaded when vip_output_dir is set
+        # it cannot be set here as the default (and unmodifiable) vip_output_dir is set in VipSession
+        if self.output_location is not None and self.output_location != "vip":
+            self._load()
+
     @property
     def custom_wf_metadata(self) -> dict:
         return self._custom_wf_metadata
     
     @custom_wf_metadata.setter
     def custom_wf_metadata(self, value: dict) -> None:
-        if value != None:
+        if value is not None:
             assert isinstance(value, dict), f"Custom metadata must be a dictionary, not {type(value)}"
         self._custom_wf_metadata = value
 
+    @property
+    def output_location(self) -> str:
+        return self._output_location
 
+    @output_location.setter
+    def output_location(self, value: str) -> None:
+        if value != None:
+            assert isinstance(value, str), f"output_location metadata must be a String, not {type(value)}"
+        self._assert_location_value(value, "output_location")
+        self._output_location = value
+        # if output location is local, OUTPUT_SERVER is vip but location is local to store the session and the results
+        self._OUTPUT_SERVER_NAME = value if value != "local" else "vip"
 
                     #############
     ################ Constructor ##################
                     ############# 
     def __init__(
-        self, output_dir=None, pipeline_id: str=None, input_settings: dict=None, 
-        session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None, **kwargs
+        self, output_location='girder', output_dir=None, pipeline_id: str=None, input_settings: dict=None,
+        session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None
     ) -> None:
         """
         Creates a VipGirder instance and sets its properties from keyword arguments.
 
         ## Parameters
-        - `output_dir` (str | os.PathLike) Path to a Girder folder where execution results will be stored.
+
+        - `output_location` (str) "girder" (default) or "vip" or "local"
+
+        - `output_dir` (str | os.PathLike) depends on output_location value.
+            - if output_location="girder", Path to a Girder folder where execution results will be stored.
+              Usually in format : "/collection/[collection_name]/[path_to_folder]"
+              User must have read/write permissions on the Girder collection/folder.
+            - if output_location="vip", must be absent
+            - if output_location="local", optional path to a local folder where results could be downloaded
             - Does not need to exist
-            - Usually in format : "/collection/[collection_name]/[path_to_folder]"
-            - User must have read/write permissions on the Girder collection/folder.
 
         - `pipeline_id` (str) Name of your pipeline in VIP. 
             - Usually in format : *application_name*/*version*.
@@ -112,6 +158,21 @@ class VipGirder(VipLauncher):
         `session_name` is only set at instantiation; other properties can be set later in function calls.
         If `output_dir` leads to data from a previous session, properties will be loaded from the metadata on Girder.
         """
+        # this overrides VipSession to be able to have output in local or vip (VipSession output behavior) or on
+        # girder (VipGirder overridden behavior, the default). This is determined by output_location and configured
+        # in the output_folder property setter
+        # in all case, input is from girder, vip_input_folder and local_input_folder are ignored
+        # output_location can be [girder|local|vip]. default is girder
+        self.output_location = output_location if output_location else "girder"
+        # if output_location is girder, output_dir will be set to vip_output_dir (see property setter)
+        # if output_location is local, VipSession will work as expected output_dir -> local_output_dir
+        # if output_location is vip, VipSession will work as expected (except cleaning, see finish),
+        # but output_dir cannot be specified
+        if self.output_location == "vip" and output_dir is not None:
+            raise ValueError('output_dir cannot be specified with "vip" output_dir')
+        # if backup_location is not None, set it to the same value as output_location
+        if self._BACKUP_LOCATION is not None:
+            self._BACKUP_LOCATION = self.output_location
         # Initialize with the name, pipeline and input settings
         super().__init__(
             output_dir = output_dir,
@@ -120,6 +181,10 @@ class VipGirder(VipLauncher):
             input_settings = input_settings,
             verbose = verbose
         )
+        # if output_location is vip, loading has not been done in output_dir setter as vip_output_dir is set later
+        # in VipSession constructor, so we load here.
+        if self.output_location == "vip":
+            self._load()
         # Set custom properties
         self.custom_wf_metadata = custom_wf_metadata
         # End display
@@ -144,6 +209,7 @@ class VipGirder(VipLauncher):
             verbose=True, 
             girder_api_url=None,
             girder_id_prefix=None,
+            backup_location='girder',
             **kwargs
         ) -> VipGirder:
         """
@@ -158,6 +224,12 @@ class VipGirder(VipLauncher):
         In cases B or C, the API key will be loaded from the local file or the environment variable. 
 
         - `girder_key` (str): Girder API key. Can take the same values as `vip_key`.
+
+        - `girder_api_url` (str): Girder instance URL. Must have the "/api/v1" suffix
+
+        - `girder_id_prefix` (str): Girder instance identifier as a VIP external storage
+
+        - `backup_location` (str): None to avoid. Otherwise, will be overridden by output_location in constructor
         
         - `verbose` (bool): default verbose mode for all instances.
             - If True, all instances will display logs by default;
@@ -165,15 +237,11 @@ class VipGirder(VipLauncher):
 
         - `kwargs` [Optional] (dict): keyword arguments or dictionnary setting properties of the returned instance.     
         """
-        # Initiate a Vip Session silently
-        super().init(api_key=vip_key, verbose=False, **kwargs)
-        # Restore the verbose state
-        cls._VERBOSE = verbose
         # Set the Girder ID prefix
         cls._GIRDER_ID_PREFIX = girder_id_prefix if girder_id_prefix is not None else cls._GIRDER_ID_PREFIX
         cls._GIRDER_PORTAL = girder_api_url if girder_api_url is not None else cls._GIRDER_PORTAL
         # Instantiate a Girder client
-        cls._girder_client = girder_client.GirderClient(apiUrl=girder_api_url)
+        cls._girder_client = girder_client.GirderClient(apiUrl=cls._GIRDER_PORTAL)
         # Check if `girder_key` is in a local file or environment variable
         true_key = cls._get_api_key(girder_key)
         # Authenticate with Girder API key
@@ -181,17 +249,18 @@ class VipGirder(VipLauncher):
         # Diplay success
         cls._printc()
         cls._printc("---------------------------------------------")
-        cls._printc("| You are communicating with VIP and Girder |")
+        cls._printc("| You are communicating with Girder |")
         cls._printc("---------------------------------------------")
         cls._printc()
-        # Return a VipGirder instance for method cascading
-        return cls(verbose=(verbose and kwargs), **kwargs)
+        return super().init(api_key=vip_key, verbose=verbose, backup_location=backup_location, **kwargs)
     # ------------------------------------------------
+
+    def upload_inputs(self, input_dir=None, update_files=True) -> VipSession:
+        raise NotImplementedError("upload_inputs cannot be called in VipGirder")
 
     # Launch the pipeline on VIP
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, output_dir=None, nb_runs=1, 
-            verbose: bool=None
+            self, pipeline_id: str=None, input_settings: dict=None, nb_runs=1
         ) -> VipGirder:
         """
         Launches pipeline executions on VIP.
@@ -214,7 +283,6 @@ class VipGirder(VipLauncher):
         return super().launch_pipeline(
             pipeline_id = pipeline_id, # default
             input_settings = input_settings, # default
-            output_dir = output_dir, # default
             nb_runs = nb_runs, # default
         )
     # ------------------------------------------------
@@ -230,7 +298,10 @@ class VipGirder(VipLauncher):
     # ------------------------------------------------
 
     # Run a full VipGirder session 
-    def run_session(self, nb_runs=1, refresh_time=30) -> VipGirder:
+    def run_session(
+            self, nb_runs=1, refresh_time=30,
+            unzip=True, get_status=["Finished"]
+        ) -> VipSession:
         """
         Runs a full session from Girder data:
         1. Launches pipeline executions on VIP;
@@ -242,7 +313,14 @@ class VipGirder(VipLauncher):
         - Increase `nb_runs` to run more than 1 execution at once;
         - Set `refresh_time` to modify the default refresh time.
         """
-        return super().run_session(nb_runs=nb_runs, refresh_time=refresh_time)
+        (self.launch_pipeline(nb_runs=nb_runs)
+         .monitor_workflows(refresh_time=refresh_time))
+
+        if self.output_location is not None and self.output_location == "local":
+            self.download_outputs(get_status=get_status, unzip=unzip)
+
+        return self
+
     # ------------------------------------------------
 
     # Display session properties in their current state
@@ -259,41 +337,40 @@ class VipGirder(VipLauncher):
         return super().display()
     # ------------------------------------------------
 
-    def download_outputs(self, output_dir: str):
-        """This will works only when girder isn't the output location."""
-        output_path = PurePath(output_dir)
+    def download_outputs(
+            self, unzip: bool=True, get_status: list=["Finished"], init_timeout: int=None
+            ) -> VipSession:
 
-        os.makedirs(output_path, exist_ok=True)
-        for workflow in self._workflows.keys():
-            files = vip.get_exec_results(workflow)
-            files = vip.get_exec_results(workflow)
-            to_download = [file["path"] for file in files]
-            linked_download = []
+        if self.output_location is not None and self.output_location != "local":
+            raise NotImplementedError("download_outputs only works in VipGirder if output_location is local")
 
-            for path in to_download:
-                posixPath = PosixPath(path)
-                linked_download.append((path, output_path / posixPath.name))
-
-            for v in linked_download:
-                if not (vip.download(v[0], v[1])):
-                    print(f"Failed to download {v[0]} to {v[1]}")
-            print("Workflow outputs successfully downloaded locally!")
+        super().download_outputs(unzip, get_status, init_timeout)
 
     # ------------------------------------------------
 
     # Return error in case of call to finish()
-    def finish(self, verbose: bool=None, keep_output=False) -> None:
+    def finish(self, timeout=300, keep_output=False) -> VipSession:
         """
-        This function does nothing when using girder as output location else it erase the data on vip.
+        This function does nothing when using girder as output location else it erases the data on vip.
         """
-        if (self._OUTPUT_SERVER_NAME == "girder"):
-            # Update the verbose state and display
-            self._verbose = verbose
-            self._print("\n=== FINISH ===\n", max_space=2)
-        elif not keep_output:
-            for values in self._workflows.values():
-                self._delete_and_check(PurePath(values["output_path"]).parent)
-                print(f"Workflow successfully cleaned on VIP ({str(PurePath(values['output_path']).parent)})")
+        # nothing to do with girder output_location
+        # if vip or local, VipSession must not delete vip_input_dir as it does not exist, so we set keep_input to True
+        if self.output_location == "girder":
+            self._print("\n=== FINISH ===\n")
+            self._print("Ending Session:", self._session_name)
+            # Check if workflows are still running (without call to VIP)
+            if self._still_running():
+                # Update the workflow inventory
+                self._print("Updating worflow inventory ... ", end="", flush=True)
+                self._update_workflows()
+                self._print("Done.")
+                # Return is workflows are still running
+                if self._still_running():
+                    self._print("\n(!) This session cannot be finished since the pipeline might still generate data.\n")
+                    self._execution_report()
+                    return self
+        else:
+            super().finish(timeout=timeout, keep_input=True, keep_output=keep_output)
 
     # ------------------------------------------------
 
@@ -307,10 +384,21 @@ class VipGirder(VipLauncher):
     ###################################################################
 
     # Path to delete during session finish
-    def _path_to_delete(self) -> dict:
+    def _path_to_delete(self, keep_input=False, keep_output=False) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        return {}
+        if not keep_input:
+            raise NotImplementedError("cannot delete inputs in VipGirder")
+
+        if not keep_output and self.output_location == "girder":
+            raise NotImplementedError("cannot delete outputs in VipGirder if output_location is girder")
+
+        return super()._path_to_delete(True, keep_output)
     # ------------------------------------------------
+
+    @classmethod
+    def _assert_location_value(cls, backup_location, label='backup_location') -> None:
+        if backup_location is not None and backup_location != 'girder':
+            super()._assert_location_value(backup_location=backup_location)
 
     # Method to check existence of a resource on Girder.
     @classmethod
@@ -379,29 +467,32 @@ class VipGirder(VipLauncher):
         Initiates one VIP workflow with `pipeline_id`, `session_name`, `input_settings`, `output_dir`.
         Returns the workflow identifier.
         """
-        # Get function arguments
-        input_settings = self._get_input_settings(location="vip-girder")
-        res_path = str(self._vip_output_dir) + "/OUTPUTS"
-        res_vip = res_path
-        if (self._OUTPUT_SERVER_NAME == "girder"):
+
+        result_location = self.vip_output_dir
+
+        if self.output_location == "girder":
             # Create a workflow-specific result directory
-            res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime()) 
-                # no simple way to rename later with workflow_id
+            res_path = self._vip_output_dir / time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime())
+            # no simple way to rename later with workflow_id
             res_id = self._create_dir(
-                path=res_path, location=self._OUTPUT_SERVER_NAME, 
+                path=res_path, location=self._OUTPUT_SERVER_NAME,
                 description=f"VIP outputs from one workflow in Session '{self._session_name}'"
             )
-            res_vip = self._vip_girder_id(res_id)
+            result_location = self._vip_girder_id(res_id)
 
+        input_settings = self._get_input_settings(location="vip-girder")
         # Launch execution
         workflow_id = vip.init_exec(
             pipeline = self.pipeline_id, 
             name = self.session_name, 
             inputValues = input_settings,
-            resultsLocation = res_vip
+            resultsLocation = result_location
         )
-        # Record the path to output files (create the workflow entry)
-        self._workflows[workflow_id] = {"output_path": str(res_path)}
+
+        if self.output_location == "girder":
+            # Record the path to output files (create the workflow entry)
+            self._workflows[workflow_id] = {"output_path": str(res_path)}
+
         return workflow_id
     # ------------------------------------------------
 
@@ -418,38 +509,17 @@ class VipGirder(VipLauncher):
             metadata = {**metadata, **self.custom_wf_metadata}
         return metadata
 
-    # Overwrite _get_exec_infos() to bypass call to vip.get_exec_results() (does not work at this time)
-    @classmethod
-    def _get_exec_infos(cls, workflow_id: str) -> dict:
-        """
-        Returns succint information on `workflow_id`:
-        - Execution status (VIP notations)
-        - Starting time (local time, format '%Y/%m/%d %H:%M:%S')
-        - List of paths to the output files.
-        """
-        try :
-            # Get execution infos
-            infos = vip.execution_info(workflow_id)
-            # Secure way to get execution results
-            # files = vip.get_exec_results(workflow_id)
-        except RuntimeError as vip_error:
-            cls._handle_vip_error(vip_error)
-        # Return filtered information
-        return {
-            # Execution status (VIP notations)
-            "status": infos["status"],
-            # Starting time (human readable)
-            "start": time.strftime(
-                '%Y/%m/%d %H:%M:%S', time.localtime(infos["startDate"]/1000)
-                ),
-            # # Returned files
-            # "outputs": infos["returnedFiles"]["output_file"]
-        }
     # ------------------------------------------------
 
     ###################################################
     # Save (/load) Session to (/from) Girder metadata #
     ###################################################
+
+    def _data_to_save(self) -> dict:
+        props = super()._data_to_save()
+        if self.output_location == "girder":
+            del props["local_output_dir"]
+        return props
 
     # Save session properties in a JSON file
     def _save_session(self, session_data: dict, location="girder") -> bool:
@@ -488,7 +558,7 @@ class VipGirder(VipLauncher):
         If the metadata could not be found, returns None.
         Otherwise, returns session properties as a dictionary.
         """
-        # Thow error if location is not "girder"
+
         if location != "girder":
             return super()._load_session(location)
         # Check the output directory is defined

@@ -373,7 +373,7 @@ class VipLauncher():
     # ($A.1) Login to VIP
     @classmethod
     def init(cls, api_key="VIP_API_KEY", verbose=True, vip_portal_url=None,
-             **kwargs) -> VipLauncher:
+             backup_location=None, **kwargs) -> VipLauncher:
         """
         Handshakes with VIP using your own API key. 
         Returns a class instance which properties can be provided as keyword arguments.
@@ -384,7 +384,9 @@ class VipLauncher():
             B. [safer] A **path to some local file** containing your API key,
             C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
         In cases B or C, the API key will be loaded from the local file or the environment variable. 
-        
+
+        - `backup_location` (str): "vip" or None (default : None)
+
         - `verbose` (bool): default verbose mode for all instances.
             - If True, all instances will display logs by default;
             - If False, all instance methods will run silently by default.
@@ -395,6 +397,9 @@ class VipLauncher():
         cls._VERBOSE = verbose
         # Set the VIP portal URL
         cls._VIP_PORTAL = vip_portal_url if vip_portal_url else cls._VIP_PORTAL
+        # set the backup location
+        cls._assert_location_value(backup_location)
+        cls._BACKUP_LOCATION = backup_location if backup_location else cls._BACKUP_LOCATION
         # Check if `api_key` is in a local file or environment variable
         true_key = cls._get_api_key(api_key)
         # Set User API key
@@ -615,7 +620,7 @@ class VipLauncher():
     # ------------------------------------------------
 
     # Clean session data on VIP
-    def finish(self, timeout=300, **kwargs) -> VipLauncher:
+    def finish(self, timeout=300, keep_input=False, keep_output=False) -> VipLauncher:
         """
         Removes session's output data from VIP servers. 
 
@@ -642,7 +647,7 @@ class VipLauncher():
         self._print("---------------------")
         # Browse paths to delete
         success = True
-        for path, location in self._path_to_delete(**kwargs).items():
+        for path, location in self._path_to_delete(keep_input, keep_output).items():
             # Display progression
             self._print(f"[{location}] {path} ... ", end="", flush=True)
             # Check data existence
@@ -695,7 +700,7 @@ class VipLauncher():
         else:
             self._print("(!) There may still be temporary data on VIP.")
             self._print(f"Please run finish() again or check the following path(s) on the VIP portal ({self._VIP_PORTAL}):")
-            self._print('\n\t'.join([str(path) for path in self._path_to_delete(**kwargs)]))
+            self._print('\n\t'.join([str(path) for path in self._path_to_delete(keep_input, keep_output)]))
             # Finish display
             self._print()
         # Return 
@@ -839,9 +844,9 @@ class VipLauncher():
     ###################################################################
 
     # Path to delete during session finish
-    def _path_to_delete(self, **kwargs) -> dict:
+    def _path_to_delete(self, keep_input=False, keep_output=False) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        return {
+        return {} if not keep_output else {
             self._vip_output_dir: "vip"
         }
     # ------------------------------------------------
@@ -1064,6 +1069,11 @@ class VipLauncher():
         # Return
         return true_key
     # ------------------------------------------------
+
+    @classmethod
+    def _assert_location_value(cls, backup_location, label='backup_location') -> None:
+        if backup_location is not None and backup_location != 'vip':
+            raise ValueError("invalid " + label)
 
     # (A.3) Launch pipeline executions on VIP servers
     ##################################################
