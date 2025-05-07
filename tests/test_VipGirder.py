@@ -82,9 +82,8 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
     mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
     
     # Launch a Full Session Run
-    s = VipGirder()
+    s = VipGirder(output_location="girder", session_name='test-VipLauncher', output_dir=PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"))
     s.pipeline_id = pipeline_id
-    s.output_dir = PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS")
     s.input_settings = {
         "zipped_folder": 'fake_value',
         "basis_file": 'fake_value',
@@ -107,21 +106,21 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
             "basis_file": 'fake_value2',
             "signal_file": ['fake_value3', 'fake_value4'],
             "control_file": ['fake_value5']
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup/OUTPUTS"),
         ),
         (None, {
             "zipped_folder": None,
             "basis_file": None,
             "signal_file": None,
             "control_file": None
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup/OUTPUTS"),
         ),
         ('girder', {
             "zipped_folder": 'different_value1',
             "basis_file": 'different_value2',
             "signal_file": ['different_value3', 'different_value4'],
             "control_file": ['different_value5']
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup-Special/OUTPUTS"),
         )
     ]
 )
@@ -130,12 +129,13 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
     VipGirder._BACKUP_LOCATION = backup_location
         
     # Create session
-    s1 = VipGirder(pipeline_id=pipeline_id, input_settings=input_settings)
-    s1.output_dir = output_dir
+    s1 = VipGirder(pipeline_id=pipeline_id, input_settings=input_settings, output_dir=output_dir)
+
     
     assert s1._save() is not (VipGirder._BACKUP_LOCATION is None) # Return False if no backup location
     
     # Load backup
+    print("S1.OUTPUT_DIR", s1.output_dir)
     s2 = VipGirder(output_dir=s1.output_dir)
     # Check parameters
     assert s2.output_dir == s1.output_dir
