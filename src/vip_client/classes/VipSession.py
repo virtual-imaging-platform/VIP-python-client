@@ -294,7 +294,7 @@ class VipSession(VipLauncher):
 
     # Overwrite VipLauncher.init() to be compatible with new kwargs
     @classmethod
-    def init(cls, api_key="VIP_API_KEY", verbose=True, **kwargs) -> VipSession:
+    def init(cls, api_key="VIP_API_KEY", verbose=True, backup_location='local', **kwargs) -> VipSession:
         """
         Handshakes with VIP using your own API key. 
         Returns a class instance which properties can be provided as keyword arguments.
@@ -304,7 +304,9 @@ class VipSession(VipLauncher):
             A. [unsafe] A **string litteral** containing your API key,
             B. [safer] A **path to some local file** containing your API key,
             C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
-        In cases B or C, the API key will be loaded from the local file or the environment variable. 
+        In cases B or C, the API key will be loaded from the local file or the environment variable.
+
+        - `backup_location` (str): "vip" or "local" or None (default : "local")
         
         - `verbose` (bool): default verbose mode for all instances.
             - If True, all instances will display logs by default;
@@ -312,7 +314,7 @@ class VipSession(VipLauncher):
 
         - `kwargs` [Optional] (dict): keyword arguments or dictionnary setting properties of the returned instance.     
         """
-        return super().init(api_key=api_key, verbose=verbose, **kwargs)
+        return super().init(api_key=api_key, verbose=verbose, backup_location=backup_location, **kwargs)
     # ------------------------------------------------
    
     # Upload a dataset on VIP servers
@@ -563,20 +565,21 @@ class VipSession(VipLauncher):
         )
 
     # Clean session data on VIP
-    def finish(self, timeout=300) -> VipSession:
+    def finish(self, timeout=300, keep_input=False, keep_output=False) -> VipSession:
         """
-        Removes session's data from VIP servers (INPUTS and OUTPUTS). 
+        Removes session's data from VIP servers (INPUTS and by default OUTPUTS). 
         The downloaded outputs and the input dataset are kept on the local machine.
 
         Detailed behaviour:
         - This process checks for actual deletion on VIP servers until `timeout` (seconds) is reached.
             If deletion could not be verified, the procedure ends with a warning message.
         - Workflows status are set to "Removed" when the corresponding outputs have been removed from VIP servers.
+        - OUTPUTS are by default deleted from VIP servers, the option `keep_output` override this behavior
         """
         # Finish the session based on self._path_to_delete()
-        super().finish(timeout=timeout)
+        super().finish(timeout=timeout, keep_input=keep_input, keep_output=keep_output)
         # Check if the input data have been erased (this is not the case when get_inputs have been used)
-        if (self._vip_input_dir != self._vip_dir / "INPUTS"
+        if (not keep_input and self._vip_input_dir != self._vip_dir / "INPUTS"
                 and self._exists(self._vip_input_dir, location="vip")):
             self._print(f"(!) The input data are still on VIP:\n\t{self.vip_input_dir}")
             self._print( "    They belong to another session.")
@@ -672,12 +675,25 @@ class VipSession(VipLauncher):
     # new location: "local"
     ###################################################################
 
+
     # Path to delete during session finish()
-    def _path_to_delete(self) -> dict:
+    def _path_to_delete(self, keep_input=False, keep_output=False) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        return {
-            self._vip_dir: "vip"
-        }
+        if not keep_input and not keep_output:
+            return { self._vip_dir: "vip" }
+        
+        result = {}
+
+        if not keep_input:
+            result[self._vip_dir / "INPUTS"] = "vip"
+        if not keep_output:
+            result[self._vip_dir / "OUTPUTS"] = "vip"
+        return result
+
+    @classmethod
+    def _assert_location_value(cls, backup_location, label='backup_location') -> None:
+        if backup_location is not None and backup_location != 'local':
+            super()._assert_location_value(backup_location=backup_location)
 
     # Method to check existence of a distant or local resource.
     @classmethod

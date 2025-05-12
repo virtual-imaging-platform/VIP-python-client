@@ -77,7 +77,11 @@ def mock_vip_api(mocker, pipeline_id):
     def fake_exists(path):
         return False
     
-    #mocker.patch("vip_client.utils.vip.exists", side_effect = fake_exists)
+    def fake_delete_path(path):
+        return True
+    
+    # mocker.patch("vip_client.utils.vip.exists", side_effect = fake_exists)
+    mocker.patch("vip_client.utils.vip.exists").return_value = True
     mocker.patch("vip_client.utils.vip.upload").return_value = True
     mocker.patch("vip_client.utils.vip.download").return_value = True
     mocker.patch("vip_client.utils.vip.pipeline_def").side_effect = fake_pipeline_def
@@ -86,6 +90,7 @@ def mock_vip_api(mocker, pipeline_id):
     mocker.patch("vip_client.utils.vip.init_exec").side_effect = fake_init_exec
     mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
     mocker.patch("vip_client.utils.vip.list_elements").side_effect = fake_list_elements
+    mocker.patch("vip_client.utils.vip.delete_path").side_effect = fake_delete_path
 
 def mock_pathlib(mocker):
     
@@ -102,50 +107,6 @@ def mock_pathlib(mocker):
     
 def mock_os(mocker):
     mocker.patch("os.unlink")
-
-    class FakeGirderClient():
-        
-        pipeline_id = "LCModel/0.1"
-        def __init__(self, apiUrl):
-            pass
-        def authenticate(self, apiKey):
-            return True
-        
-        def resourceLookup(self, path):
-            return {'_id': 'fake_id', '_modelType': 'folder'}
-        
-        def createFolder(self, parentId, name, reuseExisting=True, **kwargs):
-            return {'_id': 'fake_id'}
-        
-        def addMetadataToFolder(self, folderId, metadata):
-            return True
-        
-        def getFolder(cls, folderId):
-            metadata = {
-                'input_settings': {
-                'zipped_folder': 'fake_value', 
-                'basis_file': 'fake_value', 
-                'signal_file': ['fake_value', 'fake_value'], 
-                'control_file': ['fake_value']},
-                "pipeline_id": cls.pipeline_id,
-                'session_name': 'test-VipLauncher', 
-                'workflows': {}, 
-                "vip_output_dir": "/vip/Home/test-VipLauncher/OUTPUTS"
-            }
-            return {'_id': 'fake_id', 'meta': metadata}
-        
-        def get(self, path):
-            return {'_id': 'fake_id'}
-        
-        def listFiles(self, folderId):
-            return [{'_id': 'fake_id'}]
-        
-        def listItem(self, folderId):
-            return {'_id': 'fake_id'}
-        
-        @classmethod
-        def set_pipeline_id(cls, pipeline_id):
-            cls.pipeline_id = pipeline_id
             
 def mock_girder_client(mocker):
     from FakeGirderClient import FakeGirderClient

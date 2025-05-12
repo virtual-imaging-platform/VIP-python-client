@@ -43,7 +43,8 @@ class VipLauncher():
     # (set to None to avoid saving and loading backup files)
     _BACKUP_LOCATION = None
     # Default location for VIP inputs/outputs (can be different for subclasses)
-    _SERVER_NAME = "vip"
+    _INPUT_SERVER_NAME = "vip"
+    _OUTPUT_SERVER_NAME = "vip"
     # Prefix that defines a path from VIP
     _SERVER_PATH_PREFIX = "/vip"
     # Default file name to save session properties 
@@ -372,7 +373,7 @@ class VipLauncher():
     # ($A.1) Login to VIP
     @classmethod
     def init(cls, api_key="VIP_API_KEY", verbose=True, vip_portal_url=None,
-             **kwargs) -> VipLauncher:
+             backup_location=None, **kwargs) -> VipLauncher:
         """
         Handshakes with VIP using your own API key. 
         Returns a class instance which properties can be provided as keyword arguments.
@@ -383,7 +384,9 @@ class VipLauncher():
             B. [safer] A **path to some local file** containing your API key,
             C. [safer] The **name of some environment variable** containing your API key (default: "VIP_API_KEY").
         In cases B or C, the API key will be loaded from the local file or the environment variable. 
-        
+
+        - `backup_location` (str): "vip" or None (default : None)
+
         - `verbose` (bool): default verbose mode for all instances.
             - If True, all instances will display logs by default;
             - If False, all instance methods will run silently by default.
@@ -394,6 +397,9 @@ class VipLauncher():
         cls._VERBOSE = verbose
         # Set the VIP portal URL
         cls._VIP_PORTAL = vip_portal_url if vip_portal_url else cls._VIP_PORTAL
+        # set the backup location
+        cls._assert_location_value(backup_location)
+        cls._BACKUP_LOCATION = backup_location if backup_location else cls._BACKUP_LOCATION
         # Check if `api_key` is in a local file or environment variable
         true_key = cls._get_api_key(api_key)
         # Set User API key
@@ -482,15 +488,15 @@ class VipLauncher():
         if not self._is_defined("_vip_output_dir"):
             raise TypeError("Please provide an output directory for Session: %s" %self._session_name)
         else: self._print("Output directory: ", end="", flush=True)
-            # Ensure the directory exists
-        if self._mkdirs(path=self._vip_output_dir, location=self._SERVER_NAME):
-            self._print(f"Created on {self._SERVER_NAME.upper()}")
+        # Ensure the directory exists
+        if self._mkdirs(path=self._vip_output_dir, location=self._OUTPUT_SERVER_NAME):
+            self._print(f"Created on {self._OUTPUT_SERVER_NAME.upper()}")
         else:
             self._print("OK")
         # Check the input parameters
         self._print("Input settings: ", end="", flush=True)
         # Check content
-        self._check_input_settings(location=self._SERVER_NAME)
+        self._check_input_settings(location=self._INPUT_SERVER_NAME)
         self._print("OK")
         # End parameters checks
         self._print("----------------\n")
@@ -614,7 +620,7 @@ class VipLauncher():
     # ------------------------------------------------
 
     # Clean session data on VIP
-    def finish(self, timeout=300) -> VipLauncher:
+    def finish(self, timeout=300, keep_input=False, keep_output=False) -> VipLauncher:
         """
         Removes session's output data from VIP servers. 
 
@@ -641,7 +647,7 @@ class VipLauncher():
         self._print("---------------------")
         # Browse paths to delete
         success = True
-        for path, location in self._path_to_delete().items():
+        for path, location in self._path_to_delete(keep_input, keep_output).items():
             # Display progression
             self._print(f"[{location}] {path} ... ", end="", flush=True)
             # Check data existence
@@ -694,7 +700,7 @@ class VipLauncher():
         else:
             self._print("(!) There may still be temporary data on VIP.")
             self._print(f"Please run finish() again or check the following path(s) on the VIP portal ({self._VIP_PORTAL}):")
-            self._print('\n\t'.join([str(path) for path in self._path_to_delete()]))
+            self._print('\n\t'.join([str(path) for path in self._path_to_delete(keep_input, keep_output)]))
             # Finish display
             self._print()
         # Return 
@@ -838,9 +844,9 @@ class VipLauncher():
     ###################################################################
 
     # Path to delete during session finish
-    def _path_to_delete(self) -> dict:
+    def _path_to_delete(self, keep_input=False, keep_output=False) -> dict:
         """Returns the folders to delete during session finish, with appropriate location."""
-        return {
+        return {} if not keep_output else {
             self._vip_output_dir: "vip"
         }
     # ------------------------------------------------
@@ -921,6 +927,8 @@ class VipLauncher():
         Deletes `path` on `location` and waits until `path` is actually removed.
         After `timeout` (seconds), displays a warning if `path` still exist.
         """
+        if location != "vip":
+            raise NotImplementedError(f"Unknown location: {location}")
         # Delete the path
         cls._delete_path(path, location)
         # Standby until path is indeed removed (give up after some time)
@@ -1004,7 +1012,7 @@ class VipLauncher():
 
     # Simple context manager to unlock session properties while executing code
     @contextmanager
-    def _unlocked_properties(self) -> None:
+    def _unlocked_properties(self):
         """
         Under this context, session properties can be modified without raising an error.
         """
@@ -1016,7 +1024,7 @@ class VipLauncher():
 
     # Simple context manager to silence session logs while executing code
     @contextmanager
-    def _silent_session(self) -> None:
+    def _silent_session(self):
         """
         Under this context, the session will not print anything.
         """
@@ -1029,7 +1037,7 @@ class VipLauncher():
     # Simple context manager to silence logs from class methods while executing code
     @classmethod
     @contextmanager
-    def _silent_class(cls) -> None:
+    def _silent_class(cls):
         """
         Under this context, the session will not print anything.
         """
@@ -1061,6 +1069,11 @@ class VipLauncher():
         # Return
         return true_key
     # ------------------------------------------------
+
+    @classmethod
+    def _assert_location_value(cls, backup_location, label='backup_location') -> None:
+        if backup_location is not None and backup_location != 'vip':
+            raise ValueError("invalid " + label)
 
     # (A.3) Launch pipeline executions on VIP servers
     ##################################################
@@ -1528,6 +1541,8 @@ class VipLauncher():
         Returns the input settings with their orignal values in string format.
         `location` is destined to subclasses.
         """
+        if location != "vip":
+            raise NotImplementedError(f"Unknown location: {location}")
         return {
             key: [str(v) for v in value] if isinstance(value, list) else str(value)
             for key, value in self._input_settings.items()
@@ -1553,7 +1568,7 @@ class VipLauncher():
         """
         # If location is not provided, default to server
         if location is None:
-            location = self._SERVER_NAME
+            location = self._INPUT_SERVER_NAME
         # If input_settings are not provided, get instance attribute instead
         if not input_settings:
             if self._is_defined("_input_settings"):

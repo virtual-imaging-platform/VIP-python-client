@@ -169,7 +169,10 @@ When all properties are set, the full *upload-run-download* process ([steps 2-5]
 ```python
 session.run_session()
 ```
-*Do not forget to remove your temporary data from VIP after downloading the outputs (`session.finish()`).*
+*Do not forget to remove your temporary data from VIP after downloading the outputs (`session.finish(keep_output=False)`).*
+
+> [!NOTE]
+> By default `session.finish()` will remove the outputs from the VIP platform, but if you want to keep them you use the option `keep_output=True`
 
 All `VipSession` methods can be run in cascade, so everything holds in a single command:
 ```python

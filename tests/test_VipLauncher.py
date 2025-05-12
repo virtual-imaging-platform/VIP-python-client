@@ -1,8 +1,6 @@
-import io
 import pytest
 from pathlib import *
 
-from vip_client.utils import vip
 from vip_client.classes import VipLauncher
 from mocked_services import mock_vip_api, mock_pathlib, mock_os
 
@@ -96,7 +94,7 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
         assert s.workflows[wid]["status"] == "Finished"
     assert s.pipeline_id == pipeline_id
     # Finish the Session
-    s.finish(timeout=1)
+    s.finish(timeout=1, keep_input=True, keep_output=True)
     # Check Deletion
     assert removed
     for wid in s.workflows:

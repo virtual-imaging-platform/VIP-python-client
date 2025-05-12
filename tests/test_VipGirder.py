@@ -1,11 +1,7 @@
-import io
-from urllib.error import HTTPError
 import pytest
 from pathlib import *
 
-import pytest_mock
-from vip_client.utils import vip
-from vip_client.classes import VipCI
+from vip_client.classes import VipGirder
 from mocked_services import mock_vip_api, mock_girder_client, mock_pathlib, mock_os
 from FakeGirderClient import FakeGirderClient
 
@@ -41,7 +37,7 @@ def setup_teardown_vip_launcher(request, mocker):
     
     # Setup code before running the tests in the class
     print("Handshake with VIP")
-    VipCI.init(vip_key="FAKE_KEY", girder_key="FAKE_KEY")
+    VipGirder.init(vip_key="FAKE_KEY", girder_key="FAKE_KEY")
     print("Setup done")
 
 @pytest.fixture(scope="function", autouse=True)
@@ -86,9 +82,8 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
     mocker.patch("vip_client.utils.vip.execution_info").side_effect = fake_execution_info
     
     # Launch a Full Session Run
-    s = VipCI()
+    s = VipGirder(output_location="girder", session_name='test-VipLauncher', output_dir=PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"))
     s.pipeline_id = pipeline_id
-    s.output_dir = PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS")
     s.input_settings = {
         "zipped_folder": 'fake_value',
         "basis_file": 'fake_value',
@@ -111,39 +106,40 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
             "basis_file": 'fake_value2',
             "signal_file": ['fake_value3', 'fake_value4'],
             "control_file": ['fake_value5']
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup/OUTPUTS"),
         ),
         (None, {
             "zipped_folder": None,
             "basis_file": None,
             "signal_file": None,
             "control_file": None
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup/OUTPUTS"),
         ),
         ('girder', {
             "zipped_folder": 'different_value1',
             "basis_file": 'different_value2',
             "signal_file": ['different_value3', 'different_value4'],
             "control_file": ['different_value5']
-        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher/OUTPUTS"),
+        }, "LCModel/0.1", PurePosixPath("/vip/Home/test-VipLauncher-Backup-Special/OUTPUTS"),
         )
     ]
 )
 def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir):
 
-    VipCI._BACKUP_LOCATION = backup_location
+    VipGirder._BACKUP_LOCATION = backup_location
         
     # Create session
-    s1 = VipCI(pipeline_id=pipeline_id, input_settings=input_settings)
-    s1.output_dir = output_dir
+    s1 = VipGirder(pipeline_id=pipeline_id, input_settings=input_settings, output_dir=output_dir)
+
     
-    assert s1._save() is not (VipCI._BACKUP_LOCATION is None) # Return False if no backup location
+    assert s1._save() is not (VipGirder._BACKUP_LOCATION is None) # Return False if no backup location
     
     # Load backup
-    s2 = VipCI(output_dir=s1.output_dir)
+    print("S1.OUTPUT_DIR", s1.output_dir)
+    s2 = VipGirder(output_dir=s1.output_dir)
     # Check parameters
     assert s2.output_dir == s1.output_dir
-    if VipCI._BACKUP_LOCATION is None:
+    if VipGirder._BACKUP_LOCATION is None:
         assert not s2._load()
         assert s2.input_settings != s1.input_settings
         assert s2.pipeline_id != s1.pipeline_id
@@ -154,10 +150,10 @@ def test_backup(mocker, backup_location, input_settings, pipeline_id, output_dir
 
 def test_properties_interface(mocker):
 
-    VipCI._BACKUP_LOCATION = "girder"
+    VipGirder._BACKUP_LOCATION = "girder"
 
     # Copy the first session
-    s = VipCI()
+    s = VipGirder()
     s.input_settings = {
         "zipped_folder": 'fake_value1',
         "basis_file": 'fake_value2',
