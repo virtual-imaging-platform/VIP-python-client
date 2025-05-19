@@ -974,7 +974,7 @@ class VipSession(VipLauncher):
             # Update the file metadata
             files_to_download[file].update()
             # Make the parent directory (if needed)
-            self._mkdirs(local_path.parent, location="local")
+            self._mkdirs(local_path.parent, location="local", exist_ok=True)
         # Return the list of files to download
         return files_to_download
     # ------------------------------------------------
