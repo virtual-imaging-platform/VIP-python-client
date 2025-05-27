@@ -308,6 +308,18 @@ def download_parallel(files):
         # Transparent connexion between executor.map() and the caller of download_parallel()
         yield from executor.map(download_thread, files)
 
+def generic_get(endpoint)->list:
+    url = __PREFIX + endpoint
+    rq = SESSION.get(url, headers=__headers)
+    manage_errors(rq)
+    return rq.json()
+
+def generic_put(endpoint,data)->list:
+    url = __PREFIX + endpoint
+    rq = SESSION.put(url, headers=__headers, json=data)
+    manage_errors(rq)
+    return rq.json()
+
 ################################ EXECUTIONS ###################################
 # -----------------------------------------------------------------------------
 def list_executions()->list:
