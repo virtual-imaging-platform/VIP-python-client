@@ -221,7 +221,13 @@ def get_files_from_index(indexfile: str, silent=False) -> dict:
     # create files list
     files = {}
     for row in csv_rows:
+        appname = row[csv_header["name"]]
+        appversion = row[csv_header["version"]]
         filepath = row[csv_header["descriptorPath"]]
+        if filepath == "":
+            if not silent:
+                printerr("%s: no descriptor" % appname)
+            continue
         # descriptor path:
         if filepath.startswith("/"): # absolute, use as is
             filepath = Path(filepath)
@@ -234,19 +240,17 @@ def get_files_from_index(indexfile: str, silent=False) -> dict:
             identifier = file["identifier"]
             desc = file["descriptor"]
             # check that name and version strings match (fatal)
-            appname = row[csv_header["name"]]
-            appversion = row[csv_header["version"]]
-            if appname != desc["name"] and not silent:
-                printerr("%s: app name '%s' doesn't match descriptor '%s'"
+            if appname != desc["name"]:
+                printerr("%s: skipped: app name '%s' doesn't match descriptor '%s'"
                          % (filepath, appname, desc["name"]))
                 continue
-            if appversion != desc["tool-version"] and not silent:
-                printerr("%s: app version '%s' doesn't match descriptor '%s'"
+            if appversion != desc["tool-version"]:
+                printerr("%s: skipped: app version '%s' doesn't match descriptor '%s'"
                          % (filepath, appname, desc["tool-version"]))
                 continue
             # check for normalized descriptor filename (just a warning)
             normname = descriptor_filename(appname, appversion)
-            if os.path.basename(filepath) != normname:
+            if os.path.basename(filepath) != normname and not silent:
                 printerr("warning: %s: incorrect descriptor filename, should be '%s'"
                          % (filepath, normname))
             # add file to list
