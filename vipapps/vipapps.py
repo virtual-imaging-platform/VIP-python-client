@@ -49,7 +49,10 @@ def convert_app_version(av):
     name = av["applicationName"]
     identifier = name+"/"+av["version"]
     desc = json.loads(av["descriptor"])
-    return {"name":name,"identifier":identifier,"descriptor":desc,"rawtext":av["descriptor"],"resources":av["resources"],"tags":av["tags"],"is_visible":av["visible"],"settings":av["settings"]}
+    result = {"name":name,"identifier":identifier,"descriptor":desc,"rawtext":av["descriptor"],"resources":av["resources"],"tags":av["tags"],"is_visible":av["visible"],"settings":av["settings"],"doi":av["doi"]}
+    if "source" in av:
+        result["source"] = av["source"]
+    return result
 
 # get_apps(): get a list of apps and descriptors from a VIP-portal instance
 def get_apps() -> list:
@@ -64,7 +67,7 @@ def get_app(identifier) -> object:
         appver = vip.generic_get("admin/appVersions/"+urllib.parse.quote(identifier))
     except RuntimeError as e:
         # XXX this is not a very good way to test whether an app exists or not:
-        # something that explicitly searches for and idea and returns true/false
+        # something that explicitly searches for an id and returns true/false
         # with 200 OK would be more reliable.
         # print(e) # Error 8000 from VIP 
         return None
@@ -196,7 +199,28 @@ def get_files_from_dir(dirname: str, silent=False) -> dict:
                 files[identifier] = file
     return files
 
-# same as above, but from a CSV index
+# add optional fields from a csv row to a "file" dict
+def csv_add_fields(file, csv_header, row, identifier, silent=False):
+    if "resources" in csv_header:
+        val = row[csv_header["resources"]]
+        try:
+            file["resources"] = parse_strlist(val)
+        except argparse.ArgumentTypeError:
+            if not silent:
+                printerr("warning: %s: ignoring invalid resources '%s'"
+                         % (identifier, val))
+    if "settings" in csv_header:
+        val = row[csv_header["settings"]]
+        try:
+            file["settings"] = parse_map(val)
+        except argparse.ArgumentTypeError as e:
+            if not silent:
+                printerr("warning: %s: ignoring invalid settings '%s'"
+                         % (identifier, val))
+    if "source" in csv_header:
+        file["source"] = row[csv_header["source"]]
+
+# same as get_files_from_dir(), but from a CSV index
 # each app is expected to have three strings: name,version,descriptorPath,
 # resolved from the CSV header
 def get_files_from_index(indexfile: str, silent=False) -> dict:
@@ -246,24 +270,24 @@ def get_files_from_index(indexfile: str, silent=False) -> dict:
                 continue
             if appversion != desc["tool-version"]:
                 printerr("%s: skipped: app version '%s' doesn't match descriptor '%s'"
-                         % (filepath, appname, desc["tool-version"]))
+                         % (filepath, appversion, desc["tool-version"]))
                 continue
             # check for normalized descriptor filename (just a warning)
             normname = descriptor_filename(appname, appversion)
             if os.path.basename(filepath) != normname and not silent:
                 printerr("warning: %s: incorrect descriptor filename, should be '%s'"
                          % (filepath, normname))
+            # add extra fields from csv row
+            csv_add_fields(file, csv_header, row, identifier, silent=silent)
             # add file to list
             files[identifier] = file
     return files
 
 # helper class for the default values of extra fields in apps and appversions
 class AppFields:
-    # XXX TODO: preserve doi, new "origin" field?
-    # XXX somewhat obscure behavior: owner/group/citation/public are app level,
-    # not appversion, and can't be changed on update (see import_file())
-    # This should either be ajusted to that all fields can be edited (impacting
-    # GET requests), or made more explicit in command-line args.
+    # Note a non-obvious behavior: owner/group/citation/public are app-level,
+    # not appversion-level, and can't be changed on update (see import_file())
+    # This should be kept explicit in command-line args.
 
     # default values for a new app:
     owner = None
@@ -274,6 +298,8 @@ class AppFields:
     tags = []
     settings = {}
     is_visible = True
+    doi = None
+    source = ""
     # app is defined on update only, and contains the existing appversion
     # args is defined everytime, and contains user-provided values
     def __init__(self, app=None, args=None):
@@ -283,6 +309,9 @@ class AppFields:
             self.resources = app["resources"]
             self.tags = app["tags"]
             self.settings = app["settings"]
+            self.doi = app["doi"]
+            if "source" in app:
+                self.source = app["source"]
         # override with args values when defined
         # note an important difference between None and "" here:
         # . None means the arg was not specified, so its value is unchanged
@@ -296,11 +325,15 @@ class AppFields:
             if args.public != None:
                 self.public = args.public
             if args.groups != None:
-                self.groups = [] if args.groups == "" else args.groups.split(",")
+                self.groups = args.groups
             if args.resources != None:
-                self.resources = [] if args.resources == "" else args.resources.split(",")
+                self.resources = args.resources
             if args.visible != None:
                 self.is_visible = args.visible
+            if args.settings != None:
+                self.settings = args.settings
+            if args.source != None:
+                self.source = args.source
 
 # import an app from a descriptor file to a VIP-portal instance
 # file is assumed already loaded and checked, VIP-portal will re-check anyways
@@ -312,7 +345,7 @@ def import_file(file, fields, is_overwrite=False, dry_run=True, verbose=False):
     descriptor = file["rawtext"]
     app = {"name":appname,"applicationGroups":fields.groups,"owner":fields.owner,"citation":fields.citation,"public":fields.public}
     app_url = "admin/applications/" + urllib.parse.quote(appname)
-    appver = {"applicationName":appname,"version":version,"descriptor":descriptor,"visible":fields.is_visible,"resources":fields.resources,"tags":fields.tags,"settings":fields.settings}
+    appver = {"applicationName":appname,"version":version,"descriptor":descriptor,"doi":fields.doi,"visible":fields.is_visible,"resources":fields.resources,"tags":fields.tags,"settings":fields.settings,"source":fields.source}
     appver_url = "admin/appVersions/" + urllib.parse.quote(appname) + "/" + urllib.parse.quote(version)
     msg = ""
     if is_overwrite:
@@ -321,7 +354,7 @@ def import_file(file, fields, is_overwrite=False, dry_run=True, verbose=False):
         msg += " (dry run)"
     # never change app on update: doing so would be arguable if there are
     # several appversions per app, and also it avoids having to fetch app
-    # fields on GET (see Appfields())
+    # fields on GET (see AppFields())
     can_put_app = not is_overwrite
     print("importing app %s %s%s" % (appname, version, msg))
     if can_put_app:
@@ -391,10 +424,9 @@ def compare_descriptors(d1, d2) -> bool:
     return ordered(clean_descriptor(d1))==ordered(clean_descriptor(d2))
 
 # import helpers
-def import_existing_app(app, file, args=None, is_overwrite=False,
+def import_existing_app(app, file, fields, is_overwrite=False,
                         dry_run=True, verbose=False, force_update=False):
     identifier = app["identifier"]
-    fields = AppFields(app=app, args=args)
     # XXX here we could also compare non-descriptor fields?
     if compare_descriptors(app, file) and not force_update:
         if verbose:
@@ -433,22 +465,32 @@ def perform_sync(args, apps, files):
                 file = None
             elif app["identifier"] > file["identifier"]:
                 app = None
-        if app != None and file != None:
-            # app identifiers match: compare descriptors and import if changed
-            import_existing_app(app, file, args=args,
-                                is_overwrite=args.overwrite,
-                                dry_run=args.dry_run, verbose=args.verbose,
-                                force_update=args.force_update)
-            i += 1
-            j += 1
+        if file != None:
+            # set field values from global args + per-file overrides
+            fields = AppFields(app=app, args=args)
+            if "resources" in file:
+                fields.resources = file["resources"]
+            if "settings" in file:
+                fields.settings = file["settings"]
+            if "source" in file:
+                fields.source = file["source"]
+            # do the actual sync
+            if app != None:
+                # identifiers match: compare descriptors and import if changed
+                import_existing_app(app, file, fields,
+                                    is_overwrite=args.overwrite,
+                                    dry_run=args.dry_run, verbose=args.verbose,
+                                    force_update=args.force_update)
+                i += 1
+                j += 1
+            else: # app=None,file!=None: import new app
+                import_new_app(file, fields,
+                               dry_run=args.dry_run, verbose=args.verbose)
+                j += 1
         elif app != None:
             if args.show_orphans:
                 print("%s: orphan app with no descriptor" % app["identifier"])
             i += 1
-        elif file != None: # import new app
-            import_new_app(file, AppFields(args=args),
-                           dry_run=args.dry_run, verbose=args.verbose)
-            j += 1
 
 # helper for list_* commands
 def print_app(label: str, identifier: str, desc: dict,
@@ -506,13 +548,14 @@ def cmd_import_file(args):
     appname = file["descriptor"]["name"]
     version = file["descriptor"]["tool-version"]
     app = get_app(file["identifier"])
+    fields = AppFields(app=app, args=args)
     if app != None: # app already exists
-        import_existing_app(app, file, args=args,
+        import_existing_app(app, file, fields,
                             is_overwrite=args.overwrite,
                             dry_run=args.dry_run, verbose=args.verbose,
                             force_update=args.force_update)
     else: # new app
-        import_new_app(file, AppFields(args=args),
+        import_new_app(file, fields,
                        dry_run=args.dry_run, verbose=args.verbose)
 
 # check a single descriptor file
@@ -560,7 +603,7 @@ def add_subcommand(subparsers, name, func, help=None):
     cmd.set_defaults(func=func)
     return cmd
 
-# helper to allow --visible=true/false, with default None
+# parse --flag=true/false, with default None
 def parse_bool(val):
     if isinstance(val, bool):
         return val
@@ -571,6 +614,25 @@ def parse_bool(val):
     else:
         raise argparse.ArgumentTypeError("boolean expected")
 
+# parse --flag=a,b,c and return a list. In practice this can't really fail.
+def parse_strlist(val):
+    if not isinstance(val, str):
+        raise argparse.ArgumentTypeError("string expected")
+    if val == "":
+        return []
+    else:
+        return val.split(",")
+
+# parse --flag='{<json>}', return a dict
+def parse_map(val):
+    try:
+        r = json.loads(val)
+        if not isinstance(r, dict):
+            raise argparse.ArgumentTypeError("json map expected")
+        return r
+    except json.decoder.JSONDecodeError as e:
+        raise argparse.ArgumentTypeError("invalid json",e)
+
 def add_list_options(cmd):
     cmd.add_argument("--show-descriptor", action="store_true", help="show parsed descriptor content")
     cmd.add_argument("--show-imagename", action="store_true", help="show container image name")
@@ -579,11 +641,15 @@ def add_import_options(cmd):
     cmd.add_argument("--dry-run", action="store_true", help="perform no changes, just show what would be done")
     cmd.add_argument("--overwrite", action="store_true", help="overwrite existing apps")
     cmd.add_argument("--force-update", action="store_true", help="force update even if descriptor didn't change")
-    cmd.add_argument("--owner", type=str, help="set owner for new apps")
-    cmd.add_argument("--groups", type=str, help="set groups for new apps")
-    cmd.add_argument("--public", type=parse_bool, help="set is_public for new apps")
-    cmd.add_argument("--resources", type=str, help="set resources for new or update apps")
-    cmd.add_argument("--visible", type=parse_bool, help="set visibility for new or update apps")
+    # app fields (create only)
+    cmd.add_argument("--owner", type=str, help="set owner field (create only)")
+    cmd.add_argument("--groups", type=parse_strlist, help="set groups field (create only)")
+    cmd.add_argument("--public", type=parse_bool, help="set public field (create only)")
+    # appversion fields (create+update)
+    cmd.add_argument("--resources", type=parse_strlist, help="set resources field (create+update)")
+    cmd.add_argument("--visible", type=parse_bool, help="set visible field (create+update)")
+    cmd.add_argument("--settings", type=parse_map, help="set settings field (create+update)")
+    cmd.add_argument("--source", type=str, help="set source field (create+update)")
 
 def add_sync_options(cmd):
     add_import_options(cmd)
