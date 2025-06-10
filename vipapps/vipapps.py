@@ -44,8 +44,14 @@ def init_api() -> None:
     vip.setApiKey(vip_apikey)
     init_api_done = True
 
-# make app object from GET /rest/admin/appVersions response
-def convert_app_version(av):
+# make parentapp object from GET /rest/admin/applications response
+def convert_parentapp(app):
+    name = app["name"]
+    result = {"name":name,"owner":app["owner"],"citation":app["citation"],"groups":app["applicationGroups"],"public":app["public"]}
+    return result
+
+# make appversion object from GET /rest/admin/appVersions response
+def convert_appversion(av):
     name = av["applicationName"]
     identifier = name+"/"+av["version"]
     desc = json.loads(av["descriptor"])
@@ -54,14 +60,33 @@ def convert_app_version(av):
         result["source"] = av["source"]
     return result
 
-# get_apps(): get a list of apps and descriptors from a VIP-portal instance
-def get_apps() -> list:
+# get_parentapps(): get a dict of top-level application records
+# from a VIP-portal instance
+def get_parentapps() -> list:
+    init_api()
+    apps = vip.generic_get("admin/applications")
+    appnames = map(lambda app:app["name"], apps)
+    return dict(zip(appnames, list(map(convert_parentapp, apps))))
+
+# get_parentapp(): get a single top-level app
+def get_parentapp(appname) -> object:
+    init_api()
+    try:
+        appver = vip.generic_get("admin/applications/"+urllib.parse.quote(appname))
+    except RuntimeError as e:
+        # XXX see get_appversion
+        return None
+    return convert_parentapp(appver)
+
+# get_appversions(): get a list of appversions and descriptors
+# from a VIP-portal instance
+def get_appversions() -> list:
     init_api()
     app_versions = vip.generic_get("admin/appVersions")
-    return list(map(convert_app_version, app_versions))
+    return list(map(convert_appversion, app_versions))
 
-# get_app(): get a single app
-def get_app(identifier) -> object:
+# get_appversion(): get a single appversion
+def get_appversion(identifier) -> object:
     init_api()
     try:
         appver = vip.generic_get("admin/appVersions/"+urllib.parse.quote(identifier))
@@ -71,7 +96,7 @@ def get_app(identifier) -> object:
         # with 200 OK would be more reliable.
         # print(e) # Error 8000 from VIP 
         return None
-    return convert_app_version(appver)
+    return convert_appversion(appver)
 
 # normalized descriptor filename, assuming name & version are already ok
 def descriptor_filename(appname, appversion):
@@ -290,6 +315,7 @@ class AppFields:
     # This should be kept explicit in command-line args.
 
     # default values for a new app:
+    parent = None
     owner = None
     groups = []
     citation = ""
@@ -302,7 +328,8 @@ class AppFields:
     source = ""
     # app is defined on update only, and contains the existing appversion
     # args is defined everytime, and contains user-provided values
-    def __init__(self, app=None, args=None):
+    def __init__(self, parent=None, app=None, args=None):
+        self.parent = parent
         # on update, default to keeping existing values
         if app != None:
             self.is_visible = app["is_visible"]
@@ -343,27 +370,25 @@ def import_file(file, fields, is_overwrite=False, dry_run=True, verbose=False):
     appname = file["descriptor"]["name"]
     version = file["descriptor"]["tool-version"]
     descriptor = file["rawtext"]
-    app = {"name":appname,"applicationGroups":fields.groups,"owner":fields.owner,"citation":fields.citation,"public":fields.public}
-    app_url = "admin/applications/" + urllib.parse.quote(appname)
-    appver = {"applicationName":appname,"version":version,"descriptor":descriptor,"doi":fields.doi,"visible":fields.is_visible,"resources":fields.resources,"tags":fields.tags,"settings":fields.settings,"source":fields.source}
-    appver_url = "admin/appVersions/" + urllib.parse.quote(appname) + "/" + urllib.parse.quote(version)
     msg = ""
     if is_overwrite:
         msg += " (overwrite)"
     if dry_run:
         msg += " (dry run)"
     # never change app on update: doing so would be arguable if there are
-    # several appversions per app, and also it avoids having to fetch app
-    # fields on GET (see AppFields())
-    can_put_app = not is_overwrite
+    # several appversions per app
     print("importing app %s %s%s" % (appname, version, msg))
-    if can_put_app:
+    if fields.parent == None and is_overwrite == False:
+        app = {"name":appname,"applicationGroups":fields.groups,"owner":fields.owner,"citation":fields.citation,"public":fields.public}
+        app_url = "admin/applications/" + urllib.parse.quote(appname)
         if verbose:
             print("PUT %s %s" % (app_url, app))
         if not dry_run:
             r = vip.generic_put(app_url, app)
             if verbose:
                 print("app updated:", r)
+    appver = {"applicationName":appname,"version":version,"descriptor":descriptor,"doi":fields.doi,"visible":fields.is_visible,"resources":fields.resources,"tags":fields.tags,"settings":fields.settings,"source":fields.source}
+    appver_url = "admin/appVersions/" + urllib.parse.quote(appname) + "/" + urllib.parse.quote(version)
     if verbose:
         print("PUT %s %s" % (appver_url, appver))
     if not dry_run:
@@ -439,12 +464,15 @@ def import_existing_app(app, file, fields, is_overwrite=False,
                     dry_run=dry_run, verbose=verbose)
 
 def import_new_app(file, fields, dry_run=True, verbose=False):
-        print("%s: new app" % file["identifier"])
-        import_file(file, fields, is_overwrite=False,
-                    dry_run=dry_run, verbose=verbose)
+    if fields.parent != None:
+        print("%s: new appversion" % file["identifier"])
+    else:
+        print("%s: new app+appversion" % file["identifier"])
+    import_file(file, fields, is_overwrite=False,
+                dry_run=dry_run, verbose=verbose)
 
 # sync a list of descriptors with a list of apps (from a VIP instance)
-def perform_sync(args, apps, files):
+def perform_sync(args, parents, apps, files):
     # sort both lists, then do one linear pass on them
     # we could also use dicts and the sets of their keys.
     apps.sort(key=lambda app: app["identifier"])
@@ -467,7 +495,9 @@ def perform_sync(args, apps, files):
                 app = None
         if file != None:
             # set field values from global args + per-file overrides
-            fields = AppFields(app=app, args=args)
+            appname = file["descriptor"]["name"]
+            parent = parents[appname] if appname in parents else None
+            fields = AppFields(app=app, args=args, parent=parent)
             if "resources" in file:
                 fields.resources = file["resources"]
             if "settings" in file:
@@ -508,7 +538,7 @@ def print_app(label: str, identifier: str, desc: dict,
 
 # list apps and descriptors on a VIP instance
 def cmd_list_apps(args):
-    apps = get_apps()
+    apps = get_appversions()
     print("found %d apps on %s:" % (len(apps), get_vip_url()))
     for app in apps:
         print_app(app["name"], app["identifier"], app["descriptor"],
@@ -547,8 +577,9 @@ def cmd_import_file(args):
     # check if app exists
     appname = file["descriptor"]["name"]
     version = file["descriptor"]["tool-version"]
-    app = get_app(file["identifier"])
-    fields = AppFields(app=app, args=args)
+    parent = get_parentapp(appname)
+    app = get_appversion(file["identifier"])
+    fields = AppFields(app=app, args=args, parent=parent)
     if app != None: # app already exists
         import_existing_app(app, file, fields,
                             is_overwrite=args.overwrite,
@@ -570,25 +601,27 @@ def cmd_check_file(args):
 # sync apps from a directory of boutiques descriptors to a VIP instance
 def cmd_sync_dir(args):
     # get apps list from VIP
-    apps = get_apps()
+    parents = get_parentapps()
+    apps = get_appversions()
     # get files list, converting from dict
     files = get_files_from_dir(args.dirname, silent=args.silent)
     files = list(files.values())
     # sync
-    perform_sync(args, apps, files)
+    perform_sync(args, parents, apps, files)
 
 # sync apps from a CSV index file to a VIP instance
 def cmd_sync_index(args):
     # get apps list from VIP
-    apps = get_apps()
+    parents = get_parentapps()
+    apps = get_appversions()
     # get files list
     files = get_files_from_index(args.filename, silent=args.silent)
     files = list(files.values())
     # sync
-    perform_sync(args, apps, files)
+    perform_sync(args, parents, apps, files)
 
 def cmd_show_apps(args):
-    print(get_apps())
+    print(get_appversions())
 
 def cmd_show_files(args):
     print(get_files_from_dir(args.dirname, silent=args.silent))
