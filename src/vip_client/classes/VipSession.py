@@ -697,7 +697,7 @@ class VipSession(VipLauncher):
 
     # Method to check existence of a distant or local resource.
     @classmethod
-    def _exists(cls, path: PurePath, location="local") -> bool:
+    def _exists(cls, path: PurePath, location="local", ignore_empty_dir=False) -> bool:
         """
         Checks existence of a distant (`location`="vip") or local (`location`="local") resource.
         `path` can be a string or path-like object. If `location` is "local", empty folders are 
@@ -705,7 +705,10 @@ class VipSession(VipLauncher):
         """
         # Check path existence in `location`
         if location=="local":
-            return os.path.exists(path) and os.path.isdir(path) and os.listdir(path)
+            if not ignore_empty_dir:
+                return os.path.exists(path)
+            else:
+                return os.path.exists(path) and (os.path.isfile(path) or os.listdir(path))
         else: 
             return super()._exists(path=path, location=location)
     # ------------------------------------------------
@@ -812,12 +815,17 @@ class VipSession(VipLauncher):
         Displays what it does if `self._verbose` is True.
         Returns a list of files which failed to be uploaded on VIP.
         """
+        files_to_upload = []
         # Scan the local directory
-        assert self._exists(local_path, location='local'), f"{local_path} does not exist."
+        assert os.path.exists(local_path), f"{local_path} does not exist."
+
         # First display
         self._print(f"Cloning: {local_path} ", end="... ")
+
+        if not os.listdir(local_path):
+            self._print("Ignoring empty dir")
         # Scan the distant directory and look for files to upload
-        if self._mkdirs(vip_path, location="vip"):
+        elif self._mkdirs(vip_path, location="vip"):
             # The distant directory did not exist before call
             # -> upload all the data (no scan to save time)
             files_to_upload = [
@@ -974,7 +982,7 @@ class VipSession(VipLauncher):
             # Update the file metadata
             files_to_download[file].update()
             # Make the parent directory (if needed)
-            self._mkdirs(local_path.parent, location="local", exist_ok=True)
+            self._mkdirs(local_path.parent, location="local")
         # Return the list of files to download
         return files_to_download
     # ------------------------------------------------
