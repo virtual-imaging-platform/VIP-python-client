@@ -64,7 +64,7 @@ def test_run_and_finish(mocker, nb_runs, pipeline_id):
     processing = 100
     
 
-    def fake_exists(cls=None, path=None, location="local"):
+    def fake_exists(cls=None, path=None, location="local", ignore_empty_dir=False):
         return True
     
     with patch.object(VipSession, '_exists', fake_exists):

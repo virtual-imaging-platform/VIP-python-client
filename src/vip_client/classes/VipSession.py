@@ -817,12 +817,12 @@ class VipSession(VipLauncher):
         """
         files_to_upload = []
         # Scan the local directory
-        assert os.path.exists(local_path), f"{local_path} does not exist."
+        assert self._exists(local_path, location='local'), f"{local_path} does not exist."
 
         # First display
         self._print(f"Cloning: {local_path} ", end="... ")
 
-        if not os.listdir(local_path):
+        if not self._exists(local_path, location='local', ignore_empty_dir=True):
             self._print("Ignoring empty dir")
         # Scan the distant directory and look for files to upload
         elif self._mkdirs(vip_path, location="vip"):
