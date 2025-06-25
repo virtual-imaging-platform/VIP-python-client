@@ -47,7 +47,7 @@ def init_api() -> None:
 # make parentapp object from GET /rest/admin/applications response
 def convert_parentapp(app):
     name = app["name"]
-    result = {"name":name,"owner":app["owner"],"citation":app["citation"],"groups":app["applicationGroups"],"public":app["public"]}
+    result = {"name":name,"owner":app["owner"],"citation":app["citation"],"groups":app["groupsNames"]}
     return result
 
 # make appversion object from GET /rest/admin/appVersions response
@@ -310,7 +310,7 @@ def get_files_from_index(indexfile: str, silent=False) -> dict:
 
 # helper class for the default values of extra fields in apps and appversions
 class AppFields:
-    # Note a non-obvious behavior: owner/group/citation/public are app-level,
+    # Note a non-obvious behavior: owner/group/citation are app-level,
     # not appversion-level, and can't be changed on update (see import_file())
     # This should be kept explicit in command-line args.
 
@@ -319,7 +319,6 @@ class AppFields:
     owner = None
     groups = []
     citation = ""
-    public = False
     resources = []
     tags = []
     settings = {}
@@ -349,8 +348,6 @@ class AppFields:
         if args != None:
             if args.owner != None:
                 self.owner = None if args.owner == "" else args.owner
-            if args.public != None:
-                self.public = args.public
             if args.groups != None:
                 self.groups = args.groups
             if args.resources != None:
@@ -379,7 +376,8 @@ def import_file(file, fields, is_overwrite=False, dry_run=True, verbose=False):
     # several appversions per app
     print("importing app %s %s%s" % (appname, version, msg))
     if fields.parent == None and is_overwrite == False:
-        app = {"name":appname,"applicationGroups":fields.groups,"owner":fields.owner,"citation":fields.citation,"public":fields.public}
+        groups = list(map(lambda g:{"name":g}, fields.groups))
+        app = {"name":appname,"groups":groups,"owner":fields.owner,"citation":fields.citation}
         app_url = "admin/applications/" + urllib.parse.quote(appname)
         if verbose:
             print("PUT %s %s" % (app_url, app))
@@ -677,7 +675,6 @@ def add_import_options(cmd):
     # app fields (create only)
     cmd.add_argument("--owner", type=str, help="set owner field (create only)")
     cmd.add_argument("--groups", type=parse_strlist, help="set groups field (create only)")
-    cmd.add_argument("--public", type=parse_bool, help="set public field (create only)")
     # appversion fields (create+update)
     cmd.add_argument("--resources", type=parse_strlist, help="set resources field (create+update)")
     cmd.add_argument("--visible", type=parse_bool, help="set visible field (create+update)")
