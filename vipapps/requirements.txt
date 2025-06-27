@@ -1,0 +1,2 @@
+boutiques==0.5.29
+requests==2.32.3
