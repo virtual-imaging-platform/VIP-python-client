@@ -174,13 +174,18 @@ def load_descriptor(filepath, silent=False) -> dict:
         rawtext = f.read()
         f.seek(0)
         desc = json.load(f)
+        # VIP-specific checks, in addition to "bosh validate".
+        # These rules should be kept similar to those in VIP-portal/BoutiquesParser.java.
         appname = desc["name"]
         appversion = desc["tool-version"]
-        # check name and version strings
-        if not re.match(r"^[a-zA-Z0-9_\. +-]+$", appname):
+        # check mandatory fields, and name+version content
+        if not re.match(r"^[a-zA-Z0-9_\.@ +-]+$", appname):
             raise ValueError("invalid name '%s'" % appname)
         if not re.match(r"^[a-zA-Z0-9_\.@ +-]+$", appversion):
             raise ValueError("invalid version '%s'" % appversion)
+        # author field mandatory
+        if "author" not in desc:
+            raise ValueError("%s: missing author" % filepath)
         # check container-image (just warnings)
         if not silent:
             if not "container-image" in desc:
