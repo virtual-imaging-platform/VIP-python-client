@@ -311,11 +311,13 @@ In the `VipSession` output directory (`output_dir`), the file tree displayed [ab
 
 * One `VipSession` instance can launch multiple workflows: 
   - by calling `launch_pipeline()` several times, 
-  - by increasing argument `nb_runs`, 
   - by calling `run_session()` several times, 
-  - by [re-starting the session](#relaunch-a-finished-session) after it was "finished". 
-
-* In the two first options, the workflows will run in parallel on VIP. To run *parallel workflows* on VIP, please [contact VIP support](<vip-support@creatis.insa-lyon.fr>) to **increase your execution capacity** (1 by default).
+  - by [re-starting the session](#relaunch-a-finished-session) after it was "finished".
+ 
+> [!CAUTION]
+> Make sure to change inputs when launching multiple workflows to avoid doing exactly the same thing.
+  
+* To run *parallel workflows* on VIP, please [contact VIP support](<vip-support@creatis.insa-lyon.fr>) to **increase your execution capacity** (1 by default).
 
 * Multiple Vipsession instances can be smartly used to run multiple `pipeline_id` and multiple `input_settings` on the same dataset. See [below][multiple-sessions] for a detailed procedure.
 
