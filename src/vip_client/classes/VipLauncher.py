@@ -453,7 +453,8 @@ class VipLauncher():
             - Lists of parameters launch parallel workflows on VIP.
         - `output_dir` (str) Path to the VIP folder where execution results will be stored.
             (Does not need to exist)
-        - `nb_runs` (int) Number of parallel workflows to launch with the same `pipeline_id`/`input_settings`.
+        - `nb_runs` (int) Number of parallel workflows to launch with the same settings
+            (warning : this does not split, this duplicates).
 
         Error profile:
         - Raises TypeError:
@@ -607,7 +608,8 @@ class VipLauncher():
 
         |!| This function assumes that all session properties are already set.
         Optional arguments can be provided:
-        - Increase `nb_runs` to run more than 1 execution at once;
+        - Increase `nb_runs` to run more than 1 execution at once with the same settings
+            (warning : this does not split, this duplicates).
         - Set `refresh_time` to modify the default refresh time;
         """
         # Run the pipeline

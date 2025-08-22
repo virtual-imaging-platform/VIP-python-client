@@ -408,7 +408,8 @@ class VipSession(VipLauncher):
             - Run VipSession.show_pipeline(`pipeline_id`) to display these parameters.
             - The dictionary can contain any object that can be converted to strings, or lists of such objects.
             - Lists of parameters launch parallel workflows on VIP.
-        - `nb_runs` (int) Number of parallel workflows to launch with the same `pipeline_id`/`input_settings`.
+        - `nb_runs` (int) Number of parallel workflows to launch with the same settings
+            (warning : this does not split, this duplicates).
         
         Error profile:
         - Raises TypeError:
@@ -547,7 +548,8 @@ class VipSession(VipLauncher):
         |!| This method assumes that all session properties are already set.
         Optional arguments can still be provided:
         - Set `update_files` to False to avoid checking the input data on VIP;
-        - Increase `nb_runs` to run more than 1 execution at once;
+        - Increase `nb_runs` to run more than 1 execution at once with the same settings
+            (warning : this does not split, this duplicates).
         - Set `refresh_time` to modify the default monitoring time;
         - Set `get_status` to download files from workflows with a specific status
         - Set unzip to False to avoid extracting .tgz files during the download. 

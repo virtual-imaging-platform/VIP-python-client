@@ -273,7 +273,8 @@ class VipGirder(VipSession):
             - The dictionary can contain any object that can be converted to strings, or lists of such objects.
             - Lists of parameters launch parallel workflows on VIP.
         - `output_dir` (str) Path to the VIP folder where execution results will be stored.
-        - `nb_runs` (int) Number of parallel workflows to launch with the same settings.
+        - `nb_runs` (int) Number of parallel workflows to launch with the same settings
+            (warning : this does not split, this duplicates).
         
         Default behaviour:
         - Raises AssertionError in case of wrong inputs 
@@ -310,7 +311,8 @@ class VipGirder(VipSession):
 
         |!| This function assumes that all session properties are already set.
         Optional arguments can be provided:
-        - Increase `nb_runs` to run more than 1 execution at once;
+        - Increase `nb_runs` to run more than 1 execution at once with the same settings
+            (warning : this does not split, this duplicates).
         - Set `refresh_time` to modify the default refresh time.
         """
         (self.launch_pipeline(nb_runs=nb_runs)
