@@ -1,0 +1,18 @@
+# This is the template for the all of the Python VIP projects workflow CI integration
+# This is only for release artifacts that must be triggered manually
+
+name: VIP CI Integration (releases)
+
+on:
+  # this is the action for "manual" triggering using the "run workflow" button
+  workflow_dispatch:
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nexus
+        uses: virtual-imaging-platform/vip-github-actions/.github/actions/pypi@ci-python
+        with:
+          nexus_password: ${{ secrets.NEXUS_PSW }}
+          is_release: true

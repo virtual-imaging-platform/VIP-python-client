@@ -1,0 +1,17 @@
+# This is the template for the all of the Python VIP projects workflow CI integration
+# This is only for snapshots artifacts
+
+name: VIP CI Integration (snapshots)
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nexus
+        uses: virtual-imaging-platform/vip-github-actions/.github/actions/pypi@ci-python
+        with:
+          nexus_password: ${{ secrets.NEXUS_PSW }}
