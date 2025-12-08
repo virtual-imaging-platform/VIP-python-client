@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Nexus
-        uses: virtual-imaging-platform/vip-github-actions/.github/actions/pypi@ci-python
+        uses: virtual-imaging-platform/vip-github-actions/.github/actions/pypi@develop
         with:
           nexus_password: ${{ secrets.NEXUS_PSW }}
           is_release: true
