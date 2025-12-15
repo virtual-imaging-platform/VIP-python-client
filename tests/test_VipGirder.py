@@ -1,7 +1,7 @@
 import pytest
 from pathlib import *
 
-from vip_client.classes import VipGirder
+from vip_client import VipGirder
 from mocked_services import mock_vip_api, mock_girder_client, mock_pathlib, mock_os
 from FakeGirderClient import FakeGirderClient
 
