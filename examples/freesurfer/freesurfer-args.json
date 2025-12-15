@@ -1,6 +1,6 @@
 {
-    "image": "/vip/Home/API/reconall-example/INPUTS/ds001600/sub-1/anat/sub-1_T1w.nii.gz",
-    "results-directory": "/vip/Home/API/reconall-example/OUTPUTS/",
-    "options": "-all",
-    "license key": "/vip/Home/API/reconall-example/INPUTS/LICENSE.txt"
+    "nifti": "/vip/Home/API/reconall-example/INPUTS/ds001600/sub-1/anat/sub-1_T1w.nii.gz",
+    "subjid": "sub-1_T1w",
+    "directives": "-all",
+    "license": "/vip/Home/API/reconall-example/INPUTS/LICENSE.txt"
 }
