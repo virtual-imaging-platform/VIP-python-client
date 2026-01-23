@@ -2,7 +2,7 @@ from unittest.mock import patch
 import pytest
 from pathlib import *
 
-from vip_client.classes import VipSession
+from vip_client import VipSession
 from mocked_services import mock_vip_api, mock_pathlib, mock_os
 
 def get_properties(obj) -> dict:

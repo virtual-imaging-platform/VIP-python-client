@@ -1,4 +1,4 @@
-from vip_client.classes import VipSession, VipGirder, VipLauncher
+from vip_client import VipSession, VipGirder, VipLauncher
 from mocked_services import mock_vip_api, mock_pathlib, mock_os, mock_girder_client
 import pytest
 
