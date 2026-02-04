@@ -1115,6 +1115,9 @@ class VipSession(VipLauncher):
                         # We must use absolute paths to find the relative parts
                         input_dir = self._local_input_dir.resolve()
                         input_path = Path(input).resolve()
+                        # Check if input_path is a valid file
+                        if not input_path.exists():
+                            return input
                     else: # Return input if `_local_input_dir` is unset
                         return input
                 # Return the part of `input_path` that is relative to `input_dir` (if relevant)
