@@ -9,12 +9,14 @@ from vip_client import VipSession
 from pathlib import Path
 import os 
 
-# Save current working directory and change to /tmp
+# This directory will be uploaded to VIP — ensure no sensitive data
+# (e.g., DICOMs, scripts containing API keys) is included. 
+input_dir = Path("/insert/your/input/path/derivatives/freesurfer/tmp") #make sure license file is copied in this directory
+output_dir = Path("/insert/your/output/path/derivatives/freesurfer")
+
+# Save current working directory and change to /tmp (temporary workaround for VIP bug)
 orig_cwd = os.getcwd()  
 os.chdir('/tmp')      
-
-input_dir = Path("/insert/your/input/path/derivatives/freesurfer/tmp") #make sure license file is in this directory
-output_dir = Path("/insert/your/output/path/derivatives/freesurfer")
 
 # Collect tarballs and BASE_IDs
 tp_tarballs = [f for f in input_dir.iterdir() if f.suffix in (".tgz", ".tar.gz") and "_TPs" in f.name]
@@ -50,6 +52,8 @@ session.download_outputs(get_status=['Finished', 'Killed'])
 # session.finish()
 
 # Delete tmp folder locally
+# WARNING: This removes the entire directory.
+# Make sure that the license file is stored in another safe location.
 shutil.rmtree(input_dir)
 print(f"Deleted temporary folder: {input_dir}")
 

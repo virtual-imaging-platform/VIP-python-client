@@ -5,6 +5,7 @@ import shutil
 fs_dir = Path("/insert/your/input/path/derivatives/freesurfer")
 tmp_dir = fs_dir / "tmp"
 
+# create a tmp directory if it doesn't exist
 tmp_dir.mkdir(exist_ok=True)
 
 # Collect eligible tarballs (.tar.gz or .tgz)

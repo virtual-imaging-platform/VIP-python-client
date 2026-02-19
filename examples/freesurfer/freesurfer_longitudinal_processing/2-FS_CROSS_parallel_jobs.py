@@ -1,11 +1,20 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "vip-client",
+# ]
+
 from vip_client import VipSession
 from pathlib import Path
 import os 
 
-input_dir = Path("/insert/your/input/path") # make sure license file is in this directory
+# This directory will be uploaded to VIP — ensure no sensitive data
+# (e.g., DICOMs, scripts containing API keys) is included. 
+input_dir = Path("/insert/your/input/path") # make sure license file is copied in this directory
 output_dir = Path("/insert/your/output/path/derivatives/freesurfer")
 
-# Save current working directory and change to /tmp
+# Save current working directory and change to /tmp (temporary workaround for VIP bug)
 orig_cwd = os.getcwd()  
 os.chdir('/tmp')    
 

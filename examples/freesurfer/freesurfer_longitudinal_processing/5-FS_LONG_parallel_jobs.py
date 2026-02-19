@@ -16,9 +16,9 @@ API_KEY = "VIP_API_KEY"
 VipSession.init(api_key=API_KEY)
 
 # VIP paths 
-BASE_DIR = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/OUTPUTS/YYYY-MM-DD_HHMMSS/" # from output of BASE pipeline
-TP_DIR   = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/" # from input of BASE pipeline
-LICENSE_FILE = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/license.txt" # from input of BASE pipeline
+BASE_DIR = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/OUTPUTS/YYYY-MM-DD_HHMMSS/" # from the output of BASE pipeline
+TP_DIR   = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/" # from the input of BASE pipeline
+LICENSE_FILE = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/license.txt" # from the input of BASE pipeline
 
 # Local output directory
 output_dir = Path("/home/zakaria/VIP/guillaume_data_test/derivatives/freesurfer")
