@@ -21,7 +21,7 @@ TP_DIR   = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/" # from the input
 LICENSE_FILE = "/vip/Home/API/VipSession-xxxxxx-xxxxxx-bxx/INPUTS/license.txt" # from the input of BASE pipeline
 
 # Local output directory
-output_dir = Path("/home/zakaria/VIP/guillaume_data_test/derivatives/freesurfer")
+output_dir = Path("/insert/your/output/path/derivatives/freesurfer")
 
 # List BASE and TP files from VIP 
 base_files = [
