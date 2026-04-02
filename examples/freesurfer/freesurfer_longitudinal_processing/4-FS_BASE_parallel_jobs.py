@@ -48,9 +48,6 @@ os.chdir(orig_cwd)
 # Download outputs to the output_dir
 session.download_outputs(get_status=['Finished', 'Killed'])
 
-# Optional cleanup of outputs on VIP 
-# session.finish()
-
 # Delete tmp folder locally
 # WARNING: This removes the entire directory.
 # Make sure that the license file is stored in another safe location.

@@ -66,7 +66,7 @@ session = VipSession(session_name)
 
 # Launch pipeline directly on VIP
 session.launch_pipeline(
-    pipeline_id="FreeSurfer-Recon-all-LONG/7.3.1",
+    pipeline_id="FreeSurfer-Recon-all-long+segmentHA_T1_long-7.3.1",
     input_settings=input_settings,
     output_dir= str(output_dir)
 )

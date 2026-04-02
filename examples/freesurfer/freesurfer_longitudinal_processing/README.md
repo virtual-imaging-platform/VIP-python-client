@@ -3,7 +3,7 @@
 
 ## Overview  
 
-This repository contains scripts and instructions to run **FreeSurfer longitudinal pipeline** encompassing three processing steps (cross, base, long) using **VIP Client** and **Girder** for data storage and retrieval. The pipeline supports **3D T1-weighted MRIs** for whole brain segmentation.
+This repository contains scripts and instructions to run **FreeSurfer longitudinal pipeline** encompassing three processing steps (cross, base, long), as well as the longitudinal version of hippocampus/amygdala subfield segmentation (segmentHA_T1_long.sh). VIP Python Client is used to execute the pipeline, while Girder handles data storage and retrieval. The pipeline supports **3D T1-weighted MRIs** for both whole brain segmentation and hippocampus/amygdala subfield segmentation.
   
 1. **Download MRI Data from Girder**
 2. **Run FreeSurfer Longitudinal [CROSS]**: run the standard cross-sectional `recon-all` pipeline
@@ -126,8 +126,12 @@ This script prepares the  **subject-specific timepoints tarballs for the BASE st
     -   Must  **not**  contain  `.long.`  
 -   Extracts each archive temporarily    
 -   Groups timepoints by subject (`sub-XXXX`)    
--   Re-compresses them into one  `.tgz`  per subject   
--   Cleans temporary extracted files
+-   **For subjects with multiple timepoints:**
+    -   Re-compresses them into one `.tgz` per subject for the `recon-all -base` pipeline
+-   **For subjects with only one timepoint:**
+    -   Does **not** tar them    
+    -   Saves their folder names to `single_timepoint_subjects.csv` in `derivatives/freesurfer/`
+-   Cleans up temporary extracted files
 
 ### ⚙️ Inputs
 
@@ -137,7 +141,9 @@ This script prepares the  **subject-specific timepoints tarballs for the BASE st
 ### 📤 Outputs
 
 -   Grouped per-subject archives for longitudinal processing:
-`derivatives/freesurfer/`
+`derivatives/freesurfer/tmp/`
+-   CSV listing subjects with only one timepoint:  
+`derivatives/freesurfer/single_timepoint_subjects.csv`
 
 ### How to Run
 
@@ -193,12 +199,14 @@ python3 4-FS_BASE_parallel_jobs.py
 
 
 This script runs  **FreeSurfer  `recon-all -long`**  on VIP using the  BASE templates from Step 4 and the timepoints (TPs) tarballs produced from Step 3 and were used as an input to step 4, producing segmentations more robustly by registering each timepoint to its corresponding subject template. The script:
--   Connects to VIP using the API key    
--   Lists BASE templates and TP tarballs on VIP   
--   Matches BASE templates with corresponding TP tarballs for each subject   
--   Prepares VIP input settings for the LONG pipeline  
--   Launches  `recon-all -long`  jobs in parallel on VIP    
--   Monitors workflow progress  
+-   Connects to VIP using the API key 
+-   Lists BASE templates and TP tarballs on VIP
+-   Matches BASE templates with corresponding TP tarballs for each subject 
+-   Prepares VIP input settings for the LONG pipeline 
+-   Workflow is **parallelized per subject**:
+    -   `recon-all -long` runs first
+    -   `segmentHA_T1_long.sh` runs after completion
+-   Monitors workflow progress 
 -   Downloads the completed longitudinal outputs to the local output directory
   
 ### ⚙️ Inputs  
