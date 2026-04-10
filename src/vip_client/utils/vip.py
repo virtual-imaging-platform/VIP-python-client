@@ -350,7 +350,7 @@ def count_executions()->int:
     return int(rq.text)
 
 # -----------------------------------------------------------------------------
-def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Home") -> str:
+def init_exec(pipeline, name="default", inputValues=[], resultsLocation="/vip/Home") -> str:
     url = __PREFIX + 'executions'
     headers = {
                 'apikey': __apikey,
@@ -359,7 +359,7 @@ def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Ho
     data_ = {
             "name": name, 
             'pipelineIdentifier': pipeline,
-            "inputValues": inputValues,
+            "inputValues": [inputValues] if isinstance(inputValues, dict) else inputValues,
             "resultsLocation": resultsLocation
            }
     rq = SESSION.post(url, headers=headers, json=data_)
