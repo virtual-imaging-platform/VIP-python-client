@@ -738,7 +738,7 @@ class VipGirder(VipSession):
     # ------------------------------------------------
 
     # Get the input settings after files are parsed as PathLib objects
-    def _get_input_settings(self, location="girder") -> dict:
+    def _get_input_settings(self, location="girder") -> list[dict]:
         """
         Returns the input settings with filenames adapted to `location`.
         - if `location` = "girder", returns Girder paths string format.
@@ -768,10 +768,10 @@ class VipGirder(VipSession):
         if location not in ("girder", "vip-girder"):
             return super()._get_input_settings(location)
         # Browse input settings
-        return {
-            key: get_input(value, location)
-            for key, value in self._input_settings.items()
-        }
+        return [
+            {key: get_input(value, location) if isinstance(value, list) else str(value) for key, value in input_dict.items()}
+            for input_dict in self._input_settings
+        ]
     # ------------------------------------------------
 
 ######################################################
