@@ -1197,9 +1197,11 @@ class VipSession(VipLauncher):
         """
         # Replace `vip_output_dir`" by `local_output_dir` in the path
         new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
-        # Replace forbidden characters by '-' if current OS is windows
+        # Replace forbidden characters by '-' if current OS is windows, except for drive
         if isinstance(new, PureWindowsPath):
-            new = Path(re.sub(r'[<>:"?* ]', '-', str(new)))
+            drive = new.drive
+            rest = str(new)[len(drive):]
+            new = Path(drive + re.sub(r'[<>:"?* ]', '-', str(rest)))
         # Return
         return new
     # ------------------------------------------------
