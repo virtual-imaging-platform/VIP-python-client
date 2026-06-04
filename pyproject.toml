@@ -2,12 +2,11 @@
 name = "vip-client"
 description = "Python client to use the Virtual Imaging Platform (VIP) through its RESTful API."
 license = "CECILL-B"
-version = "0.1.9"
+version = "0.1.10"
 authors = [
   { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
 ]
 maintainers = [
-  { name="Gaël Vila", email="gael.vila@creatis.insa-lyon.fr" },
   { name="Axel Bonnet", email="axel.bonnet@creatis.insa-lyon.fr" },
 ]
 readme = "doc/pypi.md"
