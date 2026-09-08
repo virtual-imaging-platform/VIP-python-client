@@ -218,7 +218,7 @@ class VipSession(VipLauncher):
                     #############
     def __init__(
             self, session_name: str=None,  input_dir=None, pipeline_id: str=None,  
-            input_settings: dict=None, output_dir=None, verbose: bool=None
+            input_settings: dict | list[dict]=None, output_dir=None, verbose: bool=None
         ) -> None:
         """
         Create a VipSession instance and sets its properties from keyword arguments.
@@ -396,7 +396,7 @@ class VipSession(VipLauncher):
 
     # Launch executions on VIP 
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, nb_runs=1
+            self, pipeline_id: str=None, input_settings: dict | list[dict]=None, nb_runs=1
         ) -> VipSession:
         """
         Launches pipeline executions on VIP.

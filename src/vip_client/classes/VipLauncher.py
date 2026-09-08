@@ -145,12 +145,13 @@ class VipLauncher():
         # Display
         self._print("Input Settings --> ", end="", flush=True)
         # Check type
-        is_input_dict_list = isinstance(input_settings, list)
-        if not isinstance(input_settings, dict) and not is_input_dict_list:
-            raise TypeError("`input_settings` should be a dictionary or a list of dictionnary")
+        is_dict = isinstance(input_settings, dict)
+        is_nonempty_dict_list = isinstance(input_settings, list) and input_settings and all(isinstance(item, dict) for item in input_settings)
+        if not (is_dict or is_nonempty_dict_list):
+            raise TypeError("`input_settings` should be a dictionary or a non-empty list of dictionaries")
 
         # Check if each input can be converted to a string with valid characters and no empty strings
-        inputs = input_settings if is_input_dict_list else [input_settings]
+        inputs = input_settings if is_nonempty_dict_list else [input_settings]
         new_input_settings = []
         for input_dict in inputs:
             self._check_invalid_input(input_dict)
@@ -313,7 +314,7 @@ class VipLauncher():
 
     def __init__(
             self, output_dir=None, pipeline_id: str=None,  
-            input_settings: dict=None, session_name: str=None, verbose: bool=None
+            input_settings: dict | list[dict]=None, session_name: str=None, verbose: bool=None
         ) -> None:
         """
         Create a VipLauncher instance and sets properties from keyword arguments. 
@@ -444,7 +445,7 @@ class VipLauncher():
 
     # Launch executions on VIP 
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, output_dir=None, nb_runs=1,
+            self, pipeline_id: str=None, input_settings: dict | list[dict]=None, output_dir=None, nb_runs=1,
         ) -> VipLauncher:
         """
         Launches pipeline executions on VIP.
@@ -1684,9 +1685,7 @@ class VipLauncher():
                     missing_files.extend(missing_files_found)
                     continue
             if param["type"] == "Boolean":
-                # Handle boolean lists
-                values = value if isinstance(value, list) else [value]
-                if not all(v in ["true", "false"] for v in values):
+                if value not in ["true", "false"]:
                     wrong_type_inputs.append(name)
                     continue
             # Check other input formats ?
