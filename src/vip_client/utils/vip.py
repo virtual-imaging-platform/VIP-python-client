@@ -350,7 +350,7 @@ def count_executions()->int:
     return int(rq.text)
 
 # -----------------------------------------------------------------------------
-def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Home") -> str:
+def init_exec(pipeline, name="default", inputValues=[], resultsLocation="/vip/Home") -> str:
     url = __PREFIX + 'executions'
     headers = {
                 'apikey': __apikey,
@@ -359,7 +359,7 @@ def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Ho
     data_ = {
             "name": name, 
             'pipelineIdentifier': pipeline,
-            "inputValues": inputValues,
+            "inputValues": [inputValues] if isinstance(inputValues, dict) else inputValues,
             "resultsLocation": resultsLocation
            }
     rq = SESSION.post(url, headers=headers, json=data_)
@@ -367,7 +367,7 @@ def init_exec(pipeline, name="default", inputValues={}, resultsLocation="/vip/Ho
     return rq.json()["identifier"]
 # -----------------------------------------------------------------------------
 
-def init_exec_without_resultsLocation(pipeline, name="default", inputValues={}) -> str:
+def init_exec_without_resultsLocation(pipeline, name="default", inputValues=[]) -> str:
     """Initiate executions with "results-directory" in the `inputValues`"""
     url = __PREFIX + 'executions'
     headers = {
@@ -377,7 +377,7 @@ def init_exec_without_resultsLocation(pipeline, name="default", inputValues={}) 
     data_ = {
             "name": name, 
             'pipelineIdentifier': pipeline,
-            "inputValues": inputValues
+            "inputValues": [inputValues] if isinstance(inputValues, dict) else inputValues,
            }
     rq = requests.post(url, headers=headers, json=data_)
     manage_errors(rq)

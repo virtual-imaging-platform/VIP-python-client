@@ -163,11 +163,14 @@ def test_properties_interface(mocker):
     # Backup the inputs
     backup = s.input_settings
     # Run a subtest for each property
-    for prop in s.input_settings:
-        setattr(s, prop, None) # Calls deleter
-        assert getattr(s, prop) is None # Public attribute must be None
-        assert not s._is_defined("_" + prop) # Private attribute must be unset
-        setattr(s, prop, backup[prop]) # Reset
+    for i, map in enumerate(s.input_settings):
+        for key, value in map.items():
+            setattr(s, key, None) # Calls deleter
+            assert getattr(s, key) is None # Public attribute must be None
+            assert not s._is_defined("_" + key) # Private attribute must be unset
+            setattr(s, key, backup[i][key]) # Reset
+
     # Test correct reset
-    for key, value in s.input_settings.items():
-        assert getattr(s, key) == value
+    for map in s.input_settings:
+        for key, value in map.items():
+            assert getattr(s, key) == value

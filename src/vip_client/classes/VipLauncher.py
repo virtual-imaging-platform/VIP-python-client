@@ -130,14 +130,14 @@ class VipLauncher():
 
     # Input settings
     @property
-    def input_settings(self) -> dict:
+    def input_settings(self) -> list[dict] | None:
         """All parameters needed to run the pipeline 
         Run show_pipeline() for more information"""
         # Return None if the private attribute is unset
         return self._get_input_settings() if self._is_defined("_input_settings") else None
     
     @input_settings.setter
-    def input_settings(self, input_settings: dict):
+    def input_settings(self, input_settings: dict | list[dict]):
         # Call deleter if agument is None
         if input_settings is None: 
             del self.input_settings
@@ -145,19 +145,25 @@ class VipLauncher():
         # Display
         self._print("Input Settings --> ", end="", flush=True)
         # Check type
-        if not isinstance(input_settings, dict):
-            raise TypeError("`input_settings` should be a dictionary")
-        
+        is_dict = isinstance(input_settings, dict)
+        is_nonempty_dict_list = isinstance(input_settings, list) and input_settings and all(isinstance(item, dict) for item in input_settings)
+        if not (is_dict or is_nonempty_dict_list):
+            raise TypeError("`input_settings` should be a dictionary or a non-empty list of dictionaries")
+
         # Check if each input can be converted to a string with valid characters and no empty strings
-        self._check_invalid_input(input_settings)
-        
-        # Parse the input settings
-        new_settings = self._parse_input_settings(input_settings)
-        self._print("parsed")
-        # Check conflicts with private attribute
-        self._check_value("_input_settings", new_settings)
-        # Update
-        self._input_settings = new_settings
+        inputs = input_settings if is_nonempty_dict_list else [input_settings]
+        new_input_settings = []
+        for input_dict in inputs:
+            self._check_invalid_input(input_dict)
+            # Parse the input settings
+            new_settings = self._parse_input_settings(input_dict)
+            self._print("parsed")
+            # Check conflicts with private attribute
+            self._check_value("_input_settings", new_settings)
+            # Update
+            new_input_settings.append(new_settings)
+
+        self._input_settings = new_input_settings
 
     @input_settings.deleter
     def input_settings(self) -> None:
@@ -308,7 +314,7 @@ class VipLauncher():
 
     def __init__(
             self, output_dir=None, pipeline_id: str=None,  
-            input_settings: dict=None, session_name: str=None, verbose: bool=None
+            input_settings: dict | list[dict]=None, session_name: str=None, verbose: bool=None
         ) -> None:
         """
         Create a VipLauncher instance and sets properties from keyword arguments. 
@@ -439,7 +445,7 @@ class VipLauncher():
 
     # Launch executions on VIP 
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, output_dir=None, nb_runs=1,
+            self, pipeline_id: str=None, input_settings: dict | list[dict]=None, output_dir=None, nb_runs=1,
         ) -> VipLauncher:
         """
         Launches pipeline executions on VIP.
@@ -556,7 +562,7 @@ class VipLauncher():
             self._print("Run launch_pipeline() to launch workflows on VIP.")
             return self
         # Update existing workflows
-        self._print("Updating worflow inventory ... ", end="", flush=True)
+        self._print("Updating workflow inventory ... ", end="", flush=True)
         self._update_workflows()
         self._print("Done.")
         # Check if workflows are still running
@@ -565,7 +571,7 @@ class VipLauncher():
             self._execution_report()
             # Display standby
             self._print("\n-------------------------------------------------------------")
-            self._print("The current proccess will wait until all executions are over.")
+            self._print("The current process will wait until all executions are over.")
             self._print("Their progress can be monitored on VIP portal:")
             self._print(f"\t{self._VIP_PORTAL}")
             self._print("-------------------------------------------------------------")
@@ -1538,21 +1544,21 @@ class VipLauncher():
         }
     
     # Get the input settings after files are parsed as PathLib objects
-    def _get_input_settings(self, location="vip") -> dict:
+    def _get_input_settings(self, location="vip") -> list[dict]:
         """
         Returns the input settings with their orignal values in string format.
         `location` is destined to subclasses.
         """
         if location != "vip":
             raise NotImplementedError(f"Unknown location: {location}")
-        return {
-            key: [str(v) for v in value] if isinstance(value, list) else str(value)
-            for key, value in self._input_settings.items()
-        }
+        return [
+            {key: [str(v) for v in value] if isinstance(value, list) else str(value) for key, value in input_dict.items()}
+            for input_dict in self._input_settings
+        ]
     # ------------------------------------------------
 
     # Check the input settings based on the pipeline descriptor
-    def _check_input_settings(self, input_settings: dict=None, location: str=None) -> None:
+    def _check_input_settings(self, input_settings: list[dict]=None, location: str=None) -> None:
         """
         Checks `input_settings` with respect to pipeline descriptor. If not provided, checks the instance property.
         Prerequisite: input_settings contains only strings or lists of strings.
@@ -1580,10 +1586,12 @@ class VipLauncher():
         # Check the pipeline identifier
         if not self._is_defined("_pipeline_id"): 
             raise AttributeError("Input settings could not be checked without a pipeline identifier.")
-        # Parameter names
-        self._check_input_keys(input_settings)
-        # Parameter values
-        self._check_input_values(input_settings, location=location)
+
+        for input_dict in input_settings:
+            # Parameter names
+            self._check_input_keys(input_dict)
+            # Parameter values
+            self._check_input_values(input_dict, location=location)
         # Return True when all checks are complete
         return True
     # ------------------------------------------------      

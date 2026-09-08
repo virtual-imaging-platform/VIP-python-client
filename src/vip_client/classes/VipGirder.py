@@ -119,7 +119,7 @@ class VipGirder(VipSession):
     ################ Constructor ##################
                     ############# 
     def __init__(
-        self, output_location='girder', output_dir=None, pipeline_id: str=None, input_settings: dict=None,
+        self, output_location='girder', output_dir=None, pipeline_id: str=None, input_settings: dict | list[dict]=None,
         session_name: str=None, verbose: bool=None, custom_wf_metadata: dict=None
     ) -> None:
         """
@@ -260,7 +260,7 @@ class VipGirder(VipSession):
 
     # Launch the pipeline on VIP
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, nb_runs=1
+            self, pipeline_id: str=None, input_settings: dict | list[dict]=None, nb_runs=1
         ) -> VipGirder:
         """
         Launches pipeline executions on VIP.
@@ -738,7 +738,7 @@ class VipGirder(VipSession):
     # ------------------------------------------------
 
     # Get the input settings after files are parsed as PathLib objects
-    def _get_input_settings(self, location="girder") -> dict:
+    def _get_input_settings(self, location="girder") -> list[dict]:
         """
         Returns the input settings with filenames adapted to `location`.
         - if `location` = "girder", returns Girder paths string format.
@@ -747,7 +747,7 @@ class VipGirder(VipSession):
         Returns a string version of any other parameter.
         """
         # Function to get the VIP-Girder standard from 1 input path
-        def get_input(value, location) -> str:
+        def get_input(value, location) -> str | list[str]:
             """
             If `value` is a path, returns the corresponding string.
             Value can be a single input or a list of inputs.
@@ -768,10 +768,13 @@ class VipGirder(VipSession):
         if location not in ("girder", "vip-girder"):
             return super()._get_input_settings(location)
         # Browse input settings
-        return {
-            key: get_input(value, location)
-            for key, value in self._input_settings.items()
-        }
+        return [
+            {
+                key: get_input(value, location)
+                for key, value in input_dict.items()
+            }
+            for input_dict in self._input_settings
+        ]
     # ------------------------------------------------
 
 ######################################################

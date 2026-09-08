@@ -218,7 +218,7 @@ class VipSession(VipLauncher):
                     #############
     def __init__(
             self, session_name: str=None,  input_dir=None, pipeline_id: str=None,  
-            input_settings: dict=None, output_dir=None, verbose: bool=None
+            input_settings: dict | list[dict]=None, output_dir=None, verbose: bool=None
         ) -> None:
         """
         Create a VipSession instance and sets its properties from keyword arguments.
@@ -396,7 +396,7 @@ class VipSession(VipLauncher):
 
     # Launch executions on VIP 
     def launch_pipeline(
-            self, pipeline_id: str=None, input_settings: dict=None, nb_runs=1
+            self, pipeline_id: str=None, input_settings: dict | list[dict]=None, nb_runs=1
         ) -> VipSession:
         """
         Launches pipeline executions on VIP.
@@ -1140,7 +1140,7 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # Get the input settings after they are parsed
-    def _get_input_settings(self, location="vip") -> dict:
+    def _get_input_settings(self, location="vip") -> list[dict]:
         """
         Fits `self._input_settings` to `location`, i.e. write the input paths relatively to `location`.
         Returns the modified settings.
@@ -1173,10 +1173,10 @@ class VipSession(VipLauncher):
         if location not in ("vip", "local"):
             raise NotImplementedError(f"Unknown location: {location}")
         # Browse input settings
-        return {
-            key: get_input(value, location)
-            for key, value in self._input_settings.items()
-        }
+        return [
+            {key: get_input(value, location) for key, value in input_dict.items()}
+            for input_dict in self._input_settings
+        ]
     # ------------------------------------------------
 
     def _update_input_settings(self) -> None:
@@ -1185,7 +1185,7 @@ class VipSession(VipLauncher):
         This method does nothing if `input_settings` is unset.
         """
         if self._is_defined('_input_settings'):
-            self._input_settings = self._parse_input_settings(self._input_settings)
+            self._input_settings = [self._parse_input_settings(input_dict) for input_dict in self._input_settings]
     # ------------------------------------------------
 
     # Function to convert a VIP path to local output directory
