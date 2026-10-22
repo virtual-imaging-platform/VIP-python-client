@@ -214,6 +214,16 @@ def get_path_properties(path) -> dict:
 def is_dir(path) -> bool:
     return get_path_properties(path)['isDirectory']
 
+#-----------------------------------------------------------------------------
+def remove_local_file(path):
+    if path is None:
+        return
+
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
 # -----------------------------------------------------------------------------
 def delete_path(path)->bool:
     """
@@ -253,17 +263,12 @@ def upload(path, where_to_save) -> bool:
         return True
 
 # -----------------------------------------------------------------------------
-def download(path, where_to_save) -> bool :
-    """
-    Downloads a single file from VIP.
-    - `path`: on VIP, something like "/vip/Home/RandomName.ext", content to dl
-    - `where_to_save` : on local computer
-    """
-    # Parse arguments
-    url = __PREFIX + 'path' + path + '?action=content'
+def download_file(session, path, where_to_save) -> bool:
+    """Download a single VIP file safely to a local destination."""
+    url = __PREFIX + 'path' + str(path) + '?action=content'
     tmp_path = None
     try:
-        with SESSION.get(url, headers=__headers, stream=True) as rq:
+        with session.get(url, headers=__headers, stream=True) as rq:
             if rq.status_code != 200:
                 return False
 
@@ -272,23 +277,30 @@ def download(path, where_to_save) -> bool :
             with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=f".{dest.name}.", suffix=".part", delete=False) as tmp:
                 tmp_path = tmp.name
                 shutil.copyfileobj(rq.raw, tmp)
+                actual_size = tmp.tell()
                 content_length = rq.headers.get("Content-Length")
-                if content_length is not None:
-                    expected = int(content_length)
-                    if tmp.tell() != expected:
-                        return False
 
-                os.replace(tmp.name, dest)
-                tmp_path = None
+            # Validate after closing the temporary file.
+            if content_length is not None:
+                if actual_size != int(content_length):
+                    return False
+
+            os.replace(tmp_path, dest)
+            tmp_path = None
             return True
-    except Exception:
+    except requests.RequestException, OSError, ValueError:
         return False
     finally:
-        if tmp_path is not None:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+        remove_local_file(tmp_path)
+
+# -----------------------------------------------------------------------------
+def download(path, where_to_save) -> bool :
+    """
+    Downloads a single file from VIP.
+    - `path`: on VIP, something like "/vip/Home/RandomName.ext", content to dl
+    - `where_to_save` : on local computer
+    """
+    return download_file(SESSION, path, where_to_save)
 
 # Methods for parallel downloads
     
@@ -303,38 +315,8 @@ def download_thread(file: tuple) -> tuple :
     """
     # Parameters
     path, where_to_save = map(str, file)
-    # URL for request
-    url = __PREFIX + 'path' + path + '?action=content'
-    # Parallel download
-    tmp_path = None
-    try:
-        with thread_local.session.get(url, headers=__headers, stream=True) as rq:
-            # TODO: manage HTTP return code
-            if rq.status_code != 200:
-                return file, False
-
-            dest = Path(where_to_save)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=f".{dest.name}.", suffix=".part", delete=False) as tmp:
-                tmp_path = tmp.name
-                shutil.copyfileobj(rq.raw, tmp)
-                content_length = rq.headers.get("Content-Length")
-                if content_length is not None:
-                    expected = int(content_length)
-                    if tmp.tell() != expected:
-                        return file, False
-
-                os.replace(tmp.name, dest)
-                tmp_path = None
-            return file, True
-    except Exception:
-        return file, False
-    finally:
-        if tmp_path is not None:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+    success = download_file(thread_local.session, path, where_to_save)
+    return file, success
         
 def download_parallel(files):
     """
