@@ -288,7 +288,7 @@ def download_file(session, path, where_to_save) -> bool:
             os.replace(tmp_path, dest)
             tmp_path = None
             return True
-    except requests.RequestException, OSError, ValueError:
+    except (requests.RequestException, OSError, ValueError):
         return False
     finally:
         remove_local_file(tmp_path)
