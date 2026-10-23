@@ -216,7 +216,7 @@ def is_dir(path) -> bool:
 
 #-----------------------------------------------------------------------------
 def remove_local_file(path):
-    if path is None:
+    if path is None or not os.path.exists(path):
         return
 
     try:
