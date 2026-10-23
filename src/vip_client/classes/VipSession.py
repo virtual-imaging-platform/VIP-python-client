@@ -446,13 +446,14 @@ class VipSession(VipLauncher):
 
     # Download execution outputs from VIP servers 
     def download_outputs(
-            self, unzip: bool=True, get_status: list=["Finished"], init_timeout: int=None
-            ) -> VipSession:
+            self, unzip: bool=True, get_status: list=["Finished"], init_timeout: int=None, direct_output_path: bool=False) -> VipSession:
         """
         Downloads all session outputs from the VIP servers.
         - If `unzip` is True, extracts the data if any output is a .tar file.
         - Outputs from successful workflows can be downloaded by modifying `get_status`;
         - `init_timeout` sets the timeout [s] when fetching output metadata.
+        - `direct_output_path` determines whether to download outputs directly to the local output directory, else
+            the outputs will be downloaded to a subdirectory of the local output directory, relative to the vip path
 
         The initialization step may take a lot of time for workflows with numerous jobs.
         If this is an issue, set `init_timeout` to 0 to skip this step.
@@ -496,7 +497,7 @@ class VipSession(VipLauncher):
                 self._print()
                 continue
             # Scan the output files and search for missing files
-            files_to_download = self._init_download(workflow)
+            files_to_download = self._init_download(workflow, direct_output_path)
             # Skip if there are no missing file to download
             if not files_to_download: # All files are already there
                 self._print("Already there.") 
@@ -958,7 +959,7 @@ class VipSession(VipLauncher):
         return files_to_download
     # ------------------------------------------------
 
-    def _init_download(self, workflow) -> dict:
+    def _init_download(self, workflow, direct_output_path: bool=False) -> dict:
         """
         Returns files to download from VIP as dictionnary with keys (`vip_file`, `local_file`).
         - The returned dictionnary contains only missing files on the local machine;
@@ -970,7 +971,7 @@ class VipSession(VipLauncher):
             # Get the output path on VIP
             vip_path = PurePosixPath(output["path"])
             # Get the local equivalent path
-            local_path = self._get_local_output_path(vip_path)
+            local_path = self._get_local_output_path(vip_path, direct_output_path)
             # Check file existence on the local machine
             if self._exists(local_path, "local"): 
                 continue
@@ -1189,14 +1190,17 @@ class VipSession(VipLauncher):
     # ------------------------------------------------
 
     # Function to convert a VIP path to local output directory
-    def _get_local_output_path(self, vip_output_path: PurePosixPath) -> Path:
+    def _get_local_output_path(self, vip_output_path: PurePosixPath, direct_output_path: bool=False) -> Path:
         """
         Converts a VIP path in local format for VIP outputs. 
         `vip_output_path` can be a single string or a list of strings.
         Assumes `vip_output_path` belongs to to self._vip_output_dir.
         """
         # Replace `vip_output_dir`" by `local_output_dir` in the path
-        new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
+        if direct_output_path:
+            new = self._local_output_dir / vip_output_path.name
+        else:
+            new = self._local_output_dir / vip_output_path.relative_to(self._vip_output_dir)
         # Replace forbidden characters by '-' if current OS is windows, except for drive
         if isinstance(new, PureWindowsPath):
             drive = new.drive
