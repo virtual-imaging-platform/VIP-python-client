@@ -11,7 +11,10 @@ NB: This is a synchronous implementation.
 from concurrent.futures import ThreadPoolExecutor
 from os.path import exists
 from pathlib import *
+import os
 import threading
+import tempfile
+import shutil
 # Third-Party
 import requests
 
@@ -211,6 +214,16 @@ def get_path_properties(path) -> dict:
 def is_dir(path) -> bool:
     return get_path_properties(path)['isDirectory']
 
+#-----------------------------------------------------------------------------
+def remove_local_file(path):
+    if path is None or not os.path.exists(path):
+        return
+
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
 # -----------------------------------------------------------------------------
 def delete_path(path)->bool:
     """
@@ -250,21 +263,44 @@ def upload(path, where_to_save) -> bool:
         return True
 
 # -----------------------------------------------------------------------------
+def download_file(session, path, where_to_save) -> bool:
+    """Download a single VIP file safely to a local destination."""
+    url = __PREFIX + 'path' + str(path) + '?action=content'
+    tmp_path = None
+    try:
+        with session.get(url, headers=__headers, stream=True) as rq:
+            if rq.status_code != 200:
+                return False
+
+            dest = Path(where_to_save)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=f".{dest.name}.", suffix=".part", delete=False) as tmp:
+                tmp_path = tmp.name
+                shutil.copyfileobj(rq.raw, tmp)
+                actual_size = tmp.tell()
+                content_length = rq.headers.get("Content-Length")
+
+            # Validate after closing the temporary file.
+            if content_length is not None:
+                if actual_size != int(content_length):
+                    return False
+
+            os.replace(tmp_path, dest)
+            tmp_path = None
+            return True
+    except (requests.RequestException, OSError, ValueError):
+        return False
+    finally:
+        remove_local_file(tmp_path)
+
+# -----------------------------------------------------------------------------
 def download(path, where_to_save) -> bool :
     """
     Downloads a single file from VIP.
     - `path`: on VIP, something like "/vip/Home/RandomName.ext", content to dl
     - `where_to_save` : on local computer
     """
-    # Parse arguments
-    url = __PREFIX + 'path' + path + '?action=content'
-    rq = SESSION.get(url, headers=__headers, stream=True)
-    if rq.status_code != 200:
-        return False
-    else:
-        with open(where_to_save, 'wb') as out_file:
-            out_file.write(rq.content)
-        return True
+    return download_file(SESSION, path, where_to_save)
 
 # Methods for parallel downloads
     
@@ -279,18 +315,8 @@ def download_thread(file: tuple) -> tuple :
     """
     # Parameters
     path, where_to_save = map(str, file)
-    # URL for request
-    url = __PREFIX + 'path' + str(path) + '?action=content'
-    # Parallel download
-    with (thread_local.session.get(url, headers=__headers, stream=True) as rq,
-          open(where_to_save, 'wb') as out_file):
-        # TODO: manage HTTP return code
-        if rq.status_code != 200:
-            return file, False
-        else:
-            with open(where_to_save, 'wb') as out_file:
-                out_file.write(rq.content)
-            return file, True
+    success = download_file(thread_local.session, path, where_to_save)
+    return file, success
         
 def download_parallel(files):
     """
